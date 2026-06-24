@@ -458,9 +458,8 @@ export class AgentDashboardView extends ItemView {
 			}
 		});
 
-		void this.taskService.getTaskStats().then(stats => {
-			tasksVal.setText(`${stats.completedCount}/${stats.todayCount}`);
-		});
+		const stats = this.taskService.getCache();
+		tasksVal.setText(`${stats.completedCount}/${stats.todayCount}`);
 	}
 
 	/**
@@ -1505,23 +1504,22 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		const statsText = progressCard.createDiv({ text: '加载待办统计中...', attr: { style: 'font-size: 13px; font-weight: 600;' } });
 		const overdueText = progressCard.createDiv({ text: '', attr: { style: 'color: var(--text-error); font-size: 12px; font-weight: bold; margin-top: 6px;' } });
 
-		void this.taskService.getTaskStats().then(stats => {
-			const total = stats.todayCount || 1;
-			const completed = stats.completedCount || 0;
-			const pct = Math.round((completed / total) * 100);
+		const stats = this.taskService.getCache();
+		const total = stats.todayCount || 1;
+		const completed = stats.completedCount || 0;
+		const pct = Math.round((completed / total) * 100);
 
-			const strokeDashoffset = 282.7 - (pct / 100) * 282.7;
-			progressCircle.setAttribute('stroke-dashoffset', String(strokeDashoffset));
-			textPercentage.setText(`${pct}%`);
+		const strokeDashoffset = 282.7 - (pct / 100) * 282.7;
+		progressCircle.setAttribute('stroke-dashoffset', String(strokeDashoffset));
+		textPercentage.setText(`${pct}%`);
 
-			statsText.setText(`今日任务已完成: ${completed} / ${total} 项`);
-			if (stats.overdueCount > 0) {
-				overdueText.setText(`注意：当前有 ${stats.overdueCount} 项任务已逾期！`);
-			} else {
-				overdueText.setText('今天没有逾期任务。');
-				overdueText.setCssStyles({ color: 'var(--text-success)' });
-			}
-		});
+		statsText.setText(`今日任务已完成: ${completed} / ${total} 项`);
+		if (stats.overdueCount > 0) {
+			overdueText.setText(`注意：当前有 ${stats.overdueCount} 项任务已逾期！`);
+		} else {
+			overdueText.setText('今天没有逾期任务。');
+			overdueText.setCssStyles({ color: 'var(--text-success)' });
+		}
 
 		this.renderTodayHabits(rightCol);
 		this.renderMcpConsole(rightCol);
