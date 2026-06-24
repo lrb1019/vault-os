@@ -960,7 +960,7 @@ export class AgentDashboardView extends ItemView {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		const isCreated = file instanceof TFile;
 
-		const borderStyle = isCreated ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
+		const borderStyle = isCreated ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
 		const innerDiv = content.createDiv({ attr: { style: `border: ${borderStyle}; border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column;` } });
 		
 		const pathEl = innerDiv.createEl('div', { text: filePath, cls: 'ad-diary-path', attr: { style: 'font-family: var(--font-monospace); font-size: 11px; margin-bottom: 10px; color: var(--text-muted);' } });
@@ -1051,7 +1051,7 @@ export class AgentDashboardView extends ItemView {
 			innerDiv.empty();
 
 			if (info) {
-				innerDiv.setAttr('style', 'border: 2px solid var(--text-success); border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center;');
+				innerDiv.setAttr('style', 'border: 1px solid var(--text-success); border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center;');
 				innerDiv.createDiv({ 
 					text: info.path, 
 					attr: { style: 'font-family: var(--font-monospace); font-size: 11px; color: var(--text-muted); word-break: break-all; margin-bottom: 8px;' } 
@@ -1062,7 +1062,7 @@ export class AgentDashboardView extends ItemView {
 					attr: { style: 'font-size: 13px; line-height: 1.6; color: var(--text-normal); padding: 12px; border-radius: 6px; overflow-y: auto;' }
 				});
 			} else {
-				innerDiv.setAttr('style', 'border: 2px dashed var(--background-modifier-border); border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center;');
+				innerDiv.setAttr('style', 'border: 1px dashed var(--background-modifier-border); border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center;');
 				innerDiv.createDiv({ 
 					attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0.6; padding: 20px 0;' }
 				}, el => {
@@ -1148,14 +1148,14 @@ export class AgentDashboardView extends ItemView {
 		// Log layout (compressed)
 		const topLogContainer = rightCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex-shrink: 0;' } });
 		
-		const inboxItem = topLogContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const inboxItem = topLogContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const inboxLeft = inboxItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px;' } });
 		const inboxIconEl = inboxLeft.createDiv(); setIcon(inboxIconEl, 'inbox');
 		const inboxTextWrap = inboxLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 0;' } });
 		inboxTextWrap.createSpan({ text: '待分类文件', attr: { style: 'font-weight: 600; font-size: 12px;' } });
 		const inboxDesc = inboxTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 10px; color: var(--text-muted);' } });
 
-		const diaryItem = topLogContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const diaryItem = topLogContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const diaryLeft = diaryItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px;' } });
 		const diaryIconEl = diaryLeft.createDiv(); setIcon(diaryIconEl, 'calendar');
 		const diaryTextWrap = diaryLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 0;' } });
@@ -1165,21 +1165,21 @@ export class AgentDashboardView extends ItemView {
 		// Inspect layout (expanded)
 		const bottomInspectContainer = rightCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 10px; flex-grow: 1; overflow-y: auto;' } });
 		
-		const orphanItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const orphanItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const orphanLeft = orphanItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
 		const orphanIconEl = orphanLeft.createDiv(); setIcon(orphanIconEl, 'compass');
 		const orphanTextWrap = orphanLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
 		orphanTextWrap.createSpan({ text: '孤儿笔记 (Orphans)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
 		const orphanDesc = orphanTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
-		const deadLinkItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const deadLinkItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const deadLinkLeft = deadLinkItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
 		const deadLinkIconEl = deadLinkLeft.createDiv(); setIcon(deadLinkIconEl, 'link');
 		const deadLinkTextWrap = deadLinkLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
 		deadLinkTextWrap.createSpan({ text: '未解析死链 (Dead Links)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
 		const deadLinkDesc = deadLinkTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
-		const emptyNoteItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const emptyNoteItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const emptyNoteLeft = emptyNoteItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
 		const emptyNoteIconEl = emptyNoteLeft.createDiv(); setIcon(emptyNoteIconEl, 'file-text');
 		const emptyNoteTextWrap = emptyNoteLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
@@ -1319,11 +1319,11 @@ export class AgentDashboardView extends ItemView {
 					emptyNoteDesc.setText(`发现 ${empty.count} 篇正文为空的笔记`);
 					
 					// Dynamic Border Colors
-					inboxItem.style.border = inbox.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
-					diaryItem.style.border = uningested.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
-					orphanItem.style.border = orphans.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
-					deadLinkItem.style.border = deadLinks.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
-					emptyNoteItem.style.border = empty.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
+					inboxItem.style.border = inbox.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
+					diaryItem.style.border = uningested.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
+					orphanItem.style.border = orphans.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
+					deadLinkItem.style.border = deadLinks.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
+					emptyNoteItem.style.border = empty.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
 
 					this.lastScanTime = moment().format('YYYY-MM-DD HH:mm:ss');
 					scanTimeSpan.setText(`上次体检: ${this.lastScanTime}`);
