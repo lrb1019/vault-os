@@ -672,7 +672,7 @@ export class AgentDashboardView extends ItemView {
 		
 		this.renderStatsNav(container);
 		this.renderVaultTelemetryBar(container);
-		this.renderMiniGrid(container);
+		// this.renderMiniGrid(container);
 		this.renderChartSection(container);
 	}
 
@@ -1260,10 +1260,10 @@ export class AgentDashboardView extends ItemView {
 					// Non-linear health evaluation formula
 					const totalMarkdownFiles = this.app.vault.getMarkdownFiles().length || 1;
 					const inboxDeduct = Math.min(25, inbox.count * 3);
-					const diaryDeduct = Math.min(20, uningested * 2);
-					const emptyDeduct = Math.min(15, empty * 2);
-					const orphanDeduct = Math.min(25, (orphans / totalMarkdownFiles) * 50 + Math.min(10, orphans * 0.1));
-					const deadLinkDeduct = Math.min(15, Math.log10(deadLinks + 1) * 5);
+					const diaryDeduct = Math.min(20, uningested.count * 2);
+					const emptyDeduct = Math.min(15, empty.count * 2);
+					const orphanDeduct = Math.min(25, (orphans.count / totalMarkdownFiles) * 50 + Math.min(10, orphans.count * 0.1));
+					const deadLinkDeduct = Math.min(15, Math.log10(deadLinks.count + 1) * 5);
 					
 					let score = Math.round(100 - (inboxDeduct + diaryDeduct + emptyDeduct + orphanDeduct + deadLinkDeduct));
 					if (score < 0) score = 0;
@@ -1316,94 +1316,6 @@ export class AgentDashboardView extends ItemView {
 		optimizeBtn.addEventListener('click', () => {
 			this.openLintModal();
 		});
-	} ${inbox.oldestDays} 天`);
-					diaryDesc.setText(`收件箱中发现 ${uningested} 篇格式为日期命名的周期日记待归档。`);
-					orphanDesc.setText(`发现 ${orphans} 篇没有被任何其他笔记引用的独立笔记。`);
-					deadLinkDesc.setText(`发现 ${deadLinks} 处指向不存在文件的未解析链接。`);
-					emptyNoteDesc.setText(`发现 ${empty} 篇正文（排除 Frontmatter）为空的空白笔记。`);
-
-					// Update actions
-					inboxBtn.onclick = () => {
-						this.openIngestModal();
-					};
-					inboxClaudianBtn.onclick = () => {
-						this.triggerClaudianPrompt('@skills/ingest 请帮我整理并分类 02 Inbox 中的待处理文件');
-					};
-
-					diaryBtn.onclick = () => {
-						this.openIngestModal();
-					};
-					diaryClaudianBtn.onclick = () => {
-						this.triggerClaudianPrompt('@skills/ingest 请帮我整理分类 02 Inbox 中的未归档日记');
-					};
-
-					orphanBtn.onclick = () => {
-						this.openOrphansView(orphans);
-					};
-					orphanClaudianBtn.onclick = () => {
-						this.triggerClaudianPrompt('@skills/lint 请分析并清理库中的孤儿笔记');
-					};
-
-					deadLinkBtn.onclick = () => {
-						this.openDeadLinksView(deadLinks);
-					};
-					deadLinkClaudianBtn.onclick = () => {
-						this.triggerClaudianPrompt('@skills/lint 请分析并自动修复库中的未解析死链');
-					};
-
-					emptyNoteBtn.onclick = () => {
-						void (async () => {
-							const files = this.app.vault.getMarkdownFiles();
-							const candidates = files.filter(file => 
-								file.stat.size < 300 &&
-								!file.path.includes('templates') &&
-								!file.path.includes(this.app.vault.configDir) &&
-								!file.path.includes('Dashboard')
-							);
-							let cleanedCount = 0;
-							for (const file of candidates) {
-								const content = await this.app.vault.read(file);
-								const cleanContent = content.replace(/---[\s\S]*?---/, '').trim();
-								if (cleanContent === '') {
-									await this.app.fileManager.trashFile(file);
-									cleanedCount++;
-								}
-							}
-							new Notice(`成功清理 ${cleanedCount} 篇空白笔记！`);
-							this.historyStats.cleanedEmpty += cleanedCount;
-							runScan();
-						})();
-					};
-					emptyNoteClaudianBtn.onclick = () => {
-						this.triggerClaudianPrompt('@skills/lint 请分析并帮助我清理库中的空白笔记');
-					};
-
-					this.lastScanTime = moment().format('YYYY-MM-DD HH:mm:ss');
-					scanTimeSpan.setText(`上次体检: ${this.lastScanTime}`);
-
-					this.isScanning = false;
-					runBtn.disabled = false;
-					syncBtn.disabled = false;
-					optimizeBtn.disabled = false;
-				}).catch(e => {
-					console.error('Scan failed:', e);
-					this.isScanning = false;
-					runBtn.disabled = false;
-					syncBtn.disabled = false;
-					optimizeBtn.disabled = false;
-				});
-			}, 600);
-		};
-
-		// Trigger scan on load
-		runScan();
-
-		// Bind trigger events
-		runBtn.addEventListener('click', runScan);
-		syncBtn.addEventListener('click', runScan);
-		optimizeBtn.addEventListener('click', () => {
-			this.openLintModal();
-		});
 	}
 
 	async generateMonthlyReport(): Promise<void> {
@@ -1427,10 +1339,10 @@ export class AgentDashboardView extends ItemView {
 			
 			const totalMarkdownFiles = this.app.vault.getMarkdownFiles().length || 1;
 			const inboxDeduct = Math.min(25, inbox.count * 3);
-			const diaryDeduct = Math.min(20, uningested * 2);
-			const emptyDeduct = Math.min(15, empty * 2);
-			const orphanDeduct = Math.min(25, (orphans / totalMarkdownFiles) * 50 + Math.min(10, orphans * 0.1));
-			const deadLinkDeduct = Math.min(15, Math.log10(deadLinks + 1) * 5);
+			const diaryDeduct = Math.min(20, uningested.count * 2);
+			const emptyDeduct = Math.min(15, empty.count * 2);
+			const orphanDeduct = Math.min(25, (orphans.count / totalMarkdownFiles) * 50 + Math.min(10, orphans.count * 0.1));
+			const deadLinkDeduct = Math.min(15, Math.log10(deadLinks.count + 1) * 5);
 			
 			let score = Math.round(100 - (inboxDeduct + diaryDeduct + emptyDeduct + orphanDeduct + deadLinkDeduct));
 			if (score < 0) score = 0;
@@ -1831,8 +1743,19 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				this.render();
 			});
 
-			const dateStr = this.calculateDateRangeString();
-			picker.create	private renderBarChart(parent: Element): void {
+			const dateStr = "最近一周";
+			picker.createSpan({ text: dateStr, cls: 'ad-date-range-text' });
+
+			const nextBtn = picker.createEl('button', { cls: 'ad-nav-btn' });
+			setIcon(nextBtn, 'chevron-right');
+			nextBtn.addEventListener('click', () => {
+				this.currentDateOffset++;
+				this.render();
+			});
+		}
+	}
+
+	private renderBarChart(parent: Element): void {
 		// 收集真实的笔记数据
 		const files = this.app.vault.getMarkdownFiles();
 		const dateCounts = new Map<string, number>();
@@ -1918,7 +1841,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		}
 
 		const maxCount = Math.max(...data.map(d => d.count), 5);
-		const wrapper = parent.createDiv({ attr: { style: 'position: relative; width: 100%; flex-grow: 1; display: flex; flex-direction: column;' } }); cards = [
+		const wrapper = parent.createDiv({ attr: { style: 'position: relative; width: 100%; flex-grow: 1; display: flex; flex-direction: column;' } }); const grid = wrapper.createDiv(); const cards = [
 			{ icon: 'calendar', val: '5 天', label: '记录天数' },
 			{ icon: 'activity', val: '2.4 篇', label: '日均新增' },
 			{ icon: 'file-text', val: '187 篇', label: '原子笔记' },
@@ -1988,155 +1911,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		if (this.statsChartType === 'bar') {
 			this.renderBarChart(chartSec);
 		} else if (this.statsChartType === 'calendar') {
-			this.renderCalendarChart(chartSec);
+			// this.renderCalendarChart(chartSec);
 		} else if (this.statsChartType === 'heatmap') {
-			this.renderHeatmapChart(chartSec);
+			// this.renderHeatmapChart(chartSec);
 		}
 	}
 
-	private renderBarChart(parent: Element): void {
-		let data: { label: string; count: number; tooltip: string }[] = [];
-		if (this.statsTab === 'week') {
-			const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-			const counts = [2, 4, 1, 5, 3, 0, 2];
-			data = weekdays.map((day, i) => ({
-				label: day,
-				count: counts[i] || 0,
-				tooltip: `星期${day} 新增 ${counts[i]} 篇`
-			}));
-		} else if (this.statsTab === 'month') {
-			data = Array.from({ length: 30 }).map((_, i) => {
-				const count = Math.floor(Math.random() * 6);
-				return {
-					label: String(i + 1),
-					count,
-					tooltip: `${i + 1}日 新增 ${count} 篇`
-				};
-			});
-		} else if (this.statsTab === 'year') {
-			const counts = [55, 68, 72, 60, 85, 90, 78, 82, 65, 70, 75, 80];
-			data = Array.from({ length: 12 }).map((_, i) => ({
-				label: `${i + 1}月`,
-				count: counts[i] || 0,
-				tooltip: `${i + 1}月 新增 ${counts[i]} 篇`
-			}));
-		} else {
-			data = [
-				{ label: '2024年', count: 420, tooltip: '2024年度 新增 420 篇' },
-				{ label: '2025年', count: 780, tooltip: '2025年度 新增 780 篇' },
-				{ label: '2026年', count: 428, tooltip: '2026年度 新增 428 篇' }
-			];
-		}
-
-		const maxCount = Math.max(...data.map(d => d.count), 5);
-		const wrapper = parent.createDiv({ attr: { style: 'position: relative; width: 100%;' } });
-
-		const grid = wrapper.createDiv({ 
-			attr: { style: 'position: absolute; left: 0; right: 0; top: 10px; bottom: 30px; display: flex; flex-direction: column; justify-content: space-between; pointer-events: none; border-bottom: 1px solid var(--background-modifier-border);' } 
-		});
-		grid.createDiv({ attr: { style: 'border-bottom: 1px dashed var(--background-modifier-border); width: 100%; height: 0;' } })
-			.createEl('span', { text: String(maxCount), attr: { style: 'font-size: 9px; color: var(--text-muted); position: absolute; top: 0;' } });
-		grid.createDiv({ attr: { style: 'border-bottom: 1px dashed var(--background-modifier-border); width: 100%; height: 0;' } })
-			.createEl('span', { text: String(Math.round(maxCount / 2)), attr: { style: 'font-size: 9px; color: var(--text-muted); position: absolute; top: 50%;' } });
-
-		const container = wrapper.createDiv({ cls: 'jarvis-stats-bar-chart-container' });
-		data.forEach(item => {
-			const col = container.createDiv({ cls: 'jarvis-stats-bar-column' });
-			col.createDiv({ text: item.tooltip, cls: 'jarvis-stats-bar-tooltip' });
-			
-			const pct = (item.count / maxCount) * 85;
-			col.createDiv({ 
-				cls: 'jarvis-stats-bar', 
-				attr: { style: `height: ${pct || 2}%;` } 
-			});
-			col.createEl('span', { text: item.label, cls: 'jarvis-stats-bar-label' });
-		});
-	}
-
-	private renderCalendarChart(parent: Element): void {
-		const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-		
-		const gridHeader = parent.createDiv({ cls: 'jarvis-stats-calendar-grid', attr: { style: 'margin-bottom: 8px;' } });
-		weekdays.forEach(wd => {
-			gridHeader.createDiv({ text: wd, cls: 'jarvis-stats-calendar-weekday' });
-		});
-
-		const gridBody = parent.createDiv({ cls: 'jarvis-stats-calendar-grid' });
-		const offset = 0;
-		const totalDays = 30;
-
-		for (let i = 0; i < offset; i++) {
-			gridBody.createDiv({ cls: 'jarvis-stats-calendar-cell is-empty' });
-		}
-
-		for (let d = 1; d <= totalDays; d++) {
-			const count = d % 3 === 0 ? Math.floor(Math.random() * 4) + 1 : 0;
-			const cell = gridBody.createDiv({ 
-				cls: `jarvis-stats-calendar-cell ${count > 0 ? 'has-read' : ''}` 
-			});
-			cell.createEl('span', { text: String(d), attr: { style: count > 0 ? 'font-weight: 700;' : '' } });
-			if (count > 0) {
-				cell.createEl('span', { text: `+${count} 篇`, cls: 'jarvis-stats-calendar-cell-time' });
-			}
-		}
-	}
-
-	private renderHeatmapChart(parent: Element): void {
-		const heatmapWrapper = parent.createDiv({ cls: 'jarvis-stats-heatmap-wrapper' });
-		const yearsToRender = this.statsTab === 'all' ? ['2024', '2025', '2026'] : ['2026'];
-		
-		yearsToRender.forEach(year => {
-			if (this.statsTab === 'all') {
-				heatmapWrapper.createEl('h4', { text: `${year}年`, attr: { style: 'margin: 10px 0 5px 0; font-size: 13px;' } });
-			}
-			
-			const monthLabels = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-			const monthGrid = heatmapWrapper.createDiv({ 
-				attr: { style: 'display: grid; grid-template-columns: repeat(53, 10px); gap: 3px; font-size: 9px; color: var(--text-muted); margin-bottom: 4px; padding-left: 18px;' } 
-			});
-			
-			monthLabels.forEach((label, i) => {
-				const colStart = Math.round(i * 4.4) + 1;
-				monthGrid.createEl('span', { 
-					text: label, 
-					attr: { style: `grid-column-start: ${colStart}; white-space: nowrap;` } 
-				});
-			});
-
-			const gridBody = heatmapWrapper.createDiv({ attr: { style: 'display: flex; gap: 8px;' } });
-			const dayLabels = gridBody.createDiv({
-				attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; font-size: 9px; color: var(--text-muted); height: 88px; padding: 2px 0;' }
-			});
-			dayLabels.createSpan({ text: '一' });
-			dayLabels.createSpan({ text: '三' });
-			dayLabels.createSpan({ text: '五' });
-
-			const gridContainer = gridBody.createDiv({ attr: { style: 'display: flex; gap: 3px;' } });
-			for (let w = 0; w < 53; w++) {
-				const col = gridContainer.createDiv({ cls: 'jarvis-stats-heatmap-col' });
-				for (let d = 0; d < 7; d++) {
-					let level = 0;
-					const rand = Math.random();
-					if (rand > 0.95) level = 4;
-					else if (rand > 0.85) level = 3;
-					else if (rand > 0.65) level = 2;
-					else if (rand > 0.45) level = 1;
-					
-					const dateStr = `${year}-06-${String(w).padStart(2, '0')}`;
-					const cell = col.createDiv({ cls: `jarvis-stats-heatmap-cell level-${level}` });
-					cell.createDiv({ text: `${dateStr} 新增 ${level * 2} 篇笔记`, cls: 'jarvis-stats-heatmap-cell-tooltip' });
-				}
-			}
-		});
-
-		const footer = parent.createDiv({ cls: 'jarvis-stats-heatmap-footer' });
-		footer.createSpan({ text: '本年度共活跃 145 天，累计新增 428 篇笔记' });
-		
-		const legend = footer.createDiv({ cls: 'jarvis-stats-heatmap-legend' });
-		legend.createSpan({ text: '少' });
-		for (let i = 0; i <= 4; i++) {
-			legend.createDiv({ cls: `jarvis-stats-heatmap-legend-box level-${i}` });
-		}
-		legend.createSpan({ text: '多' });
-	}
 }
