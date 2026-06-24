@@ -1,16 +1,24 @@
 import { App, TFile } from 'obsidian';
 import { McpService } from './McpService';
 
+export interface TaskItem {
+	text: string;
+	checked: boolean;
+	time?: string;
+}
+
 export interface TaskStats {
 	todayCount: number;
 	completedCount: number;
 	overdueCount: number;
+	tasks: TaskItem[];
 }
 
 interface CachedTaskData {
 	todayCount?: number;
 	completedCount?: number;
 	overdueCount?: number;
+	tasks?: TaskItem[];
 }
 
 interface McpTool {
@@ -62,7 +70,8 @@ export class TaskService {
 					return {
 						todayCount: data.todayCount,
 						completedCount: data.completedCount || 0,
-						overdueCount: data.overdueCount || 0
+						overdueCount: data.overdueCount || 0,
+						tasks: data.tasks || []
 					};
 				}
 			}
@@ -74,7 +83,12 @@ export class TaskService {
 		return {
 			todayCount: 8,
 			completedCount: 5,
-			overdueCount: 1
+			overdueCount: 1,
+			tasks: [
+				{ text: '未连接到 TickTick 数据源', checked: false, time: '' },
+				{ text: '缺少 .claude/mcp.json 配置', checked: false, time: '' },
+				{ text: '或缺少 07 Jarvis/ticktick-cache.json 缓存', checked: false, time: '' }
+			]
 		};
 	}
 
@@ -125,6 +139,7 @@ export class TaskService {
 		let todayCount = 0;
 		let completedCount = 0;
 		let overdueCount = 0;
+		let parsedTasks: TaskItem[] = [];
 
 		interface ParseMcpTask {
 			dueDate?: string | number | Date;
@@ -133,6 +148,9 @@ export class TaskService {
 			status?: number | string;
 			state?: number | string;
 			completed?: boolean;
+			title?: string;
+			text?: string;
+			name?: string;
 		}
 
 		try {
@@ -171,7 +189,7 @@ export class TaskService {
 					}
 				});
 
-				return { todayCount, completedCount, overdueCount };
+				return { todayCount, completedCount, overdueCount, tasks: parsedTasks };
 			}
 		} catch {
 			// Textual fallback: parse bullet points or status keywords
@@ -193,7 +211,8 @@ export class TaskService {
 		return {
 			todayCount: todayCount || 5,
 			completedCount: completedCount || 3,
-			overdueCount: overdueCount || 0
+			overdueCount: overdueCount || 0,
+			tasks: parsedTasks
 		};
 	}
 }
