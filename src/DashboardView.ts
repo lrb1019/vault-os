@@ -2095,15 +2095,15 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				});
 			});
 
-			const gridBody = heatmapWrapper.createDiv({ attr: { style: 'display: flex; gap: 8px;' } });
+			const gridBody = heatmapWrapper.createDiv({ attr: { style: 'display: flex; gap: 8px; flex-grow: 1;' } });
 			const dayLabels = gridBody.createDiv({
-				attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; font-size: 9px; color: var(--text-muted); height: 88px; padding: 2px 0;' }
+				attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; font-size: 9px; color: var(--text-muted); flex-grow: 1; padding: 2px 0;' }
 			});
 			dayLabels.createSpan({ text: '一' });
 			dayLabels.createSpan({ text: '三' });
 			dayLabels.createSpan({ text: '五' });
 
-			const gridContainer = gridBody.createDiv({ attr: { style: 'display: flex; gap: 3px;' } });
+			const gridContainer = gridBody.createDiv({ attr: { style: 'display: flex; gap: 3px; flex-grow: 1; align-items: stretch;' } });
 			
 			const currentDate = window.moment(`${year}-01-01`).startOf('isoWeek');
 			const endDate = window.moment(`${year}-12-31`).endOf('isoWeek');

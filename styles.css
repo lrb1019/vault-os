@@ -245,7 +245,7 @@
 }
 
 /* 图表区域拉伸 */
-.jarvis-stats-chart-section {
+.jarvis-stats-chart-section {\n\theight: 100%;\n\tjustify-content: space-between;
 	display: flex;
 	flex-direction: column;
 	flex-grow: 1;
@@ -260,7 +260,7 @@
 
 \n
 /* Calendar Chart */
-.jarvis-stats-calendar-grid {
+.jarvis-stats-calendar-grid {\n    grid-auto-rows: 1fr;\n    flex-grow: 1;
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     gap: 4px;
@@ -301,18 +301,18 @@
 }
 
 /* Heatmap Chart */
-.jarvis-stats-heatmap-wrapper {
+.jarvis-stats-heatmap-wrapper {\n    display: flex;\n    flex-direction: column;\n    flex-grow: 1;\n    height: 100%;
     overflow-x: auto;
     padding-bottom: 15px;
 }
-.jarvis-stats-heatmap-col {
+.jarvis-stats-heatmap-col {\n    flex-grow: 1;
     display: flex;
     flex-direction: column;
     gap: 3px;
 }
 .jarvis-stats-heatmap-cell {
-    width: 10px;
-    height: 10px;
+    width: 12px;
+    flex-grow: 1;
     border-radius: 2px;
     background-color: color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
     position: relative;
