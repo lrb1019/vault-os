@@ -60,7 +60,7 @@ export class McpService {
 		params: unknown
 	): Promise<unknown> {
 		return new Promise((resolve, reject) => {
-			const sseUrl = `${serverUrl}/sse`;
+			const sseUrl = serverUrl.endsWith('/sse') ? serverUrl : serverUrl; // Use serverUrl directly as per TickTick docs
 			const requestId = Math.floor(Math.random() * 1000000);
 
 			let messageEndpoint = '';
