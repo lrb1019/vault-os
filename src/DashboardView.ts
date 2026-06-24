@@ -943,54 +943,49 @@ export class AgentDashboardView extends ItemView {
 
 	private renderCurrentPeriodicNote(parent: Element): void {
 		const diaryCard = parent.createDiv({ cls: 'ad-card ad-diary-card ad-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column;' } });
-		const header = diaryCard.createDiv({ cls: 'ad-card-header' });
+		
+		const tabNames: Record<string, string> = {
+			'day': '日记', 'week': '周记', 'month': '月记', 'quarter': '季记', 'year': '年记'
+		};
+		const currentName = tabNames[this.periodicTab] || '日记';
+
+		const header = diaryCard.createDiv({ cls: 'ad-card-header', attr: { style: 'display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left;' } });
+		header.createEl('h3', { text: `今日${currentName}`, attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
 		const baseDate = moment().add(this.diaryDateOffset, this.periodicTab + 's' as any);
 		const { folderPath, fileName, filePath } = this.diaryService.resolvePeriodicNotePath(baseDate, this.periodicTab);
 		
-		const tabNames: Record<string, string> = {
-			'day': '今日日记',
-			'week': '本周周记',
-			'month': '本月月记',
-			'quarter': '本季季记',
-			'year': '本年年记'
-		};
-		const currentName = tabNames[this.periodicTab] || '日记';
-		
-		const badge = header.createSpan({ 
-			text: '检测中...',
-			cls: 'ad-badge ad-badge-muted'
-		});
+		const badge = header.createSpan({ text: '加载中...', cls: 'ad-badge ad-badge-muted' });
 
-		const content = diaryCard.createDiv({ cls: 'ad-diary-content', attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between;' } });
-		const innerDiv = content.createDiv();
-		const pathEl = innerDiv.createEl('div', { text: "加载中...", cls: 'ad-diary-path', attr: { style: 'font-family: var(--font-monospace); font-size: 11px; margin-bottom: 10px; color: var(--text-muted);' } });
-		const summaryEl = innerDiv.createEl('p', { text: `正在读取${currentName}内容...`, cls: 'ad-diary-summary', attr: { style: 'font-size: 13px; line-height: 1.5; color: var(--text-normal);' } });
+		const content = diaryCard.createDiv({ cls: 'ad-diary-content', attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; margin-top: 12px;' } });
 		
-		const openBtn = content.createEl('button', { 
-			text: `打开${currentName}`, 
-			cls: 'ad-btn ad-btn-secondary',
-			attr: { style: 'width: 100%; margin-top: 15px;' }
-		});
-		openBtn.disabled = true;
-
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		const isCreated = file instanceof TFile;
 
+		const borderStyle = isCreated ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
+		const innerDiv = content.createDiv({ attr: { style: `border: ${borderStyle}; border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column;` } });
+		
+		const pathEl = innerDiv.createEl('div', { text: filePath, cls: 'ad-diary-path', attr: { style: 'font-family: var(--font-monospace); font-size: 11px; margin-bottom: 10px; color: var(--text-muted);' } });
+		const summaryEl = innerDiv.createEl('p', { text: `读取中...`, cls: 'ad-diary-summary', attr: { style: 'font-size: 13px; line-height: 1.5; color: var(--text-normal); flex-grow: 1; overflow-y: auto;' } });
+		
 		badge.setText(isCreated ? '已创建' : '未创建');
 		badge.className = `ad-badge ${isCreated ? 'ad-badge-success' : 'ad-badge-warning'}`;
-		pathEl.setText(filePath);
 
-	if (isCreated && file) {
+		if (isCreated && file) {
 			void this.app.vault.read(file as TFile).then(fileContent => {
 				const summary = this.diaryService.extractSummary(fileContent);
 				summaryEl.setText(summary || '无摘要内容。');
 			});
 		} else {
-			summaryEl.setText(`${currentName}尚未创建，点击下方 "打开${currentName}" 按钮即可基于模板新建。`);
+			summaryEl.setText(`${currentName}尚未创建。点击下方按钮即可基于模板新建。`);
 		}
 
-		openBtn.disabled = false;
+		const openBtn = content.createEl('button', { 
+			text: `打开今日${currentName}`, 
+			cls: 'ad-btn ad-btn-secondary',
+			attr: { style: 'width: 100%; margin-top: 15px;' }
+		});
+		
 		openBtn.onclick = () => {
 			void (async () => {
 				if (!isCreated) {
@@ -1013,7 +1008,7 @@ export class AgentDashboardView extends ItemView {
 	private async renderDiaryStatsCard(parent: Element): Promise<void> {
 		const card = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'display: flex; flex-direction: column;' } });
 		const header = card.createDiv({ cls: 'ad-card-header' });
-		header.createEl('h3', { text: '日记数据概览' });
+		header.createEl('h3', { text: '日记数据概览' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 
 		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 8px 0; align-content: center;' } });
 		content.createDiv({ text: '分析中...', attr: { style: 'color: var(--text-muted); font-size: 13px; grid-column: span 2; text-align: center;' } });
@@ -1118,11 +1113,11 @@ export class AgentDashboardView extends ItemView {
 	private renderLintDashboard(parent: Element): void {
 		parent.empty();
 
-		// 1. Two column layout (Left: Health Index, Right: Diagnostic Panel)
 		const grid = parent.createDiv({ cls: 'ad-middle-grid', attr: { style: 'display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 16px;' } });
 
-		// Left Column: Score Card
 		const leftCard = grid.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; min-height: 320px;' } });
+		leftCard.createEl('h3', { text: '金库健康度', attr: { style: 'margin: 0; text-align: left; align-self: flex-start; width: 100%;' } });
+
 		const ringContainer = leftCard.createDiv({ cls: 'ad-progress-ring-container', attr: { style: 'margin: 15px auto; position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center;' } });
 		const svg = ringContainer.createSvg('svg', { cls: 'ad-progress-ring', attr: { width: '120', height: '120', style: 'position: absolute; top: 0; left: 0; transform: rotate(-90deg);' } });
 		svg.createSvg('circle', {
@@ -1150,52 +1145,47 @@ export class AgentDashboardView extends ItemView {
 		setIcon(runBtn, 'play');
 		runBtn.createSpan({ text: '开始体检' });
 
-		const rightCard = grid.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'padding: 16px; display: flex; flex-direction: column; justify-content: space-between; min-height: 320px;' } });
+		const rightCard = grid.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'padding: 16px; display: flex; flex-direction: column; justify-content: flex-start; min-height: 320px; gap: 12px;' } });
+		rightCard.createEl('h3', { text: '诊断面板', attr: { style: 'margin: 0; text-align: left; align-self: flex-start; width: 100%;' } });
 		
-		const listContainer = rightCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; align-content: start; margin-top: 8px; flex-grow: 1; overflow-y: auto;' } });
+		// Log layout (compressed)
+		const topLogContainer = rightCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex-shrink: 0;' } });
+		
+		const inboxItem = topLogContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const inboxLeft = inboxItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px;' } });
+		const inboxIconEl = inboxLeft.createDiv(); setIcon(inboxIconEl, 'inbox');
+		const inboxTextWrap = inboxLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 0;' } });
+		inboxTextWrap.createSpan({ text: '待分类文件', attr: { style: 'font-weight: 600; font-size: 12px;' } });
+		const inboxDesc = inboxTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 10px; color: var(--text-muted);' } });
 
-		// 1. Inbox Item
-		const inboxItem = listContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 10px 12px; background: var(--background-primary); border-radius: 4px; border: 1px solid var(--background-modifier-border); transition: border-color 0.2s;' } });
-		const inboxLeft = inboxItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
-		const inboxIconEl = inboxLeft.createDiv();
-		setIcon(inboxIconEl, 'inbox');
-		const inboxTextWrap = inboxLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px;' } });
-		inboxTextWrap.createSpan({ text: '待分类文件 (Inbox Backlog)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
-		const inboxDesc = inboxTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
+		const diaryItem = topLogContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const diaryLeft = diaryItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px;' } });
+		const diaryIconEl = diaryLeft.createDiv(); setIcon(diaryIconEl, 'calendar');
+		const diaryTextWrap = diaryLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 0;' } });
+		diaryTextWrap.createSpan({ text: '待入库日记', attr: { style: 'font-weight: 600; font-size: 12px;' } });
+		const diaryDesc = diaryTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 10px; color: var(--text-muted);' } });
 
-		// 2. Un-ingested Diaries
-		const diaryItem = listContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 10px 12px; background: var(--background-primary); border-radius: 4px; border: 1px solid var(--background-modifier-border); transition: border-color 0.2s;' } });
-		const diaryLeft = diaryItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
-		const diaryIconEl = diaryLeft.createDiv();
-		setIcon(diaryIconEl, 'calendar');
-		const diaryTextWrap = diaryLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px;' } });
-		diaryTextWrap.createSpan({ text: '待入库日记 (Un-ingested Diaries)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
-		const diaryDesc = diaryTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
-
-		// 3. Orphans Item
-		const orphanItem = listContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 10px 12px; background: var(--background-primary); border-radius: 4px; border: 1px solid var(--background-modifier-border); transition: border-color 0.2s;' } });
-		const orphanLeft = orphanItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
-		const orphanIconEl = orphanLeft.createDiv();
-		setIcon(orphanIconEl, 'compass');
-		const orphanTextWrap = orphanLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px;' } });
+		// Inspect layout (expanded)
+		const bottomInspectContainer = rightCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 10px; flex-grow: 1; overflow-y: auto;' } });
+		
+		const orphanItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const orphanLeft = orphanItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
+		const orphanIconEl = orphanLeft.createDiv(); setIcon(orphanIconEl, 'compass');
+		const orphanTextWrap = orphanLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
 		orphanTextWrap.createSpan({ text: '孤儿笔记 (Orphans)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
 		const orphanDesc = orphanTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
-		// 4. Dead Links Item
-		const deadLinkItem = listContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 10px 12px; background: var(--background-primary); border-radius: 4px; border: 1px solid var(--background-modifier-border); transition: border-color 0.2s;' } });
-		const deadLinkLeft = deadLinkItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
-		const deadLinkIconEl = deadLinkLeft.createDiv();
-		setIcon(deadLinkIconEl, 'link');
-		const deadLinkTextWrap = deadLinkLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px;' } });
+		const deadLinkItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const deadLinkLeft = deadLinkItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
+		const deadLinkIconEl = deadLinkLeft.createDiv(); setIcon(deadLinkIconEl, 'link');
+		const deadLinkTextWrap = deadLinkLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
 		deadLinkTextWrap.createSpan({ text: '未解析死链 (Dead Links)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
 		const deadLinkDesc = deadLinkTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
-		// 5. Empty Notes Item
-		const emptyNoteItem = listContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 10px 12px; background: var(--background-primary); border-radius: 4px; border: 1px solid var(--background-modifier-border); transition: border-color 0.2s;' } });
-		const emptyNoteLeft = emptyNoteItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
-		const emptyNoteIconEl = emptyNoteLeft.createDiv();
-		setIcon(emptyNoteIconEl, 'file-text');
-		const emptyNoteTextWrap = emptyNoteLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px;' } });
+		const emptyNoteItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 2px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const emptyNoteLeft = emptyNoteItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
+		const emptyNoteIconEl = emptyNoteLeft.createDiv(); setIcon(emptyNoteIconEl, 'file-text');
+		const emptyNoteTextWrap = emptyNoteLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
 		emptyNoteTextWrap.createSpan({ text: '空白笔记 (Empty Notes)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
 		const emptyNoteDesc = emptyNoteTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
@@ -1205,12 +1195,6 @@ export class AgentDashboardView extends ItemView {
 		orphanItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.orphans.files) new SimpleListModal(this.app, '孤儿笔记 (Orphans)', this.currentScanData.orphans.files).open(); });
 		deadLinkItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.deadLinks.files) new SimpleListModal(this.app, '未解析死链 (Dead Links)', this.currentScanData.deadLinks.files).open(); });
 		emptyNoteItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.empty.files) new SimpleListModal(this.app, '空白笔记 (Empty Notes)', this.currentScanData.empty.files).open(); });
-
-		// Add hover styles via script
-		[inboxItem, diaryItem, orphanItem, deadLinkItem, emptyNoteItem].forEach(item => {
-			item.addEventListener('mouseenter', () => item.style.borderColor = 'var(--interactive-accent)');
-			item.addEventListener('mouseleave', () => item.style.borderColor = 'var(--background-modifier-border)');
-		});
 
 		// Bottom Console: claudian Skill Panel
 		const consoleCard = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'margin-bottom: 16px; padding: 16px;' } });
@@ -1331,11 +1315,18 @@ export class AgentDashboardView extends ItemView {
 						statusText.setCssStyles({ color: 'var(--text-error)' });
 					}
 
-					inboxDesc.setText(`当前收件箱积压: ${inbox.count} 篇 Markdown 文件。最久积压: ${inbox.oldestDays} 天`);
-					diaryDesc.setText(`日记目录中发现 ${uningested.count} 篇待入库日记。`);
-					orphanDesc.setText(`发现 ${orphans.count} 篇没有被任何其他笔记引用的独立笔记。`);
-					deadLinkDesc.setText(`发现 ${deadLinks.count} 处指向不存在文件的未解析链接。`);
-					emptyNoteDesc.setText(`发现 ${empty.count} 篇正文（排除 Frontmatter）为空的空白笔记。`);
+					inboxDesc.setText(`当前积压: ${inbox.count} 篇 最久: ${inbox.oldestDays} 天`);
+					diaryDesc.setText(`发现 ${uningested.count} 篇未入库`);
+					orphanDesc.setText(`发现 ${orphans.count} 篇没有引用的孤立笔记`);
+					deadLinkDesc.setText(`发现 ${deadLinks.count} 处指向不存在文件的链接`);
+					emptyNoteDesc.setText(`发现 ${empty.count} 篇正文为空的笔记`);
+					
+					// Dynamic Border Colors
+					inboxItem.style.border = inbox.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
+					diaryItem.style.border = uningested.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
+					orphanItem.style.border = orphans.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
+					deadLinkItem.style.border = deadLinks.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
+					emptyNoteItem.style.border = empty.count > 0 ? '2px solid var(--text-success)' : '2px dashed var(--background-modifier-border)';
 
 					this.lastScanTime = moment().format('YYYY-MM-DD HH:mm:ss');
 					scanTimeSpan.setText(`上次体检: ${this.lastScanTime}`);
@@ -1503,7 +1494,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		const rightCol = grid.createDiv({ cls: 'ad-tasks-side-col' });
 		
 		const progressCard = rightCol.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'text-align: center;' } });
-		progressCard.createEl('h3', { text: '今日待办完成率' });
+		progressCard.createEl('h3', { text: '今日待办完成率' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
 		const ringContainer = progressCard.createDiv({ cls: 'ad-progress-ring-container', attr: { style: 'margin: 15px auto;' } });
 		const svg = ringContainer.createSvg('svg', { cls: 'ad-progress-ring', attr: { width: '120', height: '120' } });
@@ -1541,7 +1532,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 
 	private renderTodayTasks(parent: Element): void {
 		const todayCard = parent.createDiv({ cls: 'ad-card ad-task-card ad-tech-card' });
-		todayCard.createEl('h3', { text: '今日任务流' });
+		todayCard.createEl('h3', { text: '今日任务流' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
 		const taskList = todayCard.createDiv({ cls: 'ad-task-list' });
 		const tasks = [
@@ -1576,7 +1567,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 
 	private renderTodayHabits(parent: Element): void {
 		const habitCard = parent.createDiv({ cls: 'ad-card ad-habit-card ad-tech-card' });
-		habitCard.createEl('h3', { text: '今日习惯打卡' });
+		habitCard.createEl('h3', { text: '今日习惯打卡' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
 		const habitList = habitCard.createDiv({ cls: 'ad-habit-list' });
 		const habits = [
@@ -1624,7 +1615,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	private renderProjectsDashboard(parent: Element): void {
 		const card = parent.createDiv({ cls: 'ad-card ad-tech-card' });
 		const header = card.createDiv({ cls: 'ad-card-header' });
-		header.createEl('h3', { text: '项目追踪看板' });
+		header.createEl('h3', { text: '项目追踪看板' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		header.createSpan({ text: '基于 03 Projects 下笔记 frontmatter.status 自动分类', cls: 'ad-card-meta' });
 
 		const board = card.createDiv({ cls: 'ad-kanban-board' });
@@ -1893,37 +1884,61 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	}
 
 	private renderBarChart(parent: Element): void {
+		const files = this.app.vault.getMarkdownFiles();
+		const dateCounts = new Map<string, number>();
+		files.forEach(f => {
+			const cache = this.app.metadataCache.getFileCache(f);
+			const frontmatter = cache?.frontmatter;
+			let m: any;
+			if (frontmatter && frontmatter.created) {
+				m = window.moment(frontmatter.created);
+			} else {
+				m = window.moment(f.stat.ctime);
+			}
+			const k = m.format('YYYY-MM-DD');
+			dateCounts.set(k, (dateCounts.get(k) || 0) + 1);
+		});
+
 		let data: { label: string; count: number; tooltip: string }[] = [];
+		const today = window.moment();
+
 		if (this.statsTab === 'week') {
 			const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-			const counts = [2, 4, 1, 5, 3, 0, 2];
-			data = weekdays.map((day, i) => ({
-				label: day,
-				count: counts[i] || 0,
-				tooltip: `星期${day} 新增 ${counts[i]} 篇`
-			}));
+			const startOfWeek = today.clone().startOf('isoWeek');
+			data = weekdays.map((day, i) => {
+				const d = startOfWeek.clone().add(i, 'days');
+				const count = dateCounts.get(d.format('YYYY-MM-DD')) || 0;
+				return { label: day, count, tooltip: `周${day} 新增 ${count} 篇` };
+			});
 		} else if (this.statsTab === 'month') {
-			data = Array.from({ length: 30 }).map((_, i) => {
-				const count = Math.floor(Math.random() * 6);
-				return {
-					label: String(i + 1),
-					count,
-					tooltip: `${i + 1}日 新增 ${count} 篇`
-				};
+			const daysInMonth = today.daysInMonth();
+			const startOfMonth = today.clone().startOf('month');
+			data = Array.from({ length: daysInMonth }).map((_, i) => {
+				const d = startOfMonth.clone().add(i, 'days');
+				const count = dateCounts.get(d.format('YYYY-MM-DD')) || 0;
+				return { label: String(i + 1), count, tooltip: `${i + 1}号 新增 ${count} 篇` };
 			});
 		} else if (this.statsTab === 'year') {
-			const counts = [55, 68, 72, 60, 85, 90, 78, 82, 65, 70, 75, 80];
-			data = Array.from({ length: 12 }).map((_, i) => ({
-				label: `${i + 1}月`,
-				count: counts[i] || 0,
-				tooltip: `${i + 1}月 新增 ${counts[i]} 篇`
-			}));
+			const startOfYear = today.clone().startOf('year');
+			data = Array.from({ length: 12 }).map((_, i) => {
+				const monthStart = startOfYear.clone().add(i, 'months');
+				let monthCount = 0;
+				const days = monthStart.daysInMonth();
+				for (let j = 0; j < days; j++) {
+					monthCount += dateCounts.get(monthStart.clone().add(j, 'days').format('YYYY-MM-DD')) || 0;
+				}
+				return { label: `${i + 1}月`, count: monthCount, tooltip: `${i + 1}月 新增 ${monthCount} 篇` };
+			});
 		} else {
-			data = [
-				{ label: '2024年', count: 420, tooltip: '2024年度 新增 420 篇' },
-				{ label: '2025年', count: 780, tooltip: '2025年度 新增 780 篇' },
-				{ label: '2026年', count: 428, tooltip: '2026年度 新增 428 篇' }
-			];
+			const yearCounts = new Map<string, number>();
+			dateCounts.forEach((count, dateStr) => {
+				const y = dateStr.substring(0, 4);
+				yearCounts.set(y, (yearCounts.get(y) || 0) + count);
+			});
+			const years = Array.from(yearCounts.keys()).sort();
+			data = years.map(y => ({
+				label: `${y}年`, count: yearCounts.get(y) || 0, tooltip: `${y}年 新增 ${yearCounts.get(y)} 篇`
+			}));
 		}
 
 		const maxCount = Math.max(...data.map(d => d.count), 5);
@@ -1945,7 +1960,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const pct = (item.count / maxCount) * 85;
 			col.createDiv({ 
 				cls: 'jarvis-stats-bar', 
-				attr: { style: `height: ${pct || 2}%;` } 
+				attr: { style: `height: ${pct || 2}%; background-color: var(--color-accent);` } 
 			});
 			col.createEl('span', { text: item.label, cls: 'jarvis-stats-bar-label' });
 		});
@@ -1980,119 +1995,40 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	}
 
 	private renderHeatmapChart(parent: Element): void {
-		const heatmapWrapper = parent.createDiv({ cls: 'jarvis-stats-heatmap-wrapper' });
-		// 动态获取需要渲染的年份
-		const now = moment();
-		let targetYear = now.year();
-		if (this.statsTab === 'month') {
-			targetYear = now.clone().add(this.currentDateOffset, 'months').year();
-		} else if (this.statsTab === 'week') {
-			targetYear = now.clone().add(this.currentDateOffset, 'weeks').year();
-		} else if (this.statsTab === 'year') {
-			targetYear = now.clone().add(this.currentDateOffset, 'years').year();
-		}
-
-		let yearsToRender = [String(targetYear)];
-		if (this.statsTab === 'all') {
-			yearsToRender = [String(now.year() - 1), String(now.year())]; // 只渲染近2年避免过长，或者按需调整
-		}
-		
-		// 收集真实的笔记数据
 		const files = this.app.vault.getMarkdownFiles();
 		const dateCounts = new Map<string, number>();
 		files.forEach(f => {
-			// 优先读取 frontmatter 中的 created 或 date 字段，如果没有则回退到物理文件的 ctime (创建时间)
 			const cache = this.app.metadataCache.getFileCache(f);
 			const frontmatter = cache?.frontmatter;
-			let dateStr = '';
-			
+			let m: any;
 			if (frontmatter && frontmatter.created) {
-				dateStr = moment(frontmatter.created).format('YYYY-MM-DD');
-			} else if (frontmatter && frontmatter.date) {
-				dateStr = moment(frontmatter.date).format('YYYY-MM-DD');
+				m = window.moment(frontmatter.created);
 			} else {
-				dateStr = moment(f.stat.ctime).format('YYYY-MM-DD');
+				m = window.moment(f.stat.ctime);
 			}
-			
-			if (dateStr && dateStr !== 'Invalid date') {
-				dateCounts.set(dateStr, (dateCounts.get(dateStr) || 0) + 1);
-			}
+			const k = m.format('YYYY-MM-DD');
+			dateCounts.set(k, (dateCounts.get(k) || 0) + 1);
 		});
 
-		let totalActiveDays = 0;
-		let totalNotes = 0;
-
-		yearsToRender.forEach(yearStr => {
-			const year = parseInt(yearStr);
-			if (this.statsTab === 'all') {
-				heatmapWrapper.createEl('h4', { text: `${year}年`, attr: { style: 'margin: 10px 0 5px 0; font-size: 13px;' } });
-			}
-			
-			const monthLabels = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-			const monthGrid = heatmapWrapper.createDiv({ 
-				attr: { style: 'display: grid; grid-template-columns: repeat(53, 10px); gap: 3px; font-size: 9px; color: var(--text-muted); margin-bottom: 4px; padding-left: 18px;' } 
-			});
-			
-			monthLabels.forEach((label, i) => {
-				const colStart = Math.round(i * 4.4) + 1;
-				monthGrid.createEl('span', { 
-					text: label, 
-					attr: { style: `grid-column-start: ${colStart}; white-space: nowrap;` } 
-				});
-			});
-
-			const gridBody = heatmapWrapper.createDiv({ attr: { style: 'display: flex; gap: 8px;' } });
-			const dayLabels = gridBody.createDiv({
-				attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; font-size: 9px; color: var(--text-muted); height: 88px; padding: 2px 0;' }
-			});
-			dayLabels.createSpan({ text: '一' });
-			dayLabels.createSpan({ text: '三' });
-			dayLabels.createSpan({ text: '五' });
-
-			const gridContainer = gridBody.createDiv({ attr: { style: 'display: flex; gap: 3px;' } });
-			
-			// 从该年的第一个周一算起
-			const currentDate = moment(`${year}-01-01`).startOf('isoWeek');
-			const endDate = moment(`${year}-12-31`).endOf('isoWeek');
-			
-			while (currentDate.isBefore(endDate)) {
-				const col = gridContainer.createDiv({ cls: 'jarvis-stats-heatmap-col' });
-				for (let d = 0; d < 7; d++) {
-					const dateStr = currentDate.format('YYYY-MM-DD');
-					const count = dateCounts.get(dateStr) || 0;
-					const isCurrentYear = currentDate.year() === year;
-
-					if (isCurrentYear && count > 0) {
-						totalActiveDays++;
-						totalNotes += count;
-					}
-
-					let level = 0;
-					if (count > 10) level = 4;
-					else if (count > 5) level = 3;
-					else if (count > 2) level = 2;
-					else if (count > 0) level = 1;
-
-					const cell = col.createDiv({ cls: `jarvis-stats-heatmap-cell ${isCurrentYear ? `level-${level}` : ''}` });
-					if (!isCurrentYear) {
-						cell.style.visibility = 'hidden';
-					} else {
-						cell.createDiv({ text: `${dateStr} 新增 ${count} 篇笔记`, cls: 'jarvis-stats-heatmap-cell-tooltip' });
-					}
-					currentDate.add(1, 'day');
-				}
-			}
-		});
-
-		const footer = parent.createDiv({ cls: 'jarvis-stats-heatmap-footer' });
-		const prefix = this.statsTab === 'all' ? '总计' : '本年度';
-		footer.createSpan({ text: `${prefix}共活跃 ${totalActiveDays} 天，累计新增 ${totalNotes} 篇笔记` });
+		const wrapper = parent.createDiv({ cls: 'jarvis-heatmap-wrapper' });
+		const scrollContainer = wrapper.createDiv({ cls: 'jarvis-heatmap-scroll' });
+		const grid = scrollContainer.createDiv({ cls: 'jarvis-heatmap-grid' });
 		
-		const legend = footer.createDiv({ cls: 'jarvis-stats-heatmap-legend' });
-		legend.createSpan({ text: '少' });
-		for (let i = 0; i <= 4; i++) {
-			legend.createDiv({ cls: `jarvis-stats-heatmap-legend-box level-${i}` });
+		const today = window.moment();
+		const maxDays = 730; // Limit to 2 years
+		for (let i = maxDays; i >= 0; i--) {
+			const d = today.clone().subtract(i, 'days');
+			const k = d.format('YYYY-MM-DD');
+			const count = dateCounts.get(k) || 0;
+			
+			let level = 0;
+			if (count >= 4) level = 4;
+			else if (count === 3) level = 3;
+			else if (count === 2) level = 2;
+			else if (count === 1) level = 1;
+			
+			const cell = grid.createDiv({ cls: `jarvis-heatmap-cell level-${level}` });
+			cell.title = `${k} 新增 ${count} 篇`;
 		}
-		legend.createSpan({ text: '多' });
 	}
 }
