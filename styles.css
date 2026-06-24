@@ -290,9 +290,9 @@
     border: none;
 }
 .jarvis-stats-calendar-cell.has-read {
-    background-color: color-mix(in srgb, var(--text-success) 15%, transparent);
-    border-color: color-mix(in srgb, var(--text-success) 30%, transparent);
-    color: var(--text-success);
+    background-color: #d8f0ed;
+    border-color: #8ad3c5;
+    color: #2f8e7b;
 }
 .jarvis-stats-calendar-cell-time {
     font-size: 9px;
@@ -336,10 +336,10 @@
     margin-bottom: 4px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
-.level-1 { background-color: color-mix(in srgb, var(--text-success) 40%, transparent) !important; }
-.level-2 { background-color: color-mix(in srgb, var(--text-success) 60%, transparent) !important; }
-.level-3 { background-color: color-mix(in srgb, var(--text-success) 80%, transparent) !important; }
-.level-4 { background-color: var(--text-success) !important; }
+.level-1 { background-color: #d8f0ed !important; }
+.level-2 { background-color: #8ad3c5 !important; }
+.level-3 { background-color: #4ab69f !important; }
+.level-4 { background-color: #2f8e7b !important; }
 
 .jarvis-stats-heatmap-footer {
     display: flex;
