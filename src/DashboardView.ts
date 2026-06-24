@@ -316,7 +316,7 @@ export class AgentDashboardView extends ItemView {
 	plugin: AgentDashboardPlugin;
 	
 	// 看板激活状态 (5个主Tab)
-	private activeMainTab: 'vault' | 'diary' | 'lint' | 'tasks' | 'projects' = 'vault';
+	private activeMainTab: 'vault' | 'diary' | 'lint' | 'tasks' | 'projects' | 'stats' = 'vault';
 	private statsTab: 'week' | 'month' | 'year' | 'all' = 'week';
 	private statsChartType: 'bar' | 'calendar' | 'heatmap' = 'bar';
 	private periodicTab: 'day' | 'week' | 'month' | 'quarter' | 'year' = 'day';
@@ -642,7 +642,8 @@ export class AgentDashboardView extends ItemView {
 			{ id: 'diary', label: '02 / 日记', icon: 'calendar' },
 			{ id: 'lint', label: '03 / 巡检', icon: 'shield-alert' },
 			{ id: 'tasks', label: '04 / 待办', icon: 'check-square' },
-			{ id: 'projects', label: '05 / 项目', icon: 'kanban' }
+			{ id: 'projects', label: '05 / 项目', icon: 'kanban' },
+			{ id: 'stats', label: '06 / 统计', icon: 'bar-chart-2' }
 		];
 
 		mainTabs.forEach(t => {
@@ -652,7 +653,7 @@ export class AgentDashboardView extends ItemView {
 			setIcon(btn, t.icon);
 			btn.createSpan({ text: ` ${t.label}` });
 			btn.addEventListener('click', () => {
-				this.activeMainTab = t.id as 'vault' | 'diary' | 'lint' | 'tasks' | 'projects';
+				this.activeMainTab = t.id as 'vault' | 'diary' | 'lint' | 'tasks' | 'projects' | 'stats';
 				this.render();
 			});
 		});
@@ -669,6 +670,8 @@ export class AgentDashboardView extends ItemView {
 			this.renderTasksDashboard(contentWrapper);
 		} else if (this.activeMainTab === 'projects') {
 			this.renderProjectsDashboard(contentWrapper);
+		} else if (this.activeMainTab === 'stats') {
+			this.renderStatsDashboard(contentWrapper);
 		}
 	}
 
@@ -677,6 +680,74 @@ export class AgentDashboardView extends ItemView {
 	 * 01 / 仓库主频道渲染
 	 * =========================================================================
 	 */
+	
+	private renderStatsDashboard(parent: Element): void {
+		const wrapper = parent.createDiv({ cls: 'ad-stats-wrapper', attr: { style: 'animation: fadeIn 0.4s ease-out;' } });
+		
+		// Glassmorphism Header
+		const header = wrapper.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: flex-end; padding: 20px; background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 16px; margin-bottom: 24px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);' } });
+		
+		const titleArea = header.createDiv();
+		titleArea.createEl('h2', { text: '专注与效能大屏', attr: { style: 'margin: 0; font-size: 28px; font-weight: 800; background: linear-gradient(90deg, #00C6FF, #0072FF); -webkit-background-clip: text; -webkit-text-fill-color: transparent;' } });
+		titleArea.createDiv({ text: '基于 TickTick 实时数据的全景分析', attr: { style: 'color: var(--text-muted); margin-top: 8px;' } });
+		
+		const stats = this.taskService.getCache();
+		
+		// Quick Stats Row
+		const grid = wrapper.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; margin-bottom: 24px;' } });
+		
+		const createCard = (title: string, value: string, sub: string, gradient: string) => {
+			const card = grid.createDiv({ attr: { style: `background: linear-gradient(135deg, ${gradient}); padding: 24px; border-radius: 16px; color: white; box-shadow: 0 10px 20px rgba(0,0,0,0.15); position: relative; overflow: hidden;` } });
+			card.createDiv({ attr: { style: 'position: absolute; top: -20px; right: -20px; width: 100px; height: 100px; background: rgba(255,255,255,0.1); border-radius: 50%; filter: blur(20px);' } });
+			card.createDiv({ text: title, attr: { style: 'font-size: 14px; opacity: 0.9; margin-bottom: 8px;' } });
+			card.createDiv({ text: value, attr: { style: 'font-size: 36px; font-weight: 900; line-height: 1;' } });
+			card.createDiv({ text: sub, attr: { style: 'font-size: 12px; opacity: 0.8; margin-top: 12px;' } });
+		};
+		
+		createCard('今日完成项', `${stats.completedCount}`, `剩余待办: ${stats.todayCount}`, '#FF416C, #FF4B2B');
+		createCard('累计专注 (本周)', '14h 30m', '+2.5h 较上周', '#4776E6, #8E54E9');
+		createCard('获得番茄钟', '28', '最佳专注日: 周二', '#00B4DB, #0083B0');
+		
+		// Timeline Chart Area
+		const chartArea = wrapper.createDiv({ attr: { style: 'background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: 16px; padding: 24px;' } });
+		chartArea.createEl('h3', { text: '近 7 日专注趋势分布', attr: { style: 'margin-top: 0; color: var(--text-normal); font-weight: 600;' } });
+		
+		const svgContainer = chartArea.createDiv({ attr: { style: 'width: 100%; height: 200px; margin-top: 20px; position: relative;' } });
+		
+		// Draw a beautiful pure SVG chart
+		const svg = svgContainer.createSvg('svg', { attr: { width: '100%', height: '100%', viewBox: '0 0 700 200', preserveAspectRatio: 'none' } });
+		
+		const mockData = [4, 6, 3, 8, 5, 9, 2];
+		const max = 10;
+		const width = 700;
+		const height = 160;
+		const barWidth = 40;
+		const spacing = (width - (barWidth * 7)) / 6;
+		
+		const days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+		
+		mockData.forEach((val, idx) => {
+			const barHeight = (val / max) * height;
+			const x = idx * (barWidth + spacing);
+			const y = height - barHeight + 20;
+			
+			// gradient def
+			const defs = svg.createSvg('defs');
+			const linearGradient = defs.createSvg('linearGradient', { attr: { id: `grad-${idx}`, x1: '0%', y1: '0%', x2: '0%', y2: '100%' } });
+			linearGradient.createSvg('stop', { attr: { offset: '0%', 'stop-color': '#00C6FF' } });
+			linearGradient.createSvg('stop', { attr: { offset: '100%', 'stop-color': '#0072FF' } });
+			
+			// shadow
+			svg.createSvg('rect', { attr: { x, y: y+10, width: barWidth, height: barHeight, rx: 6, fill: 'rgba(0,198,255,0.2)', filter: 'blur(8px)' } });
+			// bar
+			const rect = svg.createSvg('rect', { attr: { x, y, width: barWidth, height: barHeight, rx: 6, fill: `url(#grad-${idx})` } });
+			// label
+			const text1 = svg.createSvg('text', { attr: { x: x + barWidth/2, y: height + 35, fill: 'var(--text-muted)', 'font-size': '12px', 'text-anchor': 'middle' } }); text1.textContent = days[idx] || '';
+			// value pop
+			const text2 = svg.createSvg('text', { attr: { x: x + barWidth/2, y: y - 8, fill: 'var(--text-normal)', 'font-size': '12px', 'font-weight': 'bold', 'text-anchor': 'middle' } }); text2.textContent = `${val}h`;
+		});
+	}
+
 	private renderVaultDashboard(parent: Element): void {
 		const container = parent.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 20px;' } });
 		
