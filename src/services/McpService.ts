@@ -36,7 +36,7 @@ export class McpService {
 			throw new Error(`MCP server "${serverName}" is not configured as an HTTP server in mcp.json.`);
 		}
 
-		return this.executeSseJsonRpc(config.url, config.headers || {}, method, params);
+		return this.executeDirectJsonRpc(config.url, config.headers || {}, method, params);
 	}
 
 	private async loadServerConfig(serverName: string): Promise<McpServerConfig | null> {
@@ -53,157 +53,47 @@ export class McpService {
 		return null;
 	}
 
-	private executeSseJsonRpc(
+	private executeDirectJsonRpc(
 		serverUrl: string,
 		headers: Record<string, string>,
 		method: string,
 		params: unknown
 	): Promise<unknown> {
 		return new Promise((resolve, reject) => {
-			const sseUrl = serverUrl.endsWith('/sse') ? serverUrl : serverUrl; // Use serverUrl directly as per TickTick docs
 			const requestId = Math.floor(Math.random() * 1000000);
-
-			let messageEndpoint = '';
-			let requestSent = false;
-			let isAborted = false;
-			let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
-			
-			// Set up timeout
-			const timeout = window.setTimeout(() => {
-				cleanup();
-				reject(new Error(`MCP request timed out after 10 seconds (method: ${method})`));
-			}, 10000);
-
-			const cleanup = () => {
-				window.clearTimeout(timeout);
-				isAborted = true;
-				if (reader) {
-					void reader.cancel();
-				}
-			};
-
-			// 1. Establish SSE Connection using browser fetch
-			// eslint-disable-next-line no-restricted-globals
-			fetch(sseUrl, {
-				method: 'GET',
-				headers: {
-					...headers,
-					'Accept': 'text/event-stream',
-					'Cache-Control': 'no-cache'
-				}
-			})
-			.then(async (res) => {
-				if (res.status !== 200) {
-					cleanup();
-					reject(new Error(`SSE connection failed with status code: ${res.status}`));
-					return;
-				}
-
-				if (!res.body) {
-					cleanup();
-					reject(new Error('SSE response body is null.'));
-					return;
-				}
-
-				reader = res.body.getReader();
-				const decoder = new TextDecoder('utf8');
-				let buffer = '';
-
-				while (!isAborted) {
-					const { value, done } = await reader.read();
-					if (done) break;
-
-					buffer += decoder.decode(value, { stream: true });
-					let boundary = buffer.indexOf('\n\n');
-					while (boundary !== -1) {
-						const block = buffer.substring(0, boundary).trim();
-						buffer = buffer.substring(boundary + 2);
-						
-						try {
-							parseSseBlock(block);
-						} catch (err) {
-							console.error('Failed to parse SSE block:', err);
-						}
-						
-						boundary = buffer.indexOf('\n\n');
-					}
-				}
-			})
-			.catch((err) => {
-				cleanup();
-				reject(err as Error);
+			const payload = JSON.stringify({
+				jsonrpc: '2.0',
+				id: requestId,
+				method,
+				params
 			});
 
-			// SSE Block Parser
-			const parseSseBlock = (block: string) => {
-				const lines = block.split('\n');
-				let eventType = '';
-				let dataVal = '';
-
-				for (const line of lines) {
-					if (line.startsWith('event:')) {
-						eventType = line.substring(6).trim();
-					} else if (line.startsWith('data:')) {
-						dataVal += (dataVal === '' ? '' : '\n') + line.substring(5).trim();
-					}
-				}
-
-				// A. Handle endpoint resolution
-				if (eventType === 'endpoint') {
-					messageEndpoint = dataVal;
-					sendJsonRpcRequest();
-				} 
-				// B. Handle message response
-				else if (eventType === 'message') {
+			requestUrl({
+				url: serverUrl,
+				method: 'POST',
+				headers: {
+					...headers,
+					'Content-Type': 'application/json',
+					'Accept': 'application/json'
+				},
+				body: payload
+			}).then((res) => {
+				if (res.status === 200 || res.status === 202) {
 					try {
-						const payload = JSON.parse(dataVal) as JsonRpcResponse;
-						if (payload && payload.id === requestId) {
-							cleanup();
-							if (payload.error) {
-								reject(new Error(payload.error.message || 'MCP Error'));
-							} else {
-								resolve(payload.result);
-							}
+						const data = typeof res.json === 'function' ? res.json() : (typeof res.json === 'object' ? res.json : JSON.parse(res.text));
+						const payload = data as JsonRpcResponse;
+						if (payload.error) {
+							reject(new Error(payload.error.message || 'MCP Error'));
+						} else {
+							resolve(payload.result);
 						}
 					} catch (e) {
-						console.error('Failed to parse JSON-RPC message payload:', e);
+						reject(new Error('Failed to parse JSON-RPC response'));
 					}
+				} else {
+					reject(new Error(`MCP request failed with status: ${res.status}`));
 				}
-			};
-
-			// 2. Send JSON-RPC payload via HTTP POST to the endpoint resolved from SSE
-			const sendJsonRpcRequest = () => {
-				if (requestSent || !messageEndpoint) return;
-				requestSent = true;
-
-				const postUrl = new URL(messageEndpoint, serverUrl).toString();
-				const payload = JSON.stringify({
-					jsonrpc: '2.0',
-					id: requestId,
-					method,
-					params
-				});
-
-				requestUrl({
-					url: postUrl,
-					method: 'POST',
-					headers: {
-						...headers,
-						'Content-Type': 'application/json'
-					},
-					body: payload
-				})
-				.then((postRes) => {
-					if (postRes.status !== 200 && postRes.status !== 202) {
-						cleanup();
-						reject(new Error(`Failed to POST JSON-RPC message: status ${postRes.status}`));
-					}
-				})
-				.catch((err) => {
-					cleanup();
-					reject(err as Error);
-				});
-			};
+			}).catch((err) => reject(err as Error));
 		});
 	}
 }
