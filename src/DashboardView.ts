@@ -1990,15 +1990,42 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		});
 
 		const gridBody = parent.createDiv({ cls: 'jarvis-stats-calendar-grid' });
-		const offset = 0;
-		const totalDays = 30;
+		
+		const now = window.moment();
+		let targetMonth = now.clone().add(this.currentDateOffset, 'months');
+		
+		const totalDays = targetMonth.daysInMonth();
+		const startOfMonth = targetMonth.clone().startOf('month');
+		
+		// isoWeekday(): 1=Monday, 7=Sunday
+		const offset = startOfMonth.isoWeekday() - 1;
 
 		for (let i = 0; i < offset; i++) {
 			gridBody.createDiv({ cls: 'jarvis-stats-calendar-cell is-empty' });
 		}
 
+		// Get real data counts
+		const files = this.app.vault.getMarkdownFiles();
+		const dateCounts = new Map<string, number>();
+		files.forEach(f => {
+			const cache = this.app.metadataCache.getFileCache(f);
+			const frontmatter = cache?.frontmatter;
+			let m: any;
+			if (frontmatter && frontmatter.created) {
+				m = window.moment(frontmatter.created);
+			} else if (frontmatter && frontmatter.date) {
+				m = window.moment(frontmatter.date);
+			} else {
+				m = window.moment(f.stat.ctime);
+			}
+			const k = m.format('YYYY-MM-DD');
+			dateCounts.set(k, (dateCounts.get(k) || 0) + 1);
+		});
+
 		for (let d = 1; d <= totalDays; d++) {
-			const count = d % 3 === 0 ? Math.floor(Math.random() * 4) + 1 : 0;
+			const currentDay = targetMonth.clone().date(d);
+			const count = dateCounts.get(currentDay.format('YYYY-MM-DD')) || 0;
+			
 			const cell = gridBody.createDiv({ 
 				cls: `jarvis-stats-calendar-cell ${count > 0 ? 'has-read' : ''}` 
 			});
@@ -2010,67 +2037,115 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	}
 
 	private renderHeatmapChart(parent: Element): void {
+		const heatmapWrapper = parent.createDiv({ cls: 'jarvis-stats-heatmap-wrapper' });
+		const now = window.moment();
+		let targetYear = now.year();
+		if (this.statsTab === 'month') {
+			targetYear = now.clone().add(this.currentDateOffset, 'months').year();
+		} else if (this.statsTab === 'week') {
+			targetYear = now.clone().add(this.currentDateOffset, 'weeks').year();
+		} else if (this.statsTab === 'year') {
+			targetYear = now.clone().add(this.currentDateOffset, 'years').year();
+		}
+
+		let yearsToRender = [String(targetYear)];
+		if (this.statsTab === 'all') {
+			yearsToRender = [String(now.year() - 1), String(now.year())]; // render last 2 years
+		}
+		
 		const files = this.app.vault.getMarkdownFiles();
 		const dateCounts = new Map<string, number>();
 		files.forEach(f => {
 			const cache = this.app.metadataCache.getFileCache(f);
 			const frontmatter = cache?.frontmatter;
-			let m: any;
+			let dateStr = '';
+			
 			if (frontmatter && frontmatter.created) {
-				m = window.moment(frontmatter.created);
+				dateStr = window.moment(frontmatter.created).format('YYYY-MM-DD');
+			} else if (frontmatter && frontmatter.date) {
+				dateStr = window.moment(frontmatter.date).format('YYYY-MM-DD');
 			} else {
-				m = window.moment(f.stat.ctime);
+				dateStr = window.moment(f.stat.ctime).format('YYYY-MM-DD');
 			}
-			const k = m.format('YYYY-MM-DD');
-			dateCounts.set(k, (dateCounts.get(k) || 0) + 1);
+			
+			if (dateStr && dateStr !== 'Invalid date') {
+				dateCounts.set(dateStr, (dateCounts.get(dateStr) || 0) + 1);
+			}
 		});
 
-		const wrapper = parent.createDiv({ attr: { style: 'width: 100%; overflow: hidden; padding: 10px 0; display: flex; flex-direction: column; align-items: center;' } });
-		const scrollContainer = wrapper.createDiv({ attr: { style: 'width: 100%; overflow-x: auto; padding-bottom: 15px;' } });
-		const grid = scrollContainer.createDiv({ attr: { style: 'display: grid; grid-template-rows: repeat(7, 12px); grid-auto-flow: column; gap: 4px; width: max-content; margin: 0 auto;' } });
-		
-		const today = window.moment();
-		const maxDays = 730; // Limit to 2 years
-		
-		// Calculate start day to align the grid properly (assuming Sunday = 0)
-		const startDate = today.clone().subtract(maxDays, 'days');
-		const startDayOfWeek = startDate.day();
-		
-		// Add empty cells for alignment
-		for (let i = 0; i < startDayOfWeek; i++) {
-			grid.createDiv({ attr: { style: 'width: 12px; height: 12px; border-radius: 3px; background-color: transparent;' } });
-		}
-		
-		for (let i = maxDays; i >= 0; i--) {
-			const d = today.clone().subtract(i, 'days');
-			const k = d.format('YYYY-MM-DD');
-			const count = dateCounts.get(k) || 0;
-			
-			let bg = 'color-mix(in srgb, var(--background-modifier-border) 40%, transparent)';
-			if (count >= 4) bg = 'var(--text-success)';
-			else if (count === 3) bg = 'color-mix(in srgb, var(--text-success) 80%, transparent)';
-			else if (count === 2) bg = 'color-mix(in srgb, var(--text-success) 60%, transparent)';
-			else if (count === 1) bg = 'color-mix(in srgb, var(--text-success) 40%, transparent)';
-			
-			const cell = grid.createDiv({ attr: { style: `width: 12px; height: 12px; border-radius: 3px; background-color: ${bg}; cursor: pointer; transition: transform 0.1s;` } });
-			cell.title = `${k} 新增 ${count} 篇`;
-			cell.addEventListener('mouseenter', () => cell.style.transform = 'scale(1.2)');
-			cell.addEventListener('mouseleave', () => cell.style.transform = 'scale(1)');
-		}
+		let totalActiveDays = 0;
+		let totalNotes = 0;
 
-		// Legend
-		const legend = wrapper.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); margin-top: 10px; align-self: flex-end;' } });
+		yearsToRender.forEach(yearStr => {
+			const year = parseInt(yearStr);
+			if (this.statsTab === 'all') {
+				heatmapWrapper.createEl('h4', { text: `${year}年`, attr: { style: 'margin: 10px 0 5px 0; font-size: 13px;' } });
+			}
+			
+			const monthLabels = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+			const monthGrid = heatmapWrapper.createDiv({ 
+				attr: { style: 'display: grid; grid-template-columns: repeat(53, 10px); gap: 3px; font-size: 9px; color: var(--text-muted); margin-bottom: 4px; padding-left: 18px;' } 
+			});
+			
+			monthLabels.forEach((label, i) => {
+				const colStart = Math.round(i * 4.4) + 1;
+				monthGrid.createEl('span', { 
+					text: label, 
+					attr: { style: `grid-column-start: ${colStart}; white-space: nowrap;` } 
+				});
+			});
+
+			const gridBody = heatmapWrapper.createDiv({ attr: { style: 'display: flex; gap: 8px;' } });
+			const dayLabels = gridBody.createDiv({
+				attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; font-size: 9px; color: var(--text-muted); height: 88px; padding: 2px 0;' }
+			});
+			dayLabels.createSpan({ text: '一' });
+			dayLabels.createSpan({ text: '三' });
+			dayLabels.createSpan({ text: '五' });
+
+			const gridContainer = gridBody.createDiv({ attr: { style: 'display: flex; gap: 3px;' } });
+			
+			const currentDate = window.moment(`${year}-01-01`).startOf('isoWeek');
+			const endDate = window.moment(`${year}-12-31`).endOf('isoWeek');
+			
+			while (currentDate.isBefore(endDate)) {
+				const col = gridContainer.createDiv({ cls: 'jarvis-stats-heatmap-col' });
+				for (let d = 0; d < 7; d++) {
+					const dateStr = currentDate.format('YYYY-MM-DD');
+					const count = dateCounts.get(dateStr) || 0;
+					const isCurrentYear = currentDate.year() === year;
+
+					if (isCurrentYear && count > 0) {
+						totalActiveDays++;
+						totalNotes += count;
+					}
+
+					let level = 0;
+					if (count > 10) level = 4;
+					else if (count > 5) level = 3;
+					else if (count > 2) level = 2;
+					else if (count > 0) level = 1;
+
+					const cell = col.createDiv({ cls: `jarvis-stats-heatmap-cell ${isCurrentYear ? `level-${level}` : ''}` });
+					if (!isCurrentYear) {
+						cell.style.visibility = 'hidden';
+					} else {
+						cell.createDiv({ text: `${dateStr} 新增 ${count} 篇笔记`, cls: 'jarvis-stats-heatmap-cell-tooltip' });
+					}
+					currentDate.add(1, 'day');
+				}
+			}
+		});
+
+		const footer = parent.createDiv({ cls: 'jarvis-stats-heatmap-footer' });
+		const prefix = this.statsTab === 'all' ? '总计' : '本年度';
+		footer.createSpan({ text: `${prefix}共活跃 ${totalActiveDays} 天，累计新增 ${totalNotes} 篇笔记` });
+		
+		const legend = footer.createDiv({ cls: 'jarvis-stats-heatmap-legend' });
 		legend.createSpan({ text: '少' });
-		const colors = [
-			'color-mix(in srgb, var(--background-modifier-border) 40%, transparent)',
-			'color-mix(in srgb, var(--text-success) 40%, transparent)',
-			'color-mix(in srgb, var(--text-success) 60%, transparent)',
-			'color-mix(in srgb, var(--text-success) 80%, transparent)',
-			'var(--text-success)'
-		];
-		colors.forEach(c => {
-			legend.createDiv({ attr: { style: `width: 10px; height: 10px; border-radius: 2px; background-color: ${c};` } });
-		});
+		for (let i = 0; i <= 4; i++) {
+			legend.createDiv({ cls: `jarvis-stats-heatmap-legend-box level-${i}` });
+		}
 		legend.createSpan({ text: '多' });
 	}
 }
