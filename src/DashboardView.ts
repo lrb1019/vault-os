@@ -1535,7 +1535,17 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		setIcon(refreshBtn, 'refresh-cw');
 		refreshBtn.addEventListener('click', () => {
 			new Notice('开始同步 TickTick 数据...');
-			this.render(); // Re-render the whole dashboard to update tasks and stats
+			refreshBtn.style.opacity = '0.5';
+			refreshBtn.style.pointerEvents = 'none';
+			
+			this.taskService.syncWithTickTick().then(() => {
+				new Notice('TickTick 同步完成！');
+				this.render();
+			}).catch(e => {
+				new Notice('同步失败: ' + String(e));
+				refreshBtn.style.opacity = '1';
+				refreshBtn.style.pointerEvents = 'auto';
+			});
 		});
 		
 		const taskList = todayCard.createDiv({ cls: 'ad-task-list' });
