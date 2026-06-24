@@ -1618,12 +1618,8 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		});
 		
 		const taskList = todayCard.createDiv({ cls: 'ad-task-list' });
-		const tasks = [
-			{ text: '完成 Agent Dashboard 框架布局重构', checked: false, time: '21:00' },
-			{ text: '阅读《设计心理学》第 3 章并写感悟', checked: false, time: '22:30' },
-			{ text: '整理 02 Inbox 中的 AI 调研报告文件', checked: true, time: '14:00' },
-			{ text: '去超市采购牛奶和燕麦', checked: false, time: '17:30' }
-		];
+		const stats = this.taskService.getCache();
+		const tasks = stats.tasks || [];
 
 		tasks.forEach(t => {
 			const item = taskList.createDiv({ cls: 'ad-task-item' });
