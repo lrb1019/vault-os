@@ -158,13 +158,7 @@ export class TaskService {
 	 */
 	private async fetchFromTickTickMcp(): Promise<TaskStats | null> {
 		try {
-			const listRes = await this.mcpService.executeRequest('ticktick', 'tools/list', {}) as McpToolsListResponse;
-			const tools = listRes.tools || [];
-			if (tools.length === 0) return null;
 
-			const getTasksTool = tools.find(t => 
-				t.name === 'get_tasks' || 
-				t.name === 'getTasks' || 
 			// Get today's undone tasks
 			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
 				name: 'list_undone_tasks_by_time_query',
