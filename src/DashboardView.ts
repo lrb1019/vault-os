@@ -949,14 +949,12 @@ export class AgentDashboardView extends ItemView {
 		};
 		const currentName = tabNames[this.periodicTab] || '日记';
 
-		const header = diaryCard.createDiv({ cls: 'ad-card-header', attr: { style: 'display: flex; align-items: center; justify-content: space-between; width: 100%; text-align: left;' } });
+		const header = diaryCard.createDiv({ cls: 'ad-card-header', attr: { style: 'display: flex; align-items: center; width: 100%; text-align: left;' } });
 		header.createEl('h3', { text: `今日${currentName}`, attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
 		const baseDate = moment().add(this.diaryDateOffset, this.periodicTab + 's' as any);
 		const { folderPath, fileName, filePath } = this.diaryService.resolvePeriodicNotePath(baseDate, this.periodicTab);
 		
-		const badge = header.createSpan({ text: '加载中...', cls: 'ad-badge ad-badge-muted' });
-
 		const content = diaryCard.createDiv({ cls: 'ad-diary-content', attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; margin-top: 12px;' } });
 		
 		const file = this.app.vault.getAbstractFileByPath(filePath);
@@ -968,9 +966,6 @@ export class AgentDashboardView extends ItemView {
 		const pathEl = innerDiv.createEl('div', { text: filePath, cls: 'ad-diary-path', attr: { style: 'font-family: var(--font-monospace); font-size: 11px; margin-bottom: 10px; color: var(--text-muted);' } });
 		const summaryEl = innerDiv.createEl('p', { text: `读取中...`, cls: 'ad-diary-summary', attr: { style: 'font-size: 13px; line-height: 1.5; color: var(--text-normal); flex-grow: 1; overflow-y: auto;' } });
 		
-		badge.setText(isCreated ? '已创建' : '未创建');
-		badge.className = `ad-badge ${isCreated ? 'ad-badge-success' : 'ad-badge-warning'}`;
-
 		if (isCreated && file) {
 			void this.app.vault.read(file as TFile).then(fileContent => {
 				const summary = this.diaryService.extractSummary(fileContent);
@@ -1044,7 +1039,7 @@ export class AgentDashboardView extends ItemView {
 							this.periodicTab === 'year' ? '去年' : 
 							`去年同${this.periodicTab === 'week' ? '周' : this.periodicTab === 'month' ? '月' : '季'}`;
 		
-		header.createEl('h3', { text: `${targetLabel}回望` });
+		header.createEl('h3', { text: `${targetLabel}回望`, attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 
 		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; padding: 8px 0;' } });
 		
@@ -1055,7 +1050,7 @@ export class AgentDashboardView extends ItemView {
 			const info = await this.diaryService.getLastYearNote(baseDate, this.periodicTab);
 			innerDiv.empty();
 
-			if (info) {
+			if (info) {\n\t\t\t	innerDiv.setAttr('style', 'border: 2px solid var(--text-success); border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center;');
 				innerDiv.createDiv({ 
 					text: info.path, 
 					attr: { style: 'font-family: var(--font-monospace); font-size: 11px; color: var(--text-muted); word-break: break-all; margin-bottom: 8px;' } 
@@ -1063,7 +1058,7 @@ export class AgentDashboardView extends ItemView {
 				
 				innerDiv.createDiv({ 
 					text: info.summary,
-					attr: { style: 'font-size: 13px; line-height: 1.6; color: var(--text-normal); background: color-mix(in srgb, var(--background-modifier-form-field) 50%, transparent); padding: 12px; border-radius: 6px; overflow-y: auto;' }
+					attr: { style: 'font-size: 13px; line-height: 1.6; color: var(--text-normal); padding: 12px; border-radius: 6px; overflow-y: auto;' }
 				});
 			} else {
 				innerDiv.createDiv({ 
@@ -1668,8 +1663,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				if (colDiv) {
 					const badge = colDiv.querySelector('.ad-kanban-column-header span:last-child');
 					if (badge) {
-						badge.setText(String(counts[col.id as keyof typeof counts]));
-					}
+						}
 				}
 			});
 		});
