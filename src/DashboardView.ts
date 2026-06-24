@@ -2025,25 +2025,52 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			dateCounts.set(k, (dateCounts.get(k) || 0) + 1);
 		});
 
-		const wrapper = parent.createDiv({ cls: 'jarvis-heatmap-wrapper' });
-		const scrollContainer = wrapper.createDiv({ cls: 'jarvis-heatmap-scroll' });
-		const grid = scrollContainer.createDiv({ cls: 'jarvis-heatmap-grid' });
+		const wrapper = parent.createDiv({ attr: { style: 'width: 100%; overflow: hidden; padding: 10px 0; display: flex; flex-direction: column; align-items: center;' } });
+		const scrollContainer = wrapper.createDiv({ attr: { style: 'width: 100%; overflow-x: auto; padding-bottom: 15px;' } });
+		const grid = scrollContainer.createDiv({ attr: { style: 'display: grid; grid-template-rows: repeat(7, 12px); grid-auto-flow: column; gap: 4px; width: max-content; margin: 0 auto;' } });
 		
 		const today = window.moment();
 		const maxDays = 730; // Limit to 2 years
+		
+		// Calculate start day to align the grid properly (assuming Sunday = 0)
+		const startDate = today.clone().subtract(maxDays, 'days');
+		const startDayOfWeek = startDate.day();
+		
+		// Add empty cells for alignment
+		for (let i = 0; i < startDayOfWeek; i++) {
+			grid.createDiv({ attr: { style: 'width: 12px; height: 12px; border-radius: 3px; background-color: transparent;' } });
+		}
+		
 		for (let i = maxDays; i >= 0; i--) {
 			const d = today.clone().subtract(i, 'days');
 			const k = d.format('YYYY-MM-DD');
 			const count = dateCounts.get(k) || 0;
 			
-			let level = 0;
-			if (count >= 4) level = 4;
-			else if (count === 3) level = 3;
-			else if (count === 2) level = 2;
-			else if (count === 1) level = 1;
+			let bg = 'color-mix(in srgb, var(--background-modifier-border) 40%, transparent)';
+			if (count >= 4) bg = 'var(--text-success)';
+			else if (count === 3) bg = 'color-mix(in srgb, var(--text-success) 80%, transparent)';
+			else if (count === 2) bg = 'color-mix(in srgb, var(--text-success) 60%, transparent)';
+			else if (count === 1) bg = 'color-mix(in srgb, var(--text-success) 40%, transparent)';
 			
-			const cell = grid.createDiv({ cls: `jarvis-heatmap-cell level-${level}` });
+			const cell = grid.createDiv({ attr: { style: `width: 12px; height: 12px; border-radius: 3px; background-color: ${bg}; cursor: pointer; transition: transform 0.1s;` } });
 			cell.title = `${k} 新增 ${count} 篇`;
+			cell.addEventListener('mouseenter', () => cell.style.transform = 'scale(1.2)');
+			cell.addEventListener('mouseleave', () => cell.style.transform = 'scale(1)');
 		}
+
+		// Legend
+		const legend = wrapper.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-muted); margin-top: 10px; align-self: flex-end;' } });
+		legend.createSpan({ text: '少' });
+		const colors = [
+			'color-mix(in srgb, var(--background-modifier-border) 40%, transparent)',
+			'color-mix(in srgb, var(--text-success) 40%, transparent)',
+			'color-mix(in srgb, var(--text-success) 60%, transparent)',
+			'color-mix(in srgb, var(--text-success) 80%, transparent)',
+			'var(--text-success)'
+		];
+		colors.forEach(c => {
+			legend.createDiv({ attr: { style: `width: 10px; height: 10px; border-radius: 2px; background-color: ${c};` } });
+		});
+		legend.createSpan({ text: '多' });
 	}
 }
