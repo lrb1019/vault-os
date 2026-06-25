@@ -226,9 +226,11 @@ export class TaskService {
 			const formatDate = (d: Date) => d.toISOString().split('T')[0];
 			
 			const completedData = await callTool('list_completed_tasks_by_date', {
-				start_date: formatDate(startDate),
-				end_date: formatDate(endDate),
-				timezone: 'Asia/Shanghai'
+				search: {
+					start_date: formatDate(startDate),
+					end_date: formatDate(endDate),
+					timezone: 'Asia/Shanghai'
+				}
 			}) || [];
 
 			// 4. Fetch habits
