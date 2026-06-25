@@ -158,41 +158,85 @@ export class TaskService {
 	 */
 	private async fetchFromTickTickMcp(): Promise<TaskStats | null> {
 		try {
+			console.log('Agent Dashboard: Starting comprehensive TickTick sync...');
+			
+			const callTool = async (name: string, args: any = {}) => {
+				const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
+					name,
+					arguments: args
+				}) as { content?: Array<{ type: string; text: string }>; structuredContent?: { result?: any }; isError?: boolean };
+				
+				if (mcpResult.isError) return null;
+				return mcpResult.structuredContent?.result || null;
+			};
 
-			// Get today's undone tasks
-			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
-				name: 'list_undone_tasks_by_time_query',
-				arguments: { timeQuery: 'today' }
-			}) as { content?: Array<{ type: string; text: string }>; structuredContent?: { result?: any[] }; isError?: boolean };
+			// 1. Fetch all projects
+			const projects = await callTool('list_projects') || [];
+			const projectIds = Array.isArray(projects) ? projects.map(p => p.id) : [];
+			if (!projectIds.includes('inbox')) projectIds.push('inbox');
 
-			if (mcpResult.isError) {
-				console.error('TickTick MCP Error:', mcpResult.content?.[0]?.text);
-				throw new Error('TickTick returned an error.');
+			// 2. Fetch all undone tasks for all projects
+			let allUndoneTasks: any[] = [];
+			for (const pid of projectIds) {
+				const projData = await callTool('get_project_with_undone_tasks', { projectId: pid });
+				if (projData && projData.tasks && Array.isArray(projData.tasks)) {
+					allUndoneTasks = allUndoneTasks.concat(projData.tasks);
+				}
 			}
 
-			// We only get undone tasks from this query, so completedCount will be a mock for now
-			// Or we could parse structuredContent.result
-			const tasksData = mcpResult.structuredContent?.result || [];
+			// 3. Fetch completed tasks (past 30 days)
+			const endDate = new Date();
+			const startDate = new Date();
+			startDate.setDate(startDate.getDate() - 30);
+			const formatDate = (d: Date) => d.toISOString().split('T')[0];
+			
+			const completedData = await callTool('list_completed_tasks_by_date', {
+				start_date: formatDate(startDate),
+				end_date: formatDate(endDate),
+				timezone: 'Asia/Shanghai'
+			}) || [];
 
-			const parsedTasks: TaskItem[] = tasksData.map((t: any) => ({
+			// 4. Fetch habits
+			const habitsData = await callTool('list_habits') || [];
+
+			// 5. Fetch focuses
+			const focusData = await callTool('get_focuses_by_time', {
+				startTime: startDate.getTime(),
+				endTime: endDate.getTime(),
+				type: 0
+			}) || [];
+
+			// Process tasks into TaskStats cache object
+			// Note: We're expanding TaskStats implicitly here to allow habits/focuses, etc.
+			const parsedTasks: any[] = allUndoneTasks.map(t => ({
+				...t,
 				text: t.title || 'Untitled',
-				checked: t.status === 2, // 2 is usually completed in ticktick, but these are undone so it's false
+				checked: t.status === 2,
 				time: t.start_date || t.due_date || ''
 			}));
 
-			this.cache = {
-				todayCount: parsedTasks.length,
-				completedCount: 0, // Since we only queried undone tasks
+			const cacheData: any = {
+				todayCount: parsedTasks.filter(t => {
+					if (!t.time) return false;
+					const due = new Date(t.time);
+					const today = new Date();
+					return due.getDate() === today.getDate() && due.getMonth() === today.getMonth() && due.getFullYear() === today.getFullYear();
+				}).length,
+				completedCount: Array.isArray(completedData) ? completedData.length : 0,
 				overdueCount: parsedTasks.filter(t => {
 					if (!t.time) return false;
 					const due = new Date(t.time);
 					return due < new Date() && !t.checked;
 				}).length,
-				tasks: parsedTasks
+				tasks: parsedTasks,
+				completedTasks: completedData,
+				habits: habitsData,
+				focuses: focusData
 			};
 
+			this.cache = cacheData;
 			await this.saveToDisk(this.cache);
-			new Notice('TickTick 同步完成！');
+			new Notice('TickTick 全量同步完成！');
 			return this.cache;
 		} catch (e) {
 			console.warn('TickTick MCP Server communication failed or is offline.', e);
