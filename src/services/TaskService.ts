@@ -164,10 +164,20 @@ export class TaskService {
 				const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
 					name,
 					arguments: args
-				}) as { content?: Array<{ type: string; text: string }>; structuredContent?: { result?: any }; isError?: boolean };
+				}) as { content?: Array<{ type: string; text: string }>; isError?: boolean };
 				
 				if (mcpResult.isError) return null;
-				return mcpResult.structuredContent?.result || null;
+				if (mcpResult.content && Array.isArray(mcpResult.content)) {
+					const textObj = mcpResult.content.find((r: any) => r.type === 'text');
+					if (textObj && textObj.text) {
+						try {
+							return JSON.parse(textObj.text);
+						} catch (e) {
+							console.warn('Agent Dashboard: Failed to parse MCP text result for', name, e);
+						}
+					}
+				}
+				return null;
 			};
 
 			// 1. Fetch all projects
