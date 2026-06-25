@@ -1678,8 +1678,18 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				const item = taskList.createDiv({ cls: 'ad-task-item', attr: { style: 'margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px;' } });
 				const isCompleted = t.status !== undefined ? t.status !== 0 : !!t.checked;
 				const check = item.createEl('input', { type: 'checkbox', attr: isCompleted ? { checked: true } : {} });
-				check.addEventListener('change', () => {
-					new Notice(`准备更新状态: ${t.title || t.text}`);
+				check.addEventListener('change', async () => {
+					new Notice(`正在同步完成状态: ${t.title || t.text}`);
+					check.disabled = true;
+					const success = await this.taskService.completeTask(t.id, t.project_id);
+					if (success) {
+						new Notice('任务已完成并同步至 TickTick!');
+						this.render(); // Re-render to show it as completed or moved
+					} else {
+						new Notice('同步失败，请重试');
+						check.disabled = false;
+						check.checked = !check.checked; // Revert visually
+					}
 				});
 				const txtContainer = item.createDiv({ attr: { style: 'display: flex; flex-direction: column; flex: 1;' } });
 				txtContainer.createEl('span', { text: t.title || t.text || '无标题', cls: `ad-task-text ${isCompleted ? 'is-completed' : ''}` });
@@ -1710,10 +1720,23 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		const addWrapper = todayCard.createDiv({ cls: 'ad-task-add-wrapper', attr: { style: 'margin-top: 15px; display: flex; gap: 8px;' } });
 		const input = addWrapper.createEl('input', { type: 'text', placeholder: '添加新待办至 TickTick...' });
 		const btn = addWrapper.createEl('button', { text: '添加', cls: 'ad-btn ad-btn-primary' });
-		btn.addEventListener('click', () => {
+		btn.addEventListener('click', async () => {
 			if (input.value) {
-				new Notice(`添加待办: ${input.value}`);
-				input.value = '';
+				const title = input.value;
+				new Notice(`正在添加至 TickTick 收集箱: ${title}`);
+				btn.disabled = true;
+				input.disabled = true;
+				
+				const success = await this.taskService.addTask(title);
+				if (success) {
+					new Notice('任务添加成功!');
+					input.value = '';
+					this.render(); // Re-render to show the new task
+				} else {
+					new Notice('添加失败，请重试');
+				}
+				btn.disabled = false;
+				input.disabled = false;
 			}
 		});
 	}

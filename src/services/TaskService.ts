@@ -2,8 +2,11 @@ import { App, TFile, Notice } from 'obsidian';
 import { McpService } from './McpService';
 
 export interface TaskItem {
+	id: string;
+	projectId?: string;
 	text: string;
 	checked: boolean;
+	status?: number;
 	time?: string;
 }
 
@@ -102,9 +105,9 @@ export class TaskService {
 			completedCount: 5,
 			overdueCount: 1,
 			tasks: [
-				{ text: '未连接到 TickTick 数据源', checked: false, time: '' },
-				{ text: '缺少 .claude/mcp.json 配置', checked: false, time: '' },
-				{ text: '或缺少本地 ticktick-cache.json', checked: false, time: '' }
+				{ id: 'mock1', text: '未连接到 TickTick 数据源', checked: false, time: '' },
+				{ id: 'mock2', text: '缺少 .claude/mcp.json 配置', checked: false, time: '' },
+				{ id: 'mock3', text: '或缺少本地 ticktick-cache.json', checked: false, time: '' }
 			]
 		};
 		return this.cache;
@@ -273,6 +276,65 @@ export class TaskService {
 			console.warn('TickTick MCP Server communication failed or is offline.', e);
 		}
 		return null;
+	}
+
+	async addTask(title: string, projectId?: string): Promise<boolean> {
+		try {
+			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
+				name: 'create_task',
+				arguments: {
+					title: title,
+					project_id: projectId || 'inbox'
+				}
+			}) as { isError?: boolean; content?: any[] };
+			
+			if (mcpResult.isError) {
+				console.error('Failed to create task:', mcpResult);
+				return false;
+			}
+			
+			// Auto trigger sync to get the new task
+			await this.syncWithTickTick();
+			return true;
+		} catch (e) {
+			console.error('Error in addTask:', e);
+			return false;
+		}
+	}
+
+	async completeTask(taskId: string, projectId: string): Promise<boolean> {
+		try {
+			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
+				name: 'complete_task',
+				arguments: {
+					task_id: taskId,
+					project_id: projectId
+				}
+			}) as { isError?: boolean; content?: any[] };
+			
+			if (mcpResult.isError) {
+				console.error('Failed to complete task:', mcpResult);
+				return false;
+			}
+			
+			// Update local cache optimistically
+			const taskIndex = this.cache.tasks.findIndex((t: any) => t.id === taskId);
+			if (taskIndex !== -1) {
+				const taskToUpdate = this.cache.tasks[taskIndex];
+				if (taskToUpdate) {
+					taskToUpdate.checked = true;
+					taskToUpdate.status = 2; // TickTick status for completed
+				}
+			}
+			
+			await this.saveToDisk(this.cache);
+			// Full sync in background
+			this.syncWithTickTick();
+			return true;
+		} catch (e) {
+			console.error('Error in completeTask:', e);
+			return false;
+		}
 	}
 
 	private parseTasksFromMcpText(text: string): TaskStats {
