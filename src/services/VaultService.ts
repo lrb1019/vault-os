@@ -1,4 +1,5 @@
 import { App, TFile, TFolder } from 'obsidian';
+import AgentDashboardPlugin from '../main';
 
 export interface InboxBacklogInfo {
 	count: number;
@@ -29,10 +30,12 @@ export interface VaultOverviewStats {
 }
 
 export class VaultService {
+	private plugin: AgentDashboardPlugin;
 	private app: App;
 
-	constructor(app: App) {
-		this.app = app;
+	constructor(plugin: AgentDashboardPlugin) {
+		this.plugin = plugin;
+		this.app = plugin.app;
 	}
 
 	/**
@@ -40,7 +43,7 @@ export class VaultService {
 	 */
 	async getInboxBacklog(): Promise<InboxBacklogInfo> {
 		try {
-			const folderPath = '02 Inbox';
+			const folderPath = this.plugin.settings.inboxFolder;
 			// Rule 21: getAbstractFileByPath for folder lookup
 			const folder = this.app.vault.getAbstractFileByPath(folderPath);
 
@@ -89,7 +92,7 @@ export class VaultService {
 				if (sourcePath.includes('Index')) continue;
 				// 排除 AI 生成的体检报告，防止报告本身“超度”了孤儿笔记
 				if (sourcePath.includes('体检报告')) continue;
-				if (!sourcePath.startsWith('04 Atomics') && !sourcePath.startsWith('05 Output') && !sourcePath.startsWith('01 Daily')) continue;
+				if (!sourcePath.startsWith(this.plugin.settings.atomicsFolder) && !sourcePath.startsWith(this.plugin.settings.outputFolder) && !sourcePath.startsWith(this.plugin.settings.dailyNoteFolder)) continue;
 
 				const targets = resolvedLinks[sourcePath];
 				if (targets) {
@@ -103,7 +106,7 @@ export class VaultService {
 			const orphans: string[] = [];
 			files.forEach(file => {
 				// Only check files in 04 Atomics for orphans, aligning with lint skill
-				if (file.path.startsWith('04 Atomics')) {
+				if (file.path.startsWith(this.plugin.settings.atomicsFolder)) {
 					if (!linkedFiles.has(file.path) && !file.name.includes('Index')) {
 						orphanCount++;
 						orphans.push(file.path);
@@ -129,7 +132,7 @@ export class VaultService {
 			
 			for (const sourcePath of Object.keys(unresolvedLinks)) {
 				// Only count dead links originating from core content folders
-				if (!sourcePath.startsWith('04 Atomics') && !sourcePath.startsWith('05 Output') && !sourcePath.startsWith('02 Inbox')) {
+				if (!sourcePath.startsWith(this.plugin.settings.atomicsFolder) && !sourcePath.startsWith(this.plugin.settings.outputFolder) && !sourcePath.startsWith(this.plugin.settings.inboxFolder)) {
 					continue;
 				}
 				const targets = unresolvedLinks[sourcePath];
@@ -199,7 +202,7 @@ export class VaultService {
 	 */
 	async getUningestedDiariesCount(): Promise<{count: number, files: string[]}> {
 		try {
-			const folderPath = '01 Daily';
+			const folderPath = this.plugin.settings.dailyNoteFolder;
 			const folder = this.app.vault.getAbstractFileByPath(folderPath);
 			if (folder instanceof TFolder) {
 				let count = 0;
@@ -244,7 +247,7 @@ export class VaultService {
 			// Filter candidate files that are small (size < 300 bytes) to save I/O
 			const candidates = files.filter(file => 
 				file.stat.size < 300 &&
-				(file.path.startsWith('04 Atomics') || file.path.startsWith('05 Output') || file.path.startsWith('02 Inbox'))
+				(file.path.startsWith(this.plugin.settings.atomicsFolder) || file.path.startsWith(this.plugin.settings.outputFolder) || file.path.startsWith(this.plugin.settings.inboxFolder))
 			);
 
 			for (const file of candidates) {
@@ -314,7 +317,7 @@ export class VaultService {
 			for (const sourcePath of Object.keys(resolvedLinks)) {
 				if (sourcePath.includes('Index')) continue;
 				if (sourcePath.includes('体检报告')) continue;
-				if (!sourcePath.startsWith('04 Atomics') && !sourcePath.startsWith('05 Output') && !sourcePath.startsWith('01 Daily')) continue;
+				if (!sourcePath.startsWith(this.plugin.settings.atomicsFolder) && !sourcePath.startsWith(this.plugin.settings.outputFolder) && !sourcePath.startsWith(this.plugin.settings.dailyNoteFolder)) continue;
 				const targets = resolvedLinks[sourcePath];
 				if (targets) {
 					for (const targetPath of Object.keys(targets)) {
@@ -327,15 +330,15 @@ export class VaultService {
 				const path = file.path;
 				
 				// 1. Categorization by Folder Rules
-				if (path.startsWith('01 ')) stats.countDaily++;
-				else if (path.startsWith('02 ')) stats.countInbox++;
-				else if (path.startsWith('03 ')) stats.countProjects++;
-				else if (path.startsWith('04 ')) stats.countAtomics++;
-				else if (path.startsWith('05 ')) stats.countOutput++;
+				if (path.startsWith(this.plugin.settings.dailyNoteFolder)) stats.countDaily++;
+				else if (path.startsWith(this.plugin.settings.inboxFolder)) stats.countInbox++;
+				else if (path.startsWith(this.plugin.settings.projectsFolder)) stats.countProjects++;
+				else if (path.startsWith(this.plugin.settings.atomicsFolder)) stats.countAtomics++;
+				else if (path.startsWith(this.plugin.settings.outputFolder)) stats.countOutput++;
 				else stats.countOther++;
 
 				// 2. Orphan check (Strict OKF logic: only Atomic notes can be orphans)
-				if (path.startsWith('04 Atomics')) {
+				if (path.startsWith(this.plugin.settings.atomicsFolder)) {
 					if (!linkedFiles.has(path) && !file.name.includes('Index')) {
 						stats.countOrphans++;
 					}

@@ -1,4 +1,5 @@
 import { App, requestUrl } from 'obsidian';
+import AgentDashboardPlugin from '../main';
 
 interface McpServerConfig {
 	type?: string;
@@ -21,10 +22,12 @@ interface JsonRpcResponse {
 }
 
 export class McpService {
+	private plugin: AgentDashboardPlugin;
 	private app: App;
 
-	constructor(app: App) {
-		this.app = app;
+	constructor(plugin: AgentDashboardPlugin) {
+		this.plugin = plugin;
+		this.app = plugin.app;
 	}
 
 	/**
@@ -41,7 +44,7 @@ export class McpService {
 
 	private async loadServerConfig(serverName: string): Promise<McpServerConfig | null> {
 		try {
-			const mcpFilePath = '.claude/mcp.json';
+			const mcpFilePath = this.plugin.settings.mcpConfigPath;
 			if (await this.app.vault.adapter.exists(mcpFilePath)) {
 				const content = await this.app.vault.adapter.read(mcpFilePath);
 				const config = JSON.parse(content) as McpJsonConfig;

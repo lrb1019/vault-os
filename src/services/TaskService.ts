@@ -1,5 +1,6 @@
 import { App, TFile, Notice } from 'obsidian';
 import { McpService } from './McpService';
+import AgentDashboardPlugin from '../main';
 
 export interface TaskItem {
 	id: string;
@@ -81,6 +82,7 @@ interface CachedTaskData {
 
 
 export class TaskService {
+	private plugin: AgentDashboardPlugin;
 	private app: App;
 	public mcpService: McpService;
 	
@@ -94,9 +96,10 @@ export class TaskService {
 
 	private isInitialized = false;
 
-	constructor(app: App) {
-		this.app = app;
-		this.mcpService = new McpService(app);
+	constructor(plugin: AgentDashboardPlugin) {
+		this.plugin = plugin;
+		this.app = plugin.app;
+		this.mcpService = new McpService(plugin);
 	}
 
 	/**
@@ -155,7 +158,7 @@ export class TaskService {
 
 	private async loadFromDisk(): Promise<void> {
 		try {
-			const cachePath = '07 Jarvis/ticktick-cache.json';
+			const cachePath = this.plugin.settings.ticktickCachePath;
 			const cacheFile = this.app.vault.getAbstractFileByPath(cachePath);
 			
 			if (cacheFile instanceof TFile) {
@@ -181,7 +184,7 @@ export class TaskService {
 
 	private async saveToDisk(stats: TaskStats): Promise<void> {
 		try {
-			const cachePath = '07 Jarvis/ticktick-cache.json';
+			const cachePath = this.plugin.settings.ticktickCachePath;
 			let cacheFile = this.app.vault.getAbstractFileByPath(cachePath);
 			const jsonStr = JSON.stringify(stats, null, 2);
 			
@@ -189,10 +192,13 @@ export class TaskService {
 				await this.app.vault.modify(cacheFile, jsonStr);
 			} else {
 				// Create the file if it doesn't exist. Ensure folder exists first.
-				const folderPath = '07 Jarvis';
-				const folder = this.app.vault.getAbstractFileByPath(folderPath);
-				if (!folder) {
-					await this.app.vault.createFolder(folderPath);
+				const lastSlash = cachePath.lastIndexOf('/');
+				const folderPath = lastSlash !== -1 ? cachePath.substring(0, lastSlash) : '';
+				if (folderPath) {
+					const folder = this.app.vault.getAbstractFileByPath(folderPath);
+					if (!folder) {
+						await this.app.vault.createFolder(folderPath);
+					}
 				}
 				await this.app.vault.create(cachePath, jsonStr);
 			}
@@ -207,7 +213,7 @@ export class TaskService {
 	private async fetchFromTickTickMcp(): Promise<TaskStats | null> {
 		try {
 			const callTool = async (name: string, args: Record<string, unknown> = {}): Promise<unknown[] | null> => {
-				const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
+				const mcpResult = await this.mcpService.executeRequest(this.plugin.settings.ticktickServiceName, 'tools/call', {
 					name,
 					arguments: args
 				}) as { content?: Array<{ type: string; text: string }>; isError?: boolean };
@@ -402,7 +408,7 @@ export class TaskService {
 				taskObj.startDate = startDate;
 				taskObj.isAllDay = true;
 			}
-			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
+			const mcpResult = await this.mcpService.executeRequest(this.plugin.settings.ticktickServiceName, 'tools/call', {
 				name: 'create_task',
 				arguments: {
 					task: taskObj
@@ -425,7 +431,7 @@ export class TaskService {
 
 	async completeTask(taskObj: TaskItem): Promise<boolean> {
 		try {
-			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
+			const mcpResult = await this.mcpService.executeRequest(this.plugin.settings.ticktickServiceName, 'tools/call', {
 				name: 'update_task',
 				arguments: {
 					task_id: taskObj.id,
@@ -463,7 +469,7 @@ export class TaskService {
 
 	async checkInHabit(habitId: string, stamp: number, isCompleted: boolean): Promise<boolean> {
 		try {
-			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
+			const mcpResult = await this.mcpService.executeRequest(this.plugin.settings.ticktickServiceName, 'tools/call', {
 				name: 'upsert_habit_checkins',
 				arguments: {
 					habit_id: habitId,
@@ -498,7 +504,7 @@ export class TaskService {
 			// Trigger background sync with a 2-second delay to prevent overwriting optimistic cache due to API lag
 			window.setTimeout(() => {
 				void this.syncWithTickTick();
-			}, 2000);
+			}, this.plugin.settings.ticktickSyncDebounce);
 			return true;
 		} catch (e) {
 			console.error('Error in checkInHabit:', e);

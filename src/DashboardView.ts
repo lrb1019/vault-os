@@ -244,8 +244,11 @@ class LintModal extends Modal {
 }
 
 class IngestModal extends Modal {
-	constructor(app: App) {
-		super(app);
+	private plugin: AgentDashboardPlugin;
+
+	constructor(plugin: AgentDashboardPlugin) {
+		super(plugin.app);
+		this.plugin = plugin;
 	}
 
 	onOpen() {
@@ -257,7 +260,7 @@ class IngestModal extends Modal {
 			attr: { style: 'margin-bottom: 12px; color: var(--interactive-accent); border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 8px;' } 
 		});
 		
-		const inboxFolder = this.app.vault.getAbstractFileByPath('02 Inbox');
+		const inboxFolder = this.app.vault.getAbstractFileByPath(this.plugin.settings.inboxFolder);
 		let inboxFiles: TFile[] = [];
 		if (inboxFolder instanceof TFolder) {
 			inboxFiles = inboxFolder.children.filter((f): f is TFile => f instanceof TFile && f.extension === 'md');
@@ -265,7 +268,7 @@ class IngestModal extends Modal {
 
 		if (inboxFiles.length === 0) {
 			contentEl.createEl('p', {
-				text: '收件箱 (02 inbox) 暂无待分类的笔记！',
+				text: `收件箱 (${this.plugin.settings.inboxFolder}) 暂无待分类的笔记！`,
 				attr: { style: 'color: var(--text-muted); font-style: italic; text-align: center; margin: 30px 0;' }
 			});
 			const closeBtn = contentEl.createEl('button', { text: '关闭', cls: 'ad-btn ad-btn-secondary', attr: { style: 'float: right;' } });
@@ -294,7 +297,7 @@ class IngestModal extends Modal {
 			const projBtn = actionGroup.createEl('button', { text: '分流至项目', cls: 'ad-btn ad-btn-primary' });
 			projBtn.onclick = () => {
 				void (async () => {
-					const newPath = `03 Projects/${file.name}`;
+					const newPath = `${this.plugin.settings.projectsFolder}/${file.name}`;
 					await this.app.fileManager.renameFile(file, newPath);
 					new Notice(`成功将 ${file.basename} 分流至项目文件夹`);
 					this.close();
@@ -305,11 +308,11 @@ class IngestModal extends Modal {
 			const archiveBtn = actionGroup.createEl('button', { text: '归档', cls: 'ad-btn ad-btn-secondary' });
 			archiveBtn.onclick = () => {
 				void (async () => {
-					const archiveDir = this.app.vault.getAbstractFileByPath('Archive');
+					const archiveDir = this.app.vault.getAbstractFileByPath(this.plugin.settings.archiveFolder);
 					if (!archiveDir) {
-						await this.app.vault.createFolder('Archive');
+						await this.app.vault.createFolder(this.plugin.settings.archiveFolder);
 					}
-					const newPath = `Archive/${file.name}`;
+					const newPath = `${this.plugin.settings.archiveFolder}/${file.name}`;
 					await this.app.fileManager.renameFile(file, newPath);
 					new Notice(`成功将 ${file.basename} 归档`);
 					this.close();
@@ -399,9 +402,9 @@ export class AgentDashboardView extends ItemView {
 		this.plugin = plugin;
 		
 		this.readingService = new ReadingService(this.app);
-		this.diaryService = new DiaryService(this.app);
-		this.taskService = new TaskService(this.app);
-		this.vaultService = new VaultService(this.app);
+		this.diaryService = new DiaryService(this.plugin);
+		this.taskService = new TaskService(this.plugin);
+		this.vaultService = new VaultService(this.plugin);
 	}
 
 	getViewType(): string {
@@ -417,6 +420,15 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	triggerClaudianPrompt(prompt: string): void {
+		const settings = this.plugin.settings;
+		const finalPrompt = prompt
+			.replace(/\{\{daily_path\}\}/g, settings.dailyNoteFolder)
+			.replace(/\{\{inbox_path\}\}/g, settings.inboxFolder)
+			.replace(/\{\{projects_path\}\}/g, settings.projectsFolder)
+			.replace(/\{\{atomics_path\}\}/g, settings.atomicsFolder)
+			.replace(/\{\{archive_path\}\}/g, settings.archiveFolder)
+			.replace(/\{\{output_path\}\}/g, settings.outputFolder);
+
 		const appWithPlugins = this.app as unknown as ObsidianAppWithPlugins;
 		const claudianPlugin = appWithPlugins.plugins?.getPlugin("realclaudian") as ClaudianPlugin | null;
 		if (!claudianPlugin) {
@@ -435,7 +447,7 @@ export class AgentDashboardView extends ItemView {
 				return;
 			}
 
-			textarea.value = prompt;
+			textarea.value = finalPrompt;
 			textarea.dispatchEvent(new Event('input', { bubbles: true }));
 
 			const enterEvent = new KeyboardEvent('keydown', {
@@ -548,7 +560,7 @@ export class AgentDashboardView extends ItemView {
 		});
 
 		const workflows = [
-			{ name: 'ingest', label: '快捷入库', icon: 'inbox', prompt: '@skills/ingest 请帮我整理并分类 02 Inbox 中的待处理文件' },
+			{ name: 'ingest', label: '快捷入库', icon: 'inbox', prompt: '@skills/ingest 请帮我整理并分类 {{inbox_path}} 中的待处理文件' },
 			{ name: 'lint', label: '全面体检', icon: 'shield-alert', prompt: '@skills/lint 请帮我扫描并体检整个知识库，找出孤儿笔记与死链并协助修复' },
 			{ name: 'query', label: '知识检索', icon: 'search', prompt: '@skills/query ' },
 			{ name: 'research', label: '主题研究', icon: 'book-open', prompt: '@skills/research ' }
@@ -572,14 +584,15 @@ export class AgentDashboardView extends ItemView {
 		const section = parent.createDiv({ cls: 'ad-bus-section' });
 		section.createDiv({ text: '// NAVIGATION BUS', cls: 'ad-bus-section-title' });
 
+		const projectsFolder = this.plugin.settings.projectsFolder;
 		const docList = [
-			{ name: '00 项目总览', path: '03 Projects/Agent Dashboard/00 项目总览.md' },
-			{ name: '01 规则指南', path: '03 Projects/Agent Dashboard/01 PROJECT_RULES.md' },
-			{ name: '02 后续想法', path: '03 Projects/Agent Dashboard/02 后续想法.md' },
-			{ name: '03 改动日志', path: '03 Projects/Agent Dashboard/03 改动日志.md' },
-			{ name: '04 接续说明', path: '03 Projects/Agent Dashboard/04 接续说明.md' },
-			{ name: '05 审查流程', path: '03 Projects/Agent Dashboard/05 审查流程.md' },
-			{ name: '06 快捷同步', path: '03 Projects/Agent Dashboard/06 GITHUB_SYNC.md' },
+			{ name: '00 项目总览', path: `${projectsFolder}/Agent Dashboard/00 项目总览.md` },
+			{ name: '01 规则指南', path: `${projectsFolder}/Agent Dashboard/01 PROJECT_RULES.md` },
+			{ name: '02 后续想法', path: `${projectsFolder}/Agent Dashboard/02 后续想法.md` },
+			{ name: '03 改动日志', path: `${projectsFolder}/Agent Dashboard/03 改动日志.md` },
+			{ name: '04 接续说明', path: `${projectsFolder}/Agent Dashboard/04 接续说明.md` },
+			{ name: '05 审查流程', path: `${projectsFolder}/Agent Dashboard/05 审查流程.md` },
+			{ name: '06 快捷同步', path: `${projectsFolder}/Agent Dashboard/06 GITHUB_SYNC.md` },
 		];
 
 		const listWrapper = section.createDiv({ cls: 'ad-recent-feed' });
@@ -2637,7 +2650,7 @@ export class AgentDashboardView extends ItemView {
 		setIcon(reportBtn, 'file-text');
 		reportBtn.createSpan({ text: '打开最近一次体检报告' });
 		reportBtn.addEventListener('click', () => {
-			const outputFolder = this.app.vault.getAbstractFileByPath('05 Output');
+			const outputFolder = this.app.vault.getAbstractFileByPath(this.plugin.settings.outputFolder);
 			if (outputFolder instanceof TFolder) {
 				const reportFiles = outputFolder.children.filter((f): f is TFile => 
 					f instanceof TFile && f.name.endsWith('.md') && f.name.startsWith('知识库体检报告-')
@@ -2650,10 +2663,10 @@ export class AgentDashboardView extends ItemView {
 						void this.app.workspace.openLinkText(latestReport.path, '', false);
 					}
 				} else {
-					new Notice('在 05 Output 中未找到任何体检报告');
+					new Notice(`在 ${this.plugin.settings.outputFolder} 中未找到任何体检报告`);
 				}
 			} else {
-				new Notice('未找到 05 Output 文件夹');
+				new Notice(`未找到 ${this.plugin.settings.outputFolder} 文件夹`);
 			}
 		});
 
@@ -2735,7 +2748,7 @@ export class AgentDashboardView extends ItemView {
 	}
 	async generateMonthlyReport(): Promise<void> {
 		const ymStr = moment().format('YYYY-MM');
-		const dirPath = `03 Projects/Agent Dashboard/Reports`;
+		const dirPath = `${this.plugin.settings.projectsFolder}/Agent Dashboard/Reports`;
 		const filePath = `${dirPath}/${ymStr} 巡检报告.md`;
 
 		try {
@@ -2809,7 +2822,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	}
 
 	private openIngestModal(): void {
-		new IngestModal(this.app).open();
+		new IngestModal(this.plugin).open();
 	}
 
 	private openOrphansView(count: number): void {
@@ -2834,7 +2847,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			files.forEach(file => {
 				if (
 					!linkedFiles.has(file.path) && 
-					!file.path.startsWith('01 Daily') && 
+					!file.path.startsWith(this.plugin.settings.dailyNoteFolder) && 
 					!file.path.includes('Dashboard') &&
 					!file.path.includes('templates') &&
 					!file.path.includes(this.app.vault.configDir)
@@ -3189,7 +3202,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				
 				void (async () => {
 					try {
-						const res = (await this.taskService.mcpService.executeRequest('ticktick', 'tools/call', {
+						const res = (await this.taskService.mcpService.executeRequest(this.plugin.settings.ticktickServiceName, 'tools/call', {
 							name: toolName,
 							arguments: {}
 						})) as McpCallResult;
@@ -3221,7 +3234,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		const card = parent.createDiv({ cls: 'ad-card ad-tech-card' });
 		const header = card.createDiv({ cls: 'ad-card-header' });
 		header.createEl('h3', { text: '项目追踪看板' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
-		header.createSpan({ text: '基于 03 Projects 下笔记 frontmatter.status 自动分类', cls: 'ad-card-meta' });
+		header.createSpan({ text: `基于 ${this.plugin.settings.projectsFolder} 下笔记 frontmatter.status 自动分类`, cls: 'ad-card-meta' });
 
 		const board = card.createDiv({ cls: 'ad-kanban-board' });
 
@@ -3283,7 +3296,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	private async getProjectsData(): Promise<ProjectInfo[]> {
 		const projects: ProjectInfo[] = [];
 		try {
-			const projectFolder = this.app.vault.getAbstractFileByPath('03 Projects');
+			const projectFolder = this.app.vault.getAbstractFileByPath(this.plugin.settings.projectsFolder);
 			if (projectFolder instanceof TFolder) {
 				const scanFiles = (folder: TFolder) => {
 					folder.children.forEach(child => {
@@ -3649,8 +3662,8 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		}
 
 		const isSingleYear = this.statsTab === 'year';
-		const cellSize = isSingleYear ? 12 : 9;
-		const cellGap = isSingleYear ? 3 : 2;
+		const cellSize = isSingleYear ? this.plugin.settings.heatmapCellSize : this.plugin.settings.heatmapDoubleCellSize;
+		const cellGap = isSingleYear ? this.plugin.settings.heatmapCellGap : this.plugin.settings.heatmapDoubleCellGap;
 		const gridHeight = 7 * cellSize + 6 * cellGap;
 
 		let yearsToRender = [String(targetYear)];

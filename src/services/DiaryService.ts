@@ -1,4 +1,5 @@
 import { App, TFile, moment } from 'obsidian';
+import AgentDashboardPlugin from '../main';
 
 export interface DiaryInfo {
 	isCreated: boolean;
@@ -77,10 +78,12 @@ interface NavigatorConfig {
 }
 
 export class DiaryService {
+	private plugin: AgentDashboardPlugin;
 	private app: App;
 
-	constructor(app: App) {
-		this.app = app;
+	constructor(plugin: AgentDashboardPlugin) {
+		this.plugin = plugin;
+		this.app = plugin.app;
 	}
 
 	/**
@@ -96,7 +99,7 @@ export class DiaryService {
 		const activeProfile = settings?.vaultProfiles?.find((p: Profile) => p.id === activeProfileId) || settings?.vaultProfiles?.[0];
 		
 		return {
-			rootFolder: activeProfile?.periodicNotesFolder || "01 Daily",
+			rootFolder: activeProfile?.periodicNotesFolder || this.plugin.settings.dailyNoteFolder,
 			patterns: {
 				day: settings?.calendarCustomFilePattern || "YYYYMMDD_dddd",
 				week: settings?.calendarCustomWeekPattern || "gggg-[W]ww",
@@ -122,9 +125,9 @@ export class DiaryService {
 		if (!config) {
 			const todayStr = date.format('YYYY-MM-DD');
 			return {
-				folderPath: '01 Daily',
+				folderPath: this.plugin.settings.dailyNoteFolder,
 				fileName: `${todayStr}.md`,
-				filePath: `01 Daily/${todayStr}.md`
+				filePath: `${this.plugin.settings.dailyNoteFolder}/${todayStr}.md`
 			};
 		}
 		
@@ -309,7 +312,7 @@ export class DiaryService {
 				if (match) {
 					dayDates.push(`${match[1]}-${match[2]}-${match[3]}`);
 				}
-			} else if (path.includes('01 Daily')) {
+			} else if (path.includes(this.plugin.settings.dailyNoteFolder)) {
 				stats.totalDiaries++;
 				const cache = this.app.metadataCache.getFileCache(f);
 				const rawFm: unknown = cache?.frontmatter;
