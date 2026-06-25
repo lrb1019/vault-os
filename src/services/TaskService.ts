@@ -8,6 +8,49 @@ export interface TaskItem {
 	checked: boolean;
 	status?: number;
 	time?: string;
+	dueDate?: string;
+	startDate?: string;
+	title?: string;
+	createdTime?: string;
+	isAllDay?: boolean;
+}
+
+export interface CompletedTaskItem {
+	id: string;
+	projectId?: string;
+	title?: string;
+	dueDate?: string;
+	startDate?: string;
+	time?: string;
+	completedTime?: string;
+	completed_time?: string;
+	isAllDay?: boolean;
+}
+
+export interface HabitItem {
+	id: string;
+	name: string;
+	totalCheckIns?: number;
+}
+
+export interface HabitCheckinItem {
+	stamp: number;
+	status: number;
+}
+
+export interface FocusItem {
+	id?: string;
+	startTime?: string;
+	start_time?: string;
+	endTime?: string;
+	end_time?: string;
+	duration?: number;
+	tag?: string;
+}
+
+export interface ProjectItem {
+	id: string;
+	name: string;
 }
 
 export interface TaskStats {
@@ -15,6 +58,11 @@ export interface TaskStats {
 	completedCount: number;
 	overdueCount: number;
 	tasks: TaskItem[];
+	completedTasks?: CompletedTaskItem[];
+	habits?: HabitItem[];
+	habitCheckins?: Record<string, HabitCheckinItem[]>;
+	focuses?: FocusItem[];
+	projects?: ProjectItem[];
 }
 
 interface CachedTaskData {
@@ -22,27 +70,19 @@ interface CachedTaskData {
 	completedCount?: number;
 	overdueCount?: number;
 	tasks?: TaskItem[];
+	completedTasks?: CompletedTaskItem[];
+	habits?: HabitItem[];
+	habitCheckins?: Record<string, HabitCheckinItem[]>;
+	focuses?: FocusItem[];
+	projects?: ProjectItem[];
 }
 
-interface McpTool {
-	name: string;
-	description?: string;
-}
 
-interface McpToolsListResponse {
-	tools?: McpTool[];
-}
 
-interface McpToolCallResponse {
-	content?: Array<{
-		type?: string;
-		text?: string;
-	}>;
-}
 
 export class TaskService {
 	private app: App;
-	private mcpService: McpService;
+	public mcpService: McpService;
 	
 	// Memory cache for synchronous UI rendering
 	private cache: TaskStats = {
@@ -126,7 +166,12 @@ export class TaskService {
 					todayCount: data.todayCount || 0,
 					completedCount: data.completedCount || 0,
 					overdueCount: data.overdueCount || 0,
-					tasks: data.tasks || []
+					tasks: data.tasks || [],
+					completedTasks: data.completedTasks || [],
+					habits: data.habits || [],
+					habitCheckins: data.habitCheckins || {},
+					focuses: data.focuses || [],
+					projects: data.projects || []
 				};
 			}
 		} catch (e) {
@@ -161,9 +206,7 @@ export class TaskService {
 	 */
 	private async fetchFromTickTickMcp(): Promise<TaskStats | null> {
 		try {
-			console.log('Agent Dashboard: Starting comprehensive TickTick sync...');
-			
-			const callTool = async (name: string, args: any = {}) => {
+			const callTool = async (name: string, args: Record<string, unknown> = {}): Promise<unknown[] | null> => {
 				const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
 					name,
 					arguments: args
@@ -171,19 +214,21 @@ export class TaskService {
 				
 				if (mcpResult.isError) return null;
 				if (mcpResult.content && Array.isArray(mcpResult.content)) {
-					const results: any[] = [];
+					const results: unknown[] = [];
 					for (const block of mcpResult.content) {
 						if (block.type === 'text' && block.text) {
 							try {
-								const parsed = JSON.parse(block.text);
+								const parsed = JSON.parse(block.text) as Record<string, unknown> | unknown[];
 								if (Array.isArray(parsed)) {
 									results.push(...parsed);
-								} else if (parsed && !parsed.error) {
-									// In case it returns an error string inside JSON
-									if (typeof parsed.text === 'string' && parsed.text.startsWith('Error')) {
-										console.warn('Agent Dashboard MCP Tool Error:', parsed.text);
-									} else {
-										results.push(parsed);
+								} else if (parsed && typeof parsed === 'object') {
+									const parsedObj = parsed as { text?: string; error?: string };
+									if (!parsedObj.error) {
+										if (typeof parsedObj.text === 'string' && parsedObj.text.startsWith('Error')) {
+											console.warn('Agent Dashboard MCP Tool Error:', parsedObj.text);
+										} else {
+											results.push(parsed);
+										}
 									}
 								}
 							} catch (e) {
@@ -196,62 +241,127 @@ export class TaskService {
 				return null;
 			};
 
+
+
 			// 1. Fetch all projects
-			const projects = await callTool('list_projects') || [];
+			const projects = (await callTool('list_projects') || []) as ProjectItem[];
 			const projectIds = Array.isArray(projects) ? projects.map(p => p.id) : [];
 			if (!projectIds.includes('inbox')) projectIds.push('inbox');
 
 			// 2. Fetch all undone tasks for all projects
-			let allUndoneTasks: any[] = [];
+			let allUndoneTasks: TaskItem[] = [];
 			for (const pid of projectIds) {
 				const projData = await callTool('get_project_with_undone_tasks', { project_id: pid });
-				// projData is always a flat array now because of callTool's normalization
 				if (Array.isArray(projData)) {
-					// Pydantic validation means it might return the project object which contains `tasks` list
 					for (const p of projData) {
-						if (p.tasks && Array.isArray(p.tasks)) {
-							allUndoneTasks = allUndoneTasks.concat(p.tasks);
-						} else if (p.id && p.title) {
-							// If the API directly returns a list of tasks
-							allUndoneTasks.push(p);
+						const proj = p as { tasks?: TaskItem[]; id?: string; title?: string };
+						if (proj.tasks && Array.isArray(proj.tasks)) {
+							allUndoneTasks = allUndoneTasks.concat(proj.tasks);
+						} else if (proj.id && proj.title) {
+							allUndoneTasks.push(p as TaskItem);
 						}
 					}
 				}
 			}
 
 			// 3. Fetch completed tasks (past 30 days)
-			const endDate = new Date();
+			const endDate = new Date(Date.now() + 86400000); // Set to tomorrow to include tasks completed today (due to exclusive boundary)
 			const startDate = new Date();
 			startDate.setDate(startDate.getDate() - 30);
 			const formatDate = (d: Date) => d.toISOString().split('T')[0];
 			
-			const completedData = await callTool('list_completed_tasks_by_date', {
+			const completedData = (await callTool('list_completed_tasks_by_date', {
 				search: {
 					start_date: formatDate(startDate),
 					end_date: formatDate(endDate),
 					timezone: 'Asia/Shanghai'
 				}
-			}) || [];
+			}) || []) as CompletedTaskItem[];
 
-			// 4. Fetch habits
-			const habitsData = await callTool('list_habits') || [];
+			// 4. Fetch habits & habit checkins
+			const habitsData = (await callTool('list_habits') || []) as HabitItem[];
+			const habitIds = Array.isArray(habitsData) ? habitsData.map((h: HabitItem) => h.id) : [];
+			const habitCheckins: Record<string, HabitCheckinItem[]> = {};
+			
+			if (habitIds.length > 0) {
+				const getStamp = (d: Date) => {
+					const pad = (num: number) => num.toString().padStart(2, '0');
+					return parseInt(`${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`);
+				};
+				const fromStamp = getStamp(startDate);
+				// to_stamp parameter in get_habit_checkins is exclusive, so we must add 1 day to query today's stamp
+				const tomorrow = new Date(endDate.getTime() + 86400000);
+				const toStamp = getStamp(tomorrow);
+				const checkinsRes = await callTool('get_habit_checkins', {
+					habit_ids: habitIds,
+					from_stamp: fromStamp,
+					to_stamp: toStamp
+				});
+				if (checkinsRes) {
+					if (Array.isArray(checkinsRes)) {
+						checkinsRes.forEach((item) => {
+							const habitCheckin = item as { habitId?: string; id?: string; checkins?: { stamp?: number; checkinStamp?: number; status: number }[] };
+							const hId = habitCheckin.habitId || habitCheckin.id;
+							if (hId && Array.isArray(habitCheckin.checkins)) {
+								habitCheckins[hId] = habitCheckin.checkins.map(c => ({
+									stamp: c.stamp || c.checkinStamp || 0,
+									status: c.status
+								}));
+							}
+						});
+					} else if (typeof checkinsRes === 'object') {
+						const record = checkinsRes as Record<string, { stamp?: number; checkinStamp?: number; checkin_stamp?: number; status: number }[]>;
+						Object.keys(record).forEach((key: string) => {
+							const list = record[key];
+							if (Array.isArray(list)) {
+								habitCheckins[key] = list.map(c => ({
+									stamp: c.stamp || c.checkinStamp || c.checkin_stamp || 0,
+									status: c.status
+								}));
+							}
+						});
+					}
+				}
+			}
 
-			// 5. Fetch focuses
-			const focusData = await callTool('get_focuses_by_time', {
-				from_time: startDate.getTime(),
-				to_time: endDate.getTime(),
+			// 5. Fetch focuses (using ISO-8601 strings)
+			const tzOffset = '+08:00';
+			const formatISOWithTZ = (d: Date) => {
+				const pad = (num: number) => num.toString().padStart(2, '0');
+				const y = d.getFullYear();
+				const m = pad(d.getMonth() + 1);
+				const date = pad(d.getDate());
+				const h = pad(d.getHours());
+				const min = pad(d.getMinutes());
+				const s = pad(d.getSeconds());
+				return `${y}-${m}-${date}T${h}:${min}:${s}${tzOffset}`;
+			};
+
+			const focusData0 = (await callTool('get_focuses_by_time', {
+				from_time: formatISOWithTZ(startDate),
+				to_time: formatISOWithTZ(endDate),
 				type: 0
-			}) || [];
+			}) || []) as FocusItem[];
+			const focusData1 = (await callTool('get_focuses_by_time', {
+				from_time: formatISOWithTZ(startDate),
+				to_time: formatISOWithTZ(endDate),
+				type: 1
+			}) || []) as FocusItem[];
+			const focusData = [
+				...focusData0,
+				...focusData1
+			];
 
 			// Process tasks into TaskStats cache object
-			const parsedTasks: any[] = allUndoneTasks.map(t => ({
+			const parsedTasks: TaskItem[] = allUndoneTasks.map(t => ({
 				...t,
 				text: t.title || 'Untitled',
 				checked: t.status === 2,
-				time: t.start_date || t.due_date || ''
+				time: t.startDate || t.dueDate || '',
+				isAllDay: t.isAllDay
 			}));
 
-			const cacheData: any = {
+			const cacheData: TaskStats = {
 				todayCount: parsedTasks.filter(t => {
 					if (!t.time) return false;
 					const due = new Date(t.time);
@@ -267,7 +377,9 @@ export class TaskService {
 				tasks: parsedTasks,
 				completedTasks: completedData,
 				habits: habitsData,
-				focuses: focusData
+				habitCheckins: habitCheckins,
+				focuses: focusData,
+				projects: projects
 			};
 
 			this.cache = cacheData;
@@ -280,17 +392,22 @@ export class TaskService {
 		return null;
 	}
 
-	async addTask(title: string, projectId?: string): Promise<boolean> {
+	async addTask(title: string, projectId?: string, startDate?: string): Promise<boolean> {
 		try {
+			const taskObj: Record<string, unknown> = {
+				title: title,
+				project_id: projectId || 'inbox'
+			};
+			if (startDate) {
+				taskObj.startDate = startDate;
+				taskObj.isAllDay = true;
+			}
 			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
 				name: 'create_task',
 				arguments: {
-					task: {
-						title: title,
-						project_id: projectId || 'inbox'
-					}
+					task: taskObj
 				}
-			}) as { isError?: boolean; content?: any[] };
+			}) as { isError?: boolean; content?: unknown[] };
 			
 			if (mcpResult.isError) {
 				console.error('Failed to create task:', mcpResult);
@@ -306,7 +423,7 @@ export class TaskService {
 		}
 	}
 
-	async completeTask(taskObj: any): Promise<boolean> {
+	async completeTask(taskObj: TaskItem): Promise<boolean> {
 		try {
 			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
 				name: 'update_task',
@@ -317,7 +434,7 @@ export class TaskService {
 						status: 2
 					}
 				}
-			}) as { isError?: boolean; content?: any[] };
+			}) as { isError?: boolean; content?: unknown[] };
 			
 			if (mcpResult.isError) {
 				console.error('Failed to complete task:', mcpResult);
@@ -325,7 +442,7 @@ export class TaskService {
 			}
 			
 			// Update local cache optimistically
-			const taskIndex = this.cache.tasks.findIndex((t: any) => t.id === taskObj.id);
+			const taskIndex = this.cache.tasks.findIndex(t => t.id === taskObj.id);
 			if (taskIndex !== -1) {
 				const taskToUpdate = this.cache.tasks[taskIndex];
 				if (taskToUpdate) {
@@ -336,7 +453,7 @@ export class TaskService {
 			
 			await this.saveToDisk(this.cache);
 			// Full sync in background
-			this.syncWithTickTick();
+			void this.syncWithTickTick();
 			return true;
 		} catch (e) {
 			console.error('Error in completeTask:', e);
@@ -344,7 +461,48 @@ export class TaskService {
 		}
 	}
 
-	private parseTasksFromMcpText(text: string): TaskStats {
-		return { todayCount: 5, completedCount: 3, overdueCount: 0, tasks: [] };
+	async checkInHabit(habitId: string, stamp: number, isCompleted: boolean): Promise<boolean> {
+		try {
+			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
+				name: 'upsert_habit_checkins',
+				arguments: {
+					habit_id: habitId,
+					checkin_data: {
+						stamp: stamp,
+						status: isCompleted ? 2 : 0 // 2 = completed, 0 = unmarked
+					}
+				}
+			}) as { isError?: boolean; content?: unknown[] };
+			
+			if (mcpResult.isError) {
+				console.error('Failed to check in habit:', mcpResult);
+				return false;
+			}
+			
+			// Optimistically update local cache
+			if (this.cache.habitCheckins) {
+				if (!this.cache.habitCheckins[habitId]) {
+					this.cache.habitCheckins[habitId] = [];
+				}
+				const existingIndex = this.cache.habitCheckins[habitId].findIndex(c => c.stamp === stamp);
+				if (existingIndex !== -1) {
+					const checkin = this.cache.habitCheckins[habitId][existingIndex];
+					if (checkin) {
+						checkin.status = isCompleted ? 2 : 0;
+					}
+				} else {
+					this.cache.habitCheckins[habitId].push({ stamp, status: isCompleted ? 2 : 0 });
+				}
+			}
+			
+			// Trigger background sync with a 2-second delay to prevent overwriting optimistic cache due to API lag
+			window.setTimeout(() => {
+				void this.syncWithTickTick();
+			}, 2000);
+			return true;
+		} catch (e) {
+			console.error('Error in checkInHabit:', e);
+			return false;
+		}
 	}
 }

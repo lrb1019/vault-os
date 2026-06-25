@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap');
+
 .ad-container {
 	width: 100%;
 	max-width: 950px;
@@ -5,7 +7,7 @@
 	display: flex;
 	flex-direction: column;
 	margin: 0 auto;
-	padding: 0 40px;
+	padding: 60px 60px 40px 60px;
 	box-sizing: border-box;
 }
 
@@ -79,8 +81,8 @@
 .ad-vault-telemetry-bar {
 	display: flex;
 	width: 100%;
-	height: 4px; /* Shrink to 1/3 of 12px */
-	border-radius: 2px;
+	height: 8px;
+	border-radius: 4px;
 	overflow: hidden;
 	margin-bottom: 6px;
 	background: var(--background-secondary);
@@ -148,19 +150,43 @@
 
 /* 压缩阅读统计的日期选择器 */
 .jarvis-stats-date-picker {
-	padding: 2px 8px !important;
+	padding: 0 4px !important;
 	border-radius: 6px;
 	border: 1px solid var(--background-modifier-border);
 	display: flex;
 	align-items: center;
-	height: 28px;
+	height: 24px;
+	background: var(--background-primary);
 }
 .jarvis-stats-date-text {
-	font-size: 13px !important;
-	font-weight: 400 !important;
+	font-size: 14px !important;
+	font-weight: 500 !important;
 	margin-bottom: 0 !important;
-	margin-left: 8px !important;
-	margin-right: 8px !important;
+	margin-left: 6px !important;
+	margin-right: 6px !important;
+}
+.jarvis-stats-date-btn {
+	background: transparent !important;
+	border: none !important;
+	box-shadow: none !important;
+	padding: 0 !important;
+	margin: 0 !important;
+	width: 20px !important;
+	height: 20px !important;
+	display: flex !important;
+	align-items: center !important;
+	justify-content: center !important;
+	cursor: pointer;
+	color: var(--text-muted);
+}
+.jarvis-stats-date-btn:hover {
+	color: var(--text-normal);
+	background: var(--background-modifier-hover) !important;
+	border-radius: 4px;
+}
+.jarvis-stats-date-btn svg {
+	width: 14px !important;
+	height: 14px !important;
 }
 
 /* 周期日记打卡墙样式 */
@@ -273,7 +299,6 @@
     padding-bottom: 8px;
 }
 .jarvis-stats-calendar-cell {
-    aspect-ratio: 1;
     border-radius: 6px;
     border: 1px solid var(--background-modifier-border);
     display: flex;
@@ -284,6 +309,7 @@
     color: var(--text-normal);
     position: relative;
     background-color: var(--background-secondary);
+    box-sizing: border-box;
 }
 .jarvis-stats-calendar-cell.is-empty {
     background-color: transparent;
@@ -301,18 +327,20 @@
 }
 
 /* Heatmap Chart */
-.jarvis-stats-heatmap-wrapper {\n    display: flex;\n    flex-direction: column;\n    flex-grow: 1;\n    height: 100%;
+.jarvis-stats-heatmap-wrapper {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex-grow: 1;
+    height: 100%;
     overflow-x: auto;
     padding-bottom: 15px;
 }
-.jarvis-stats-heatmap-col {\n    flex-grow: 1;
+.jarvis-stats-heatmap-col {
     display: flex;
     flex-direction: column;
-    gap: 3px;
 }
 .jarvis-stats-heatmap-cell {
-    width: 12px;
-    flex-grow: 1;
     border-radius: 2px;
     background-color: color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
     position: relative;
@@ -360,3 +388,254 @@
     border-radius: 2px;
     background-color: color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
 }
+
+/* 今日待办与今日习惯打卡大屏布局 */
+.ad-tasks-wrapper {
+	width: 100%;
+	display: flex;
+	flex-direction: column;
+	gap: 20px;
+}
+
+.ad-habit-list {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.ad-habit-item {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 8px 12px;
+	border-radius: 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	transition: all 0.2s ease;
+}
+
+.ad-habit-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.ad-habit-check-btn {
+	transition: all 0.2s ease;
+}
+
+.ad-habit-check-btn:hover {
+	transform: scale(1.1);
+}
+
+.ad-habit-check-btn.is-completed {
+	background: var(--interactive-accent) !important;
+	border-color: var(--interactive-accent) !important;
+	color: var(--text-on-accent) !important;
+}
+
+/* Today's Tasks Styling */
+.ad-task-list {
+	margin-top: 16px;
+}
+
+.ad-task-item {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 8px 12px;
+	border-radius: 8px;
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	transition: all 0.2s ease;
+	margin-bottom: 8px;
+}
+
+.ad-task-item:hover {
+	background: var(--background-modifier-hover);
+}
+
+.ad-task-check-btn {
+	border-radius: 50%;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	cursor: pointer;
+	border: 1px solid var(--background-modifier-border);
+	background: transparent;
+	color: transparent;
+	transition: all 0.2s ease;
+}
+
+.ad-task-check-btn:hover {
+	transform: scale(1.1);
+}
+
+.ad-task-check-btn.is-completed {
+	border: 1px solid var(--text-success) !important;
+	background: transparent !important;
+	color: var(--text-success) !important;
+	cursor: not-allowed;
+}
+
+.ad-task-text.is-completed {
+	text-decoration: line-through;
+	color: var(--text-muted);
+}
+
+/* Custom Dropdown select menu styling to match Obsidian theme background */
+.ad-select {
+	background-color: var(--background-primary);
+	color: var(--text-normal);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 4px 12px;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	outline: none;
+	transition: border-color 0.2s ease;
+}
+
+.ad-select:hover {
+	border-color: var(--text-muted);
+}
+
+.ad-select option,
+select.dropdown option {
+	background-color: var(--background-primary) !important;
+	color: var(--text-normal) !important;
+}
+
+/* 小数据卡片组 */
+.jarvis-stats-mini-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+	gap: 12px;
+	margin-bottom: 24px;
+}
+
+.jarvis-stats-mini-card {
+	background: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	padding: 12px 8px;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 4px;
+}
+
+.theme-light .jarvis-stats-mini-card {
+	background: transparent;
+}
+
+.jarvis-stats-mini-val {
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.jarvis-stats-mini-label {
+	font-size: 11px;
+	color: var(--text-muted);
+}
+
+/* 图表区结构 */
+.jarvis-stats-chart-section {
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	padding: 20px;
+	background: var(--background-secondary);
+	margin-bottom: 24px;
+}
+
+.theme-light .jarvis-stats-chart-section {
+	background: transparent;
+}
+
+.jarvis-stats-chart-header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 16px;
+}
+
+.jarvis-stats-chart-title {
+	font-size: 14px;
+	font-weight: 700;
+}
+
+.jarvis-stats-chart-toggles {
+	display: flex;
+	background: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 2px;
+}
+
+.jarvis-stats-chart-toggle-btn {
+	background: none;
+	border: none;
+	padding: 4px 8px;
+	border-radius: 4px;
+	cursor: pointer;
+	color: var(--text-muted);
+	display: flex;
+	align-items: center;
+}
+
+.jarvis-stats-chart-toggle-btn.is-active {
+	background: var(--background-secondary);
+	color: var(--interactive-accent);
+}
+
+.theme-light .jarvis-stats-chart-toggle-btn.is-active {
+	background: #F5F2E9;
+	color: #8C1A1A;
+}
+
+/* 每日柱状图样式 */
+.jarvis-stats-bar-chart-container {
+	display: flex;
+	align-items: flex-end;
+	justify-content: space-between;
+	height: 160px;
+	padding-top: 20px;
+	padding-bottom: 8px;
+	border-bottom: 1px solid var(--background-modifier-border);
+}
+
+/* 日记模块周期切换按钮组与间距 */
+.ad-card-tabs {
+	display: flex;
+	gap: 8px;
+}
+
+.ad-card-tab-btn {
+	background-color: var(--background-secondary);
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 6px;
+	padding: 4px 12px;
+	font-size: 12px;
+	font-weight: 500;
+	cursor: pointer;
+	color: var(--text-muted);
+	transition: all 0.2s ease;
+	box-shadow: none;
+}
+
+.ad-card-tab-btn:hover {
+	background-color: var(--background-modifier-hover);
+	color: var(--text-normal);
+}
+
+.ad-card-tab-btn.is-active {
+	background-color: var(--interactive-accent);
+	color: var(--text-on-accent);
+	border-color: var(--interactive-accent);
+	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+

@@ -97,7 +97,12 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 			.setName('第三方插件联动（自动检测已安装）')
 			.setHeading();
 
-		const manifests = (this.app as any).plugins?.manifests || {};
+		interface ObsidianAppWithPlugins {
+			plugins?: {
+				manifests?: Record<string, unknown>;
+			};
+		}
+		const manifests = (this.app as unknown as ObsidianAppWithPlugins).plugins?.manifests || {};
 		const thirdPartyPlugins = [
 			{ id: 'jarvis-reader', name: 'Jarvis Reader (阅读统计与分析)' },
 			{ id: 'notebook-navigator', name: 'Notebook Navigator (双栏目录与日历)' },
@@ -231,8 +236,11 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 	}
 
 	refreshDashboardView() {
+		interface DashboardViewInterface {
+			render(): void;
+		}
 		this.app.workspace.getLeavesOfType('agent-dashboard-view').forEach(leaf => {
-			const view = leaf.view as any;
+			const view = leaf.view as unknown as DashboardViewInterface;
 			if (view && typeof view.render === 'function') {
 				view.render();
 			}

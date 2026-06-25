@@ -312,8 +312,11 @@ export class DiaryService {
 			} else if (path.includes('01 Daily')) {
 				stats.totalDiaries++;
 				const cache = this.app.metadataCache.getFileCache(f);
-				if (cache?.frontmatter?.created) {
-					const parsed = moment(cache.frontmatter.created);
+				const rawFm: unknown = cache?.frontmatter;
+				const frontmatter = rawFm as Record<string, unknown> | undefined;
+				const createdVal = frontmatter?.created;
+				if (createdVal && (typeof createdVal === 'string' || typeof createdVal === 'number' || createdVal instanceof Date)) {
+					const parsed = moment(createdVal);
 					if (parsed.isValid()) dayDates.push(parsed.format('YYYY-MM-DD'));
 				}
 			}

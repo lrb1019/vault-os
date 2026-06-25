@@ -80,14 +80,14 @@ export class McpService {
 			}).then((res) => {
 				if (res.status === 200 || res.status === 202) {
 					try {
-						const data = typeof res.json === 'function' ? res.json() : (typeof res.json === 'object' ? res.json : JSON.parse(res.text));
+						const data = ((res.json && typeof res.json === 'object') ? res.json : JSON.parse(res.text)) as unknown;
 						const payload = data as JsonRpcResponse;
 						if (payload.error) {
 							reject(new Error(payload.error.message || 'MCP Error'));
 						} else {
 							resolve(payload.result);
 						}
-					} catch (e) {
+					} catch {
 						reject(new Error('Failed to parse JSON-RPC response'));
 					}
 				} else {

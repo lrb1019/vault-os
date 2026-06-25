@@ -14,14 +14,14 @@ export default class AgentDashboardPlugin extends Plugin {
 		);
 
 		this.addRibbonIcon('layout-dashboard', 'Open agent dashboard', () => {
-			this.activateView();
+			void this.activateView();
 		});
 
 		this.addCommand({
 			id: 'open-dashboard',
 			name: 'Open dashboard',
 			callback: () => {
-				this.activateView();
+				void this.activateView();
 			}
 		});
 
@@ -32,7 +32,7 @@ export default class AgentDashboardPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Record<string, unknown> | null);
 	}
 
 	async saveSettings() {

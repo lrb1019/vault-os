@@ -268,11 +268,12 @@ export class VaultService {
 	 */
 	private getFileCreationTime(file: TFile): number {
 		const cache = this.app.metadataCache.getFileCache(file);
-		const fm = cache?.frontmatter;
+		const rawFm: unknown = cache?.frontmatter;
+		const fm = rawFm as Record<string, unknown> | undefined;
 		if (fm) {
-			const dateStr = fm['created'] || fm['date'];
-			if (dateStr) {
-				const ts = new Date(dateStr).getTime();
+			const dateVal = fm['created'] || fm['date'];
+			if (dateVal && (typeof dateVal === 'string' || typeof dateVal === 'number' || dateVal instanceof Date)) {
+				const ts = new Date(dateVal).getTime();
 				if (!isNaN(ts)) return ts;
 			}
 		}
