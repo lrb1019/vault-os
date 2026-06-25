@@ -1645,17 +1645,67 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		const stats = this.taskService.getCache();
 		const tasks = stats.tasks || [];
 
-		tasks.forEach(t => {
-			const item = taskList.createDiv({ cls: 'ad-task-item' });
-			const check = item.createEl('input', { type: 'checkbox', attr: t.checked ? { checked: true } : {} });
-			check.addEventListener('change', () => {
-				new Notice(`更新任务状态: ${t.text}`);
-			});
-			item.createEl('span', { text: t.text, cls: `ad-task-text ${t.checked ? 'is-completed' : ''}` });
-			if (t.time) {
-				item.createEl('span', { text: t.time, cls: 'ad-task-time' });
+		// Grouping
+		const now = new Date();
+		const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+		const todayEnd = todayStart + 86400000;
+
+		const overdue: any[] = [];
+		const today: any[] = [];
+		const future: any[] = [];
+		const noDate: any[] = [];
+
+		tasks.forEach((t: any) => {
+			if (!t.dueDate && !t.startDate && !t.time) {
+				noDate.push(t);
+			} else {
+				const dueStr = t.dueDate || t.startDate || t.time;
+				const dueTime = new Date(dueStr).getTime();
+				if (dueTime < todayStart) {
+					overdue.push(t);
+				} else if (dueTime >= todayStart && dueTime < todayEnd) {
+					today.push(t);
+				} else {
+					future.push(t);
+				}
 			}
 		});
+
+		const renderGroup = (title: string, groupTasks: any[], isOverdue: boolean = false) => {
+			if (groupTasks.length === 0) return;
+			const groupTitle = taskList.createDiv({ text: `${title} · ${groupTasks.length}`, attr: { style: `font-size: 13px; font-weight: bold; margin-top: 16px; margin-bottom: 8px; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 4px; ${isOverdue ? 'color: var(--text-error);' : 'color: var(--text-normal);'}` } });
+			groupTasks.forEach((t: any) => {
+				const item = taskList.createDiv({ cls: 'ad-task-item', attr: { style: 'margin-bottom: 8px; display: flex; align-items: flex-start; gap: 8px;' } });
+				const isCompleted = t.status !== undefined ? t.status !== 0 : !!t.checked;
+				const check = item.createEl('input', { type: 'checkbox', attr: isCompleted ? { checked: true } : {} });
+				check.addEventListener('change', () => {
+					new Notice(`准备更新状态: ${t.title || t.text}`);
+				});
+				const txtContainer = item.createDiv({ attr: { style: 'display: flex; flex-direction: column; flex: 1;' } });
+				txtContainer.createEl('span', { text: t.title || t.text || '无标题', cls: `ad-task-text ${isCompleted ? 'is-completed' : ''}` });
+				
+				const dueStr = t.dueDate || t.startDate || t.time;
+				if (dueStr) {
+					const dt = new Date(dueStr);
+					const month = (dt.getMonth() + 1).toString().padStart(2, '0');
+					const date = dt.getDate().toString().padStart(2, '0');
+					const hours = dt.getHours().toString().padStart(2, '0');
+					const minutes = dt.getMinutes().toString().padStart(2, '0');
+					
+					let dateDisplay = `${month}-${date}`;
+					if (hours !== '00' || minutes !== '00' || (!dueStr.endsWith('00:00:00+0000') && !dueStr.endsWith('00:00:00Z'))) {
+						dateDisplay += ` ${hours}:${minutes}`;
+					}
+
+					txtContainer.createEl('span', { text: dateDisplay, cls: 'ad-task-time', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
+				}
+			});
+		};
+
+		renderGroup('已过期 (Overdue)', overdue, true);
+		renderGroup('今天 (Today)', today);
+		renderGroup('近期与未来 (Future)', future);
+		renderGroup('收集箱/无日期 (Inbox)', noDate);
 
 		const addWrapper = todayCard.createDiv({ cls: 'ad-task-add-wrapper', attr: { style: 'margin-top: 15px; display: flex; gap: 8px;' } });
 		const input = addWrapper.createEl('input', { type: 'text', placeholder: '添加新待办至 TickTick...' });
