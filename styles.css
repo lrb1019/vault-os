@@ -638,4 +638,51 @@ select.dropdown option {
 	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
+/* 设置界面 Tab 样式 */
+.ad-settings-tabs-container {
+	display: flex;
+	gap: 16px;
+	border-bottom: 1px solid var(--background-modifier-border);
+	margin-bottom: 20px;
+	padding-bottom: 0px;
+}
+
+.ad-settings-tab-btn {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 8px 12px;
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	color: var(--text-muted);
+	border-bottom: 2px solid transparent;
+	transition: all 0.2s ease;
+}
+
+.ad-settings-tab-btn:hover {
+	color: var(--text-normal);
+}
+
+.ad-settings-tab-btn.is-active {
+	color: var(--interactive-accent);
+	border-bottom: 2px solid var(--interactive-accent);
+	font-weight: 600;
+}
+
+.ad-settings-tab-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.ad-settings-tab-icon svg {
+	width: 14px;
+	height: 14px;
+}
+
+.ad-settings-section-content {
+	animation: fadeIn 0.3s ease-out;
+}
+
 

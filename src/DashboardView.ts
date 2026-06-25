@@ -17,11 +17,6 @@ interface ClaudianPlugin {
 	activateView(): Promise<void>;
 }
 
-interface AppWithCommands {
-	commands: {
-		executeCommandById(id: string): boolean;
-	};
-}
 
 interface ScanResultCategory {
 	count: number;
@@ -541,9 +536,6 @@ export class AgentDashboardView extends ItemView {
 		// 1. Navigation Bus
 		this.renderNavigationBus(sidebar);
 
-		// 2. Active Plugins
-		this.renderSidebarActivePlugins(sidebar);
-
 		// 2.5 Claudian Workflows
 		this.renderClaudianWorkflows(sidebar);
 
@@ -613,49 +605,6 @@ export class AgentDashboardView extends ItemView {
 		});
 	}
 
-	private renderSidebarActivePlugins(parent: Element): void {
-		const section = parent.createDiv({ cls: 'ad-bus-section' });
-		section.createDiv({ text: '// ACTIVE PLUGINS', cls: 'ad-bus-section-title' });
-
-		const switches = section.createDiv({ cls: 'ad-plugin-switches' });
-
-		const appWithPlugins = this.app as unknown as ObsidianAppWithPlugins;
-		const manifestList = appWithPlugins.plugins?.manifests || {};
-		const enabledList = appWithPlugins.plugins?.enabledPlugins || new Set<string>();
-
-		const pluginList = [
-			{ id: 'notebook-navigator', label: '目录导航', cmd: 'notebook-navigator:open' },
-			{ id: 'jarvis-reader', label: '阅读书架', cmd: 'jarvis-reader:open-library' },
-			{ id: 'rss-dashboard', label: 'RSS 订阅', cmd: 'rss-dashboard:open-view' },
-			{ id: 'obsidian-excalidraw-plugin', label: '思维导图', cmd: 'obsidian-excalidraw-plugin:open' }
-		];
-
-		pluginList.forEach(plug => {
-			const isInstalled = !!manifestList[plug.id];
-			const isActive = enabledList.has(plug.id);
-
-			const item = switches.createDiv({ cls: 'ad-plugin-switch' });
-			item.createSpan({ text: plug.label });
-
-			const btn = item.createEl('button', {
-				text: isActive ? '运行' : (isInstalled ? '未启用' : '未安装'),
-				cls: `ad-btn ${isActive ? 'ad-btn-primary' : 'ad-btn-secondary'}`
-			});
-
-			if (!isActive) {
-				btn.disabled = true;
-			} else {
-				btn.addEventListener('click', () => {
-					new Notice(`正在启动: ${plug.label}`);
-					const commandId = plug.cmd;
-					const appWithCommands = this.app as unknown as AppWithCommands;
-					if (appWithCommands.commands && typeof appWithCommands.commands.executeCommandById === 'function') {
-						appWithCommands.commands.executeCommandById(commandId);
-					}
-				});
-			}
-		});
-	}
 
 	private renderRecentFilesFeed(parent: Element): void {
 		const section = parent.createDiv({ cls: 'ad-bus-section' });
