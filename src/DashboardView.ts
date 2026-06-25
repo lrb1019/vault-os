@@ -1558,7 +1558,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 
 		const rightCol = grid.createDiv({ cls: 'ad-tasks-side-col', attr: { style: 'display: flex; flex-direction: column; gap: 20px;' } });
 		
-		const stats = this.taskService.getCache();
+		const stats: any = this.taskService.getCache();
 		
 		// Stats Container - strictly Obsidian style
 		const statsCard = rightCol.createDiv({ cls: 'ad-card ad-tech-card' });
@@ -1573,26 +1573,40 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			if (sub) box.createDiv({ text: sub, attr: { style: 'font-size: 11px; color: var(--text-faint); margin-top: 4px;' } });
 		};
 		
-		createStatBox('已完成', String(stats.completedCount), '今日任务');
-		createStatBox('待办项', String(stats.todayCount), '今日任务');
-		createStatBox('番茄钟', '28', '本周累计');
-		createStatBox('专注时长', '14.5h', '本周累计');
+		const habitsCount = stats.habits ? stats.habits.length : 0;
+		const focuses = stats.focuses || [];
+		
+		createStatBox('已完成', String(stats.completedCount || 0), '近30日');
+		createStatBox('待办项', String(stats.todayCount || 0), '今日任务');
+		createStatBox('习惯打卡', String(habitsCount), '当前习惯总数');
+		createStatBox('番茄专注', String(focuses.length), '近30日记录');
 
 		// Mini Chart - pure monochrome obsidian style
 		const chartArea = rightCol.createDiv({ cls: 'ad-card ad-tech-card' });
-		chartArea.createEl('h3', { text: '近 7 日趋势', attr: { style: 'margin-top: 0; margin-bottom: 16px; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 8px; color: var(--text-normal); font-size: 14px;' } });
+		chartArea.createEl('h3', { text: '近 7 日番茄钟', attr: { style: 'margin-top: 0; margin-bottom: 16px; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 8px; color: var(--text-normal); font-size: 14px;' } });
 		
 		const svgContainer = chartArea.createDiv({ attr: { style: 'width: 100%; height: 120px; position: relative;' } });
 		const svg = svgContainer.createSvg('svg', { attr: { width: '100%', height: '100%', viewBox: '0 0 400 120', preserveAspectRatio: 'none' } });
 		
-		const mockData = [4, 6, 3, 8, 5, 9, 2];
-		const max = 10;
+		// Process focus records to get last 7 days count
+		const last7Data = [0, 0, 0, 0, 0, 0, 0];
+		const days = ['六', '五', '四', '三', '二', '一', '今'];
+		const now = new Date();
+		focuses.forEach((f: any) => {
+			if (f.startTime) {
+				const diffDays = Math.floor((now.getTime() - new Date(f.startTime).getTime()) / 86400000);
+				if (diffDays >= 0 && diffDays < 7) {
+					last7Data[6 - diffDays] = (last7Data[6 - diffDays] || 0) + 1;
+				}
+			}
+		});
+
+		const max = Math.max(10, ...last7Data);
 		const height = 90;
 		const barWidth = 30;
 		const spacing = (400 - (barWidth * 7)) / 6;
-		const days = ['一', '二', '三', '四', '五', '六', '日'];
 		
-		mockData.forEach((val, idx) => {
+		last7Data.forEach((val, idx) => {
 			const barHeight = (val / max) * height;
 			const x = idx * (barWidth + spacing);
 			const y = height - barHeight + 10;
