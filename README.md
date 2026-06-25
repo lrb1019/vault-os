@@ -1,44 +1,44 @@
-# Agent Dashboard
+# Agent Dashboard (智能体控制面板)
 
-An Obsidian plugin that acts as a Systematic Precision Console for tracking AI agent workflows, notes telemetry, system health, TickTick tasks, and projects in a unified, three-column control center.
+一个 Obsidian 插件，旨在为用户提供一个“三栏式精密系统控制终端 (Systematic Precision Console)”，用于在一站式控制中心中追踪 AI 智能体的工作流、笔记库遥测数据、系统健康度、TickTick 任务以及开发项目进度。
 
-## Key Features
+## 核心功能
 
-- **Telemetry Header**: Monospace telemetry summary showing the dashboard title (customizable via settings) and live system uptime.
-- **Control Bus (Left Sidebar)**: Direct access to core documentation status, active plugins autodetect, and recent files feed (automatically collapses on screens < 900px).
-- **Multi-channel Viewport (Right Sidebar)**:
-  - **`01 / 仓库` (Vault)**: Color-coded vault capacity segment bar, weekly stats chart, monthly calendar, and teal-themed annual contribution heatmaps.
-  - **`02 / 日记` (Diary)**: Check-in board linked to daily notes, today's note quick creation/preview, and live summaries for monthly, quarterly, and yearly review files.
-  - **`03 / 巡检` (Lint)**: Interactive circular health gauge, orphanage notes scanner, dead link resolver, and file ingest controller modal.
-  - **`04 / TickTick`**: Integrates with TickTick for habit tracking (dynamic weekly check-in grids and 53-week heatmaps), custom lists task manager (with project selector filter), and focus/pomodoro stats.
-  - **`05 / 项目` (Projects)**: Active project kanban automatically parsed from frontmatter inside the `03 Projects` directory, showing progress and last modified dates.
+- **系统状态栏 (Telemetry Header)**：居中展示自定义的看板主标题（可在设置中实时更新），左右对称分布在线指示灯及系统运行天数等状态数据。
+- **常驻控制总线 (Control Bus，左侧边栏)**：展示核心项目文档的在线活跃状态点，自动扫描第三方插件运行状态，并提供最近打开文件的最紧凑 Feed 流（在侧栏宽度 < 900px 时自动折叠以防止挤压）。
+- **多频道展示区 (Viewport，右侧主视口)**：
+  - **`01 / 仓库`**：集成自适应的文件夹容量占比色彩条，周度新增统计柱状图，月度日历打卡网格，以及极具古典质感的蓝绿色（Teal）年度贡献热力图。
+  - **`02 / 日记`**：周期笔记打卡墙与今日日记按 3:1 等高并排，月/季/年记大卡片增加实时的日记内容摘要预览，支持一键点击交互和 Templater 创建机制。
+  - **`03 / 巡检`**：以 SVG 进度环展示健康度得分，提供孤儿文件与死链细项列表弹框，并集成了一键全面体检、安全自动修复及快速入库分流 (Ingest) 的交互式 Modal 弹窗。
+  - **`04 / TickTick`**：完美对接 TickTick，显示待办完成率进度环、今日习惯打卡列表与习惯打卡周历、支持切换清单筛选的待办卡片，以及年度打卡/专注热力图。
+  - **`05 / 项目`**：动态扫描 `03 Projects` 目录下所有项目文档的 frontmatter 并映射为 4 列式 Kanban，直观展示每个项目的开发进度百分比和最后修改日期。
 
-## How to Install
+## 安装指南
 
-### Manually
+### 手动安装
 
-1. Download the latest release files (`main.js`, `manifest.json`, `styles.css`).
-2. Copy the files into your vault directory: `YourVault/.obsidian/plugins/agent-dashboard/`.
-3. Reload Obsidian and enable **Agent Dashboard** under Community Plugins.
+1. 下载最新发布的 Release 资源文件 (`main.js`、`manifest.json`、`styles.css`)。
+2. 将这些文件复制到你金库的插件目录中：`你的金库路径/.obsidian/plugins/agent-dashboard/`。
+3. 重新加载 Obsidian，并在社区插件设置中启用 **Agent Dashboard**。
 
-## Development
+## 开发与编译
 
-Make sure you have NodeJS >= v18 installed.
+确保本地安装了 NodeJS >= v18。
 
-1. Clone this repository.
-2. Install dependencies:
+1. 克隆本仓库。
+2. 安装依赖：
    ```bash
    npm install
    ```
-3. Run development watch server:
+3. 启动开发 watch 监听服务：
    ```bash
    npm run dev
    ```
-4. Run production build:
+4. 运行生产环境编译打包：
    ```bash
    npm run build
    ```
-5. Run linter:
+5. 运行代码 Lint 静态检查：
    ```bash
    npm run lint
    ```
