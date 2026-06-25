@@ -304,24 +304,26 @@ export class TaskService {
 		}
 	}
 
-	async completeTask(taskId: string, projectId: string): Promise<boolean> {
+	async completeTask(taskObj: any): Promise<boolean> {
 		try {
 			const mcpResult = await this.mcpService.executeRequest('ticktick', 'tools/call', {
-				name: 'complete_task',
+				name: 'update_task',
 				arguments: {
-					task_id: taskId,
-					project_id: projectId
+					task_id: taskObj.id,
+					task: {
+						...taskObj,
+						status: 2
+					}
 				}
 			}) as { isError?: boolean; content?: any[] };
 			
 			if (mcpResult.isError) {
-				// The TickTick MCP complete_task often returns a 204 Empty Body which causes a JSONDecodeError
-				// in the python MCP server wrapper. We treat this as success if it reached here.
-				console.warn('complete_task returned an error (likely a JSON decode error on 204 response). Treating as success.', mcpResult);
+				console.error('Failed to complete task:', mcpResult);
+				return false;
 			}
 			
 			// Update local cache optimistically
-			const taskIndex = this.cache.tasks.findIndex((t: any) => t.id === taskId);
+			const taskIndex = this.cache.tasks.findIndex((t: any) => t.id === taskObj.id);
 			if (taskIndex !== -1) {
 				const taskToUpdate = this.cache.tasks[taskIndex];
 				if (taskToUpdate) {

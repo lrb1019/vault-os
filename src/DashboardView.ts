@@ -1681,7 +1681,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				check.addEventListener('change', async () => {
 					new Notice(`正在同步完成状态: ${t.title || t.text}`);
 					check.disabled = true;
-					const success = await this.taskService.completeTask(t.id, t.project_id);
+					const success = await this.taskService.completeTask(t);
 					if (success) {
 						new Notice('任务已完成并同步至 TickTick!');
 						this.render(); // Re-render to show it as completed or moved
