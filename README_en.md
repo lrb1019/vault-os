@@ -1,17 +1,37 @@
 # Agent Dashboard
 
-An Obsidian plugin that acts as a Systematic Precision Console for tracking AI agent workflows, notes telemetry, system health, TickTick tasks, and projects in a unified, three-column control center.
+An Obsidian plugin that provides a unified dashboard for vault activity, periodic notes, vault health checks, TickTick data, and project tracking inside one custom view.
 
-## Key Features
+## Current Scope
 
-- **Telemetry Header**: Monospace telemetry summary showing the dashboard title (customizable via settings) and live system uptime.
-- **Control Bus (Left Sidebar)**: Direct access to core documentation status, active plugins autodetect, and recent files feed (automatically collapses on screens < 900px).
-- **Multi-channel Viewport (Right Sidebar)**:
-  - **`01 / 仓库` (Vault)**: Color-coded vault capacity segment bar, weekly stats chart, monthly calendar, and teal-themed annual contribution heatmaps.
-  - **`02 / 日记` (Diary)**: Check-in board linked to daily notes, today's note quick creation/preview, and live summaries for monthly, quarterly, and yearly review files.
-  - **`03 / 巡检` (Lint)**: Interactive circular health gauge, orphanage notes scanner, dead link resolver, and file ingest controller modal.
-  - **`04 / TickTick`**: Integrates with TickTick for habit tracking (dynamic weekly check-in grids and 53-week heatmaps), custom lists task manager (with project selector filter), and focus/pomodoro stats.
-  - **`05 / 项目` (Projects)**: Active project kanban automatically parsed from frontmatter inside the `03 Projects` directory, showing progress and last modified dates.
+The plugin currently exposes:
+
+- a custom dashboard view
+- a ribbon shortcut
+- an `Open dashboard` command
+- a settings tab for paths, MCP/TickTick integration, heatmap sizing, and custom actions
+
+The live dashboard is organized into five main tabs:
+
+- `01 / 仓库` (Vault)
+- `02 / 日记` (Diary)
+- `03 / 巡检` (Lint)
+- `04 / TickTick`
+- `05 / 项目` (Projects)
+
+## What The Current Implementation Includes
+
+- **Vault**: category statistics, mini metrics, and switchable bar/calendar/heatmap visualizations.
+- **Diary**: periodic note resolution based on `notebook-navigator`, optional creation through `templater-obsidian`, and preview cards for current and previous periods.
+- **Lint**: inbox backlog, un-ingested diary, orphan note, dead link, and empty note scanning, plus configurable Claudian actions.
+- **TickTick**: local cache bootstrap and MCP-based sync for tasks, habits, focus sessions, and project lists.
+- **Projects**: `Projects.base` filter parsing with a table-based project view.
+
+## Important Notes
+
+- Some helper renderers still exist in the codebase but are not mounted in the current UI.
+- The current Projects tab is **not** a Kanban board. It is a Base-driven table.
+- TickTick integration depends on a valid MCP configuration and reachable service.
 
 ## How to Install
 

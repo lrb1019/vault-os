@@ -1,5 +1,5 @@
 * 这是一个 TypeScript 编写的 Obsidian community plugin 项目，不是 Obsidian Vault。
-* 插件 ID 是 `agent-dashboard`，显示名称是 `Agent Dashboard`，版本是 `0.1.0`。
+* 插件 ID 是 `agent-dashboard`，显示名称是 `Agent Dashboard`，版本是 `1.2.0`。
 * 常用命令是 `npm install`、`npm run dev`、`npm run build`、`npm run lint`。
 * Obsidian 插件目录中最终只需要 `main.js`、`manifest.json`、`styles.css`。
 * 开发时优先使用 Obsidian 官方公开 API，不依赖未公开内部 API。
