@@ -18,6 +18,7 @@ export interface AgentDashboardSettings {
 	dailyNoteFolder: string;
 	inboxFolder: string;
 	projectsFolder: string;
+	projectBaseFilePath: string;
 	archiveFolder: string;
 	outputFolder: string;
 	atomicsFolder: string;
@@ -57,6 +58,7 @@ export const DEFAULT_SETTINGS: AgentDashboardSettings = {
 	dailyNoteFolder: "01 Daily",
 	inboxFolder: "02 Inbox",
 	projectsFolder: "03 Projects",
+	projectBaseFilePath: "03 Projects/Projects.base",
 	archiveFolder: "06 Archive",
 	outputFolder: "05 Output",
 	atomicsFolder: "04 Atomics",
@@ -204,7 +206,19 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 					.setPlaceholder('例如: 03 Projects')
 					.setValue(this.plugin.settings.projectsFolder)
 					.onChange(async (value) => {
-						this.plugin.settings.projectsFolder = value.trim().replace(/^\/+|\/+$/g, '');
+						this.plugin.settings.projectsFolder = value;
+						await this.plugin.saveSettings();
+						this.refreshDashboardView();
+					}));
+
+			new Setting(sectionContent)
+				.setName('项目数据库文件 (Base)')
+				.setDesc('Base 文件路径（例如 03 Projects/Projects.base）')
+				.addText(text => text
+					.setPlaceholder('03 Projects/Projects.base')
+					.setValue(this.plugin.settings.projectBaseFilePath)
+					.onChange(async (value) => {
+						this.plugin.settings.projectBaseFilePath = value;
 						await this.plugin.saveSettings();
 						this.refreshDashboardView();
 					}));

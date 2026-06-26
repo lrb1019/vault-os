@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, MarkdownRenderer, parseYaml } from 'obsidian';
 import AgentDashboardPlugin from './main';
 import { ReadingService } from './services/ReadingService';
 import { DiaryService } from './services/DiaryService';
@@ -325,7 +325,11 @@ class IngestModal extends Modal {
 interface ProjectInfo {
 	title: string;
 	path: string;
-	status: 'active' | 'pending' | 'completed' | 'archived';
+	status: 'pending' | 'active' | 'onhold' | 'blocked' | 'completed' | 'cancelled';
+	deadline?: string;
+	goal?: string;
+	topics: string[];
+	ctimeStr: string;
 	progress: number;
 	mtimeStr: string;
 }
@@ -380,10 +384,14 @@ export class AgentDashboardView extends ItemView {
 
 	private cachedVaultOverviewStats: VaultOverviewStats | null = null;
 	private cachedDateCounts: Map<string, number> | null = null;
+	private clearCacheTimer: ReturnType<typeof setTimeout> | null = null;
 
 	private clearVaultStatsCache(): void {
-		this.cachedVaultOverviewStats = null;
-		this.cachedDateCounts = null;
+		if (this.clearCacheTimer) clearTimeout(this.clearCacheTimer);
+		this.clearCacheTimer = setTimeout(() => {
+			this.cachedVaultOverviewStats = null;
+			this.cachedDateCounts = null;
+		}, 5000);
 	}
 
 	// 服务实例
@@ -459,10 +467,8 @@ export class AgentDashboardView extends ItemView {
 
 	async onOpen(): Promise<void> {
 		await this.taskService.initialize();
-		
 		this.registerEvent(this.app.vault.on('create', () => this.clearVaultStatsCache()));
 		this.registerEvent(this.app.vault.on('delete', () => this.clearVaultStatsCache()));
-		this.registerEvent(this.app.vault.on('modify', () => this.clearVaultStatsCache()));
 
 		this.render();
 		
@@ -674,18 +680,31 @@ export class AgentDashboardView extends ItemView {
 			btn.addEventListener('click', () => {
 				const prevTab = this.activeMainTab;
 				this.activeMainTab = t.id as 'vault' | 'diary' | 'lint' | 'ticktick' | 'projects';
-				this.render();
-				
+
+				// Update tab button active states without full re-render
+				tabWrapper.querySelectorAll('.ad-viewport-tab-btn').forEach((b, i) => {
+					const tab = mainTabs[i];
+					if (tab) b.toggleClass('is-active', tab.id === this.activeMainTab);
+				});
+
+				// Only replace content area
+				contentWrapper.empty();
+				this.renderTabContent(contentWrapper);
+
 				if (this.activeMainTab === 'ticktick' && prevTab !== 'ticktick') {
 					void this.taskService.syncWithTickTick().then(() => {
-						this.render();
+						contentWrapper.empty();
+						this.renderTabContent(contentWrapper);
 					});
 				}
 			});
 		});
 
 		const contentWrapper = parent.createDiv({ cls: 'ad-tab-content' });
+		this.renderTabContent(contentWrapper);
+	}
 
+	private renderTabContent(contentWrapper: Element): void {
 		if (this.activeMainTab === 'vault') {
 			this.renderVaultDashboard(contentWrapper);
 		} else if (this.activeMainTab === 'diary') {
@@ -2028,28 +2047,83 @@ export class AgentDashboardView extends ItemView {
 		const container = parent.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 20px; flex-grow: 1; min-height: 0; height: 100%;' } });
 		
 		this.renderStatsNav(container);
-		
-		const telemetryContainer = container.createDiv();
+
+		// 1. Telemetry bar card container (rendered immediately)
+		const telemetryCard = container.createDiv({ cls: 'ad-card ad-tech-card ad-vault-telemetry-card' });
+		const barContainer = telemetryCard.createDiv({ cls: 'ad-vault-telemetry-bar' });
+		barContainer.createDiv({
+			cls: 'ad-bar-segment ad-segment-other',
+			attr: { style: 'width: 100%;', title: '数据读取中...' }
+		});
+		const legendContainer = telemetryCard.createDiv({ cls: 'ad-vault-telemetry-legend' });
+		const legItem = legendContainer.createDiv({ cls: 'ad-legend-item' });
+		legItem.createDiv({ cls: 'ad-legend-color ad-segment-other' });
+		legItem.createSpan({ text: '数据读取中...' });
+
+		// 2. Mini grid ?render skeleton immediately with '--' values
 		const miniGridContainer = container.createDiv();
-		const chartContainer = container.createDiv({ attr: { style: 'flex-grow: 1; min-height: 0; display: flex; flex-direction: column;' } });
+		const statNodes = this.renderMiniGridSkeleton(miniGridContainer);
 
-		if (this.cachedVaultOverviewStats) {
-			this.renderVaultTelemetryBar(telemetryContainer, this.cachedVaultOverviewStats);
-			this.renderMiniGrid(miniGridContainer, this.cachedVaultOverviewStats);
-			this.renderChartSection(chartContainer);
-		} else {
-			telemetryContainer.createDiv({ text: '加载数据中...', attr: { style: 'color: var(--text-muted); font-size: 13px; text-align: center; padding: 20px;' } });
+		// 3. Chart card container (rendered immediately)
+		const chartCard = container.createDiv({ 
+			cls: 'jarvis-stats-chart-section ad-tech-card',
+			attr: { style: 'flex-grow: 1; min-height: 240px; display: flex; flex-direction: column;' }
+		});
+		const chartHeader = chartCard.createDiv({ cls: 'jarvis-stats-chart-header' });
+		chartHeader.createSpan({ text: '新增笔记统计', cls: 'jarvis-stats-chart-title' });
+		const chartBody = chartCard.createDiv({ attr: { style: 'flex-grow: 1; display: flex; align-items: center; justify-content: center;' } });
+		chartBody.createDiv({ text: '数据读取中...', attr: { style: 'color: var(--text-muted); font-size: 13px;' } });
 
-			void this.vaultService.getVaultOverviewStats().then(stats => {
-				this.cachedVaultOverviewStats = stats;
-				telemetryContainer.empty();
-				miniGridContainer.empty();
-				
-				this.renderVaultTelemetryBar(telemetryContainer, stats);
-				this.renderMiniGrid(miniGridContainer, stats);
-				this.renderChartSection(chartContainer);
+		// Run computation and update DOM in a setTimeout to avoid layout freeze during render
+		window.setTimeout(() => {
+			if (!container.parentElement) return; // View was closed or tab switched
+
+			if (!this.cachedDateCounts) {
+				this.getVaultDateCounts(); // populates cachedVaultOverviewStats + cachedDateCounts
+			} else if (!this.cachedVaultOverviewStats) {
+				this.cachedVaultOverviewStats = this.vaultService.getVaultOverviewStats();
+			}
+			const s = this.cachedVaultOverviewStats!;
+			
+			statNodes.days.setText(`${s.totalDays} 天`);
+			statNodes.avg.setText(`${s.dailyAvg} 篇`);
+			statNodes.atomics.setText(`${s.countAtomics} 篇`);
+			statNodes.inbox.setText(`${s.countInbox} 篇`);
+			statNodes.output.setText(`${s.countOutput} 篇`);
+			statNodes.orphans.setText(`${s.countOrphans} 条`);
+
+			// Update telemetry bar card
+			telemetryCard.empty();
+			const realBarContainer = telemetryCard.createDiv({ cls: 'ad-vault-telemetry-bar' });
+			const realLegendContainer = telemetryCard.createDiv({ cls: 'ad-vault-telemetry-legend' });
+
+			const total = s.totalMdFiles || 1;
+			const data = [
+				{ name: '日记 (Daily)', count: s.countDaily, pct: Math.round((s.countDaily / total) * 100), cls: 'ad-segment-daily' },
+				{ name: '项目 (Projects)', count: s.countProjects, pct: Math.round((s.countProjects / total) * 100), cls: 'ad-segment-atomics' },
+				{ name: '其他 (Other)', count: s.countOther + s.countInbox + s.countAtomics + s.countOutput, pct: Math.round(((s.countOther + s.countInbox + s.countAtomics + s.countOutput) / total) * 100), cls: 'ad-segment-other' }
+			].filter(item => item.count > 0);
+
+			data.forEach(item => {
+				if (item.pct > 0) {
+					realBarContainer.createDiv({
+						cls: `ad-bar-segment ${item.cls}`,
+						attr: {
+							style: `width: ${item.pct}%;`,
+							title: `${item.name}: ${item.count} ?(${item.pct}%)`
+						}
+					});
+				}
+
+				const legItem = realLegendContainer.createDiv({ cls: 'ad-legend-item' });
+				legItem.createDiv({ cls: `ad-legend-color ${item.cls}` });
+				legItem.createSpan({ text: `${item.name}: ${item.count} ?(${item.pct}%)` });
 			});
-		}
+
+			// Update chart card
+			chartCard.empty();
+			this.renderChartSectionContent(chartCard);
+		}, 0);
 	}
 
 	private renderVaultTelemetryBar(parent: Element, stats: VaultOverviewStats): void {
@@ -3180,64 +3254,122 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	 * =========================================================================
 	 */
 	private renderProjectsDashboard(parent: Element): void {
-		const card = parent.createDiv({ cls: 'ad-card ad-tech-card' });
-		const header = card.createDiv({ cls: 'ad-card-header' });
-		header.createEl('h3', { text: '项目追踪看板' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
-		header.createSpan({ text: `基于 ${this.plugin.settings.projectsFolder} 下笔记 frontmatter.status 自动分类`, cls: 'ad-card-meta' });
+		const container = parent.createDiv({ cls: 'ad-tasks-wrapper' });
 
-		const board = card.createDiv({ cls: 'ad-kanban-board' });
+		const statsCard = container.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'margin-bottom: 0px;' } });
+		const header = statsCard.createDiv({ cls: 'ad-card-header' });
+		header.createEl('h3', { text: '项目全局统计' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
+		header.createSpan({ text: `根据标签自动抓取`, cls: 'ad-card-meta' });
 
-		const columns = [
-			{ id: 'active', label: '活跃 (Active)', cls: 'active' },
-			{ id: 'pending', label: '挂起 (Pending)', cls: 'pending' },
-			{ id: 'completed', label: '完成 (Completed)', cls: 'completed' },
-			{ id: 'archived', label: '归档 (Archived)', cls: 'archived' }
-		];
-
-		const colMap = new Map<string, HTMLElement>();
-		columns.forEach(col => {
-			const colDiv = board.createDiv({ cls: 'ad-kanban-column' });
-			const colHeader = colDiv.createDiv({ cls: 'ad-kanban-column-header' });
-			colHeader.createSpan({ text: col.label });
-			colHeader.createSpan({ text: '0', attr: { style: 'background: var(--background-secondary); padding: 1px 6px; border-radius: 10px; font-size: 10px;' } });
-			
-			colMap.set(col.id, colDiv);
-		});
-
+		const statsGrid = statsCard.createDiv({ cls: 'jarvis-stats-mini-grid', attr: { style: 'margin-top: 16px; margin-bottom: 0;' } });
+		
+		const baseCard = container.createDiv({ cls: 'ad-card ad-tech-card' });
+		const baseHeader = baseCard.createDiv({ cls: 'ad-card-header' });
+		baseHeader.createEl('h3', { text: `项目数据库 (${this.plugin.settings.projectBaseFilePath})` , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
+		
 		void this.getProjectsData().then(projects => {
-			const counts = { active: 0, pending: 0, completed: 0, archived: 0 };
+			const total = projects.length;
+			const counts = { pending: 0, active: 0, onhold: 0, blocked: 0, completed: 0, cancelled: 0 };
 			
 			projects.forEach(proj => {
-				const colDiv = colMap.get(proj.status);
-				if (!colDiv) return;
-
-				counts[proj.status]++;
-
-				const pCard = colDiv.createDiv({ cls: 'ad-project-card' });
-				pCard.createDiv({ text: proj.title, cls: 'ad-project-title' });
-
-				const bar = pCard.createDiv({ cls: 'ad-project-progress-bar' });
-				bar.createDiv({ cls: 'ad-project-progress-fill', attr: { style: `width: ${proj.progress}%;` } });
-
-				const meta = pCard.createDiv({ cls: 'ad-project-meta' });
-				meta.createSpan({ text: `${proj.progress}%` });
-				meta.createSpan({ text: proj.mtimeStr });
-
-				if (proj.path) {
-					pCard.addEventListener('click', () => {
-						void this.app.workspace.openLinkText(proj.path, '', false);
-					});
+				if (proj.status in counts) {
+					counts[proj.status as keyof typeof counts]++;
 				}
 			});
 
-			columns.forEach(col => {
-				const colDiv = colMap.get(col.id);
-				if (colDiv) {
-					const badge = colDiv.querySelector('.ad-kanban-column-header span:last-child');
-					if (badge) {
-						badge.setText(String(counts[col.id as keyof typeof counts]));
+			const activePct = total > 0 ? Math.round((counts.active / total) * 100) : 0;
+			const completedPct = total > 0 ? Math.round((counts.completed / total) * 100) : 0;
+
+			const makeStatCard = (label: string, val: string) => {
+				const c = statsGrid.createDiv({ cls: 'jarvis-stats-mini-card' });
+				c.createDiv({ text: val, cls: 'jarvis-stats-mini-val' });
+				c.createDiv({ text: label, cls: 'jarvis-stats-mini-label' });
+			};
+
+			makeStatCard('总项目数', String(total));
+			makeStatCard('Active 活跃', `${counts.active} (${activePct}%)`);
+			makeStatCard('Pending 待办', String(counts.pending));
+			makeStatCard('Blocked 阻塞', String(counts.blocked));
+			makeStatCard('Completed 完成', `${counts.completed} (${completedPct}%)`);
+
+			// ====== Render Native Table ======
+			const tableContainer = baseCard.createDiv({ cls: 'ad-projects-table-container' });
+			const table = tableContainer.createEl('table', { cls: 'ad-projects-table' });
+			
+			// Table Header
+			const thead = table.createEl('thead');
+			const trHead = thead.createEl('tr');
+			trHead.createEl('th', { text: 'ⓘ 名称' });
+			trHead.createEl('th', { text: '≡ status' });
+			trHead.createEl('th', { text: '🕒 创建时间' });
+			trHead.createEl('th', { text: '≡ topics' });
+
+			// Sort by ctime desc
+			projects.sort((a, b) => b.ctimeStr.localeCompare(a.ctimeStr));
+
+			// Status config for mapping
+			const statusConfig: Record<string, { label: string, iconId: string, color: string }> = {
+				pending: { label: 'Pending', iconId: 'circle', color: 'var(--text-muted)' },
+				active: { label: 'Active', iconId: 'circle-dot', color: 'var(--text-success)' },
+				onhold: { label: 'On Hold', iconId: 'pause-circle', color: 'var(--text-warning)' },
+				blocked: { label: 'Blocked', iconId: 'alert-circle', color: 'var(--text-error)' },
+				completed: { label: 'Completed', iconId: 'check-circle', color: 'var(--text-accent)' },
+				cancelled: { label: 'Cancelled', iconId: 'x-circle', color: 'var(--text-faint)' }
+			};
+
+			const tbody = table.createEl('tbody');
+			projects.forEach(proj => {
+				const tr = tbody.createEl('tr');
+				
+				// Col 1: Name
+				const tdName = tr.createEl('td', { cls: 'ad-projects-table-name' });
+				const nameLink = tdName.createEl('a', { text: proj.title });
+				nameLink.addEventListener('click', (e) => {
+					e.preventDefault();
+					void this.app.workspace.openLinkText(proj.path, '', false);
+				});
+
+				// Col 2: Status
+				const tdStatus = tr.createEl('td');
+				const config = statusConfig[proj.status] || statusConfig.pending || { label: 'Pending', iconId: 'circle', color: 'var(--text-muted)' };
+				const badge = tdStatus.createSpan({ cls: 'ad-status-badge' });
+				const iconSpan = badge.createSpan({ cls: 'ad-status-icon' });
+				setIcon(iconSpan, config.iconId);
+				iconSpan.style.color = config.color;
+				const labelSpan = badge.createSpan({ text: ` ${config.label}` });
+				labelSpan.style.color = config.color;
+
+				// Col 3: Ctime
+				tr.createEl('td', { text: proj.ctimeStr, cls: 'ad-projects-table-time' });
+
+				// Col 4: Topics
+				const tdTopics = tr.createEl('td', { cls: 'ad-projects-table-topics' });
+				proj.topics.forEach(topic => {
+					let displayText = topic;
+					let linkTarget = topic;
+					let isLink = false;
+
+					const linkMatch = topic.match(/^\[\[(.*?)\]\]$/);
+					if (linkMatch) {
+						isLink = true;
+						linkTarget = linkMatch[1] || '';
+						const parts = linkTarget.split('|');
+						linkTarget = parts[0] || '';
+						displayText = parts.length > 1 ? (parts[1] || '') : linkTarget;
 					}
-				}
+
+					if (isLink) {
+						const linkEl = tdTopics.createEl('a', { text: displayText, cls: 'ad-topic-badge' });
+						linkEl.style.cursor = 'pointer';
+						linkEl.style.textDecoration = 'none';
+						linkEl.addEventListener('click', (e) => {
+							e.preventDefault();
+							void this.app.workspace.openLinkText(linkTarget, proj.path, false);
+						});
+					} else {
+						tdTopics.createSpan({ text: displayText, cls: 'ad-topic-badge' });
+					}
+				});
 			});
 		});
 	}
@@ -3245,40 +3377,109 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	private async getProjectsData(): Promise<ProjectInfo[]> {
 		const projects: ProjectInfo[] = [];
 		try {
-			const projectFolder = this.app.vault.getAbstractFileByPath(this.plugin.settings.projectsFolder);
-			if (projectFolder instanceof TFolder) {
-				const scanFiles = (folder: TFolder) => {
-					folder.children.forEach(child => {
-						if (child instanceof TFile && child.extension === 'md') {
-							const cache = this.app.metadataCache.getFileCache(child);
-							const frontmatter = cache?.frontmatter || {};
-							
+			const baseFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.projectBaseFilePath);
+			if (!(baseFile instanceof TFile)) {
+				console.error("Base file not found:", this.plugin.settings.projectBaseFilePath);
+				return [];
+			}
+			const baseContent = await this.app.vault.read(baseFile);
+			const baseYaml = parseYaml(baseContent);
+			
+			const evaluateCondition = (cond: any, file: TFile, tags: string[]): boolean => {
+				if (typeof cond === 'string') {
+					const isNegated = cond.startsWith('!');
+					const expr = isNegated ? cond.substring(1) : cond;
+					
+					let match = false;
+					if (expr.startsWith('file.tags.contains(')) {
+						const target = expr.match(/contains\("([^"]+)"\)/)?.[1];
+						if (target) {
+							match = tags.some(t => String(t).includes(target));
+						}
+					} else if (expr.startsWith('file.basename.contains(')) {
+						const target = expr.match(/contains\("([^"]+)"\)/)?.[1];
+						if (target) {
+							match = file.basename.includes(target);
+						}
+					} else if (expr.startsWith('file.path.contains(')) {
+						const target = expr.match(/contains\("([^"]+)"\)/)?.[1];
+						if (target) {
+							match = file.path.includes(target);
+						}
+					}
+					
+					return isNegated ? !match : match;
+				} else if (cond && typeof cond === 'object') {
+					if (cond.and && Array.isArray(cond.and)) {
+						return cond.and.every((c: any) => evaluateCondition(c, file, tags));
+					}
+					if (cond.or && Array.isArray(cond.or)) {
+						return cond.or.some((c: any) => evaluateCondition(c, file, tags));
+					}
+				}
+				return true;
+			};
+
+			const allFiles = this.app.vault.getMarkdownFiles();
+			for (const child of allFiles) {
+				const cache = this.app.metadataCache.getFileCache(child);
+				const frontmatter = cache?.frontmatter || {};
+				const inlineTags = (cache?.tags || []).map(t => t.tag.replace(/^#/, ''));
+				let fmTags = frontmatter.tags || [];
+				if (typeof fmTags === 'string') fmTags = [fmTags];
+				if (!Array.isArray(fmTags)) fmTags = [];
+				
+				const allTags = [...fmTags, ...inlineTags];
+				
+				const isMatch = baseYaml?.filters ? evaluateCondition(baseYaml.filters, child, allTags) : false;
+				
+				if (!isMatch) {
+					continue;
+				}
 							const statusRaw = String(frontmatter.status || '').toLowerCase();
-							let status: 'active' | 'pending' | 'completed' | 'archived' = 'active';
-							if (statusRaw === 'pending' || statusRaw === '挂起' || statusRaw === '不活跃') {
+							let status: ProjectInfo['status'] = 'active';
+							if (statusRaw.includes('pending') || statusRaw.includes('⚪')) {
 								status = 'pending';
-							} else if (statusRaw === 'completed' || statusRaw === '已完成' || statusRaw === '完成') {
+							} else if (statusRaw.includes('active') || statusRaw.includes('🟢')) {
+								status = 'active';
+							} else if (statusRaw.includes('on hold') || statusRaw.includes('🟡')) {
+								status = 'onhold';
+							} else if (statusRaw.includes('blocked') || statusRaw.includes('🔴')) {
+								status = 'blocked';
+							} else if (statusRaw.includes('completed') || statusRaw.includes('🔵')) {
 								status = 'completed';
-							} else if (statusRaw === 'archived' || statusRaw === '已放弃' || statusRaw === '归档' || statusRaw === 'abandoned') {
-								status = 'archived';
+							} else if (statusRaw.includes('cancelled') || statusRaw.includes('⚫') || statusRaw.includes('archived') || statusRaw.includes('归档')) {
+								status = 'cancelled';
 							}
 							
+							const deadline = frontmatter.deadline ? String(frontmatter.deadline) : undefined;
+							
+							let topics = frontmatter.topics || [];
+							if (typeof topics === 'string') topics = [topics];
+							if (!Array.isArray(topics)) topics = [];
+
+							let goal = undefined;
+							const fileContent = await this.app.vault.cachedRead(child);
+							const goalMatch = fileContent.match(/>\s*\[!GOAL\]\s*核心目标\s*\n>\s*(.+)/);
+							if (goalMatch && goalMatch[1]) {
+								goal = goalMatch[1].trim();
+							}
+
 							const progress = Number(frontmatter.progress || 0);
 							const mtimeStr = moment(child.stat.mtime).format('YYYY-MM-DD');
+							const ctimeStr = moment(child.stat.ctime).format('YYYY/MM/DD HH:mm:ss');
 
 							projects.push({
 								title: child.basename,
 								path: child.path,
 								status,
+								deadline,
+								goal,
+								topics,
+								ctimeStr,
 								progress,
 								mtimeStr
 							});
-						} else if (child instanceof TFolder) {
-							scanFiles(child);
-						}
-					});
-				};
-				scanFiles(projectFolder);
 			}
 		} catch (error) {
 			console.error('Failed to scan projects:', error);
@@ -3286,11 +3487,11 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		
 		if (projects.length === 0) {
 			return [
-				{ title: '智能系统 Dashboard 开发', path: '', status: 'active', progress: 85, mtimeStr: '2026-06-22' },
-				{ title: '知识库死链自动检测脚本', path: '', status: 'active', progress: 40, mtimeStr: '2026-06-21' },
-				{ title: 'AI 阅读器插件迁移', path: '', status: 'pending', progress: 10, mtimeStr: '2026-06-15' },
-				{ title: '2025 个人财务自动化分析', path: '', status: 'completed', progress: 100, mtimeStr: '2026-05-18' },
-				{ title: '旧模板库归档', path: '', status: 'archived', progress: 0, mtimeStr: '2026-04-10' }
+				{ title: '智能系统 Dashboard 开发', path: '', status: 'active', topics: ['AI'], ctimeStr: '2026/06/22 10:00:00', progress: 85, mtimeStr: '2026-06-22' },
+				{ title: '知识库死链自动检测脚本', path: '', status: 'active', topics: ['Scripting'], ctimeStr: '2026/06/21 11:30:00', progress: 40, mtimeStr: '2026-06-21' },
+				{ title: 'AI 阅读器插件迁移', path: '', status: 'pending', topics: ['Obsidian'], ctimeStr: '2026/06/15 09:15:00', progress: 10, mtimeStr: '2026-06-15' },
+				{ title: '2025 个人财务自动化分析', path: '', status: 'completed', topics: ['Finance'], ctimeStr: '2026/05/18 14:00:00', progress: 100, mtimeStr: '2026-05-18' },
+				{ title: '旧模板库归档', path: '', status: 'cancelled', topics: ['Maintenance'], ctimeStr: '2026/04/10 16:45:00', progress: 0, mtimeStr: '2026-04-10' }
 			];
 		}
 
@@ -3303,7 +3504,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	 * =========================================================================
 	 */
 	private renderStatsNav(parent: Element): void {
-		const navWrap = parent.createDiv({ cls: 'jarvis-stats-header-wrap' });
+		const navWrap = parent.createDiv({ 
+			cls: 'jarvis-stats-header-wrap',
+			attr: { style: 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;' }
+		});
 		
 		const tabsContainer = navWrap.createDiv({ cls: 'jarvis-stats-nav-tabs' });
 		const tabs = [
@@ -3371,29 +3575,47 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		}
 	}
 
-	private renderMiniGrid(parent: Element, stats: VaultOverviewStats): void {
+	private renderMiniGridSkeleton(parent: Element): {
+		days: HTMLElement; avg: HTMLElement; atomics: HTMLElement;
+		inbox: HTMLElement; output: HTMLElement; orphans: HTMLElement;
+	} {
 		const grid = parent.createDiv({ cls: 'jarvis-stats-mini-grid' });
 		
-		const cards = [
-			{ icon: 'calendar', val: `${stats.totalDays} 天`, label: '记录天数' },
-			{ icon: 'activity', val: `${stats.dailyAvg} 篇`, label: '日均新增' },
-			{ icon: 'file-text', val: `${stats.countAtomics} 篇`, label: '原子笔记' },
-			{ icon: 'folder', val: `${stats.countInbox} 篇`, label: 'Inbox 待理' },
-			{ icon: 'book-open', val: `${stats.countOutput} 篇`, label: '输出文章' },
-			{ icon: 'link', val: `${stats.countOrphans} 条`, label: '孤立笔记' }
-		];
-
-		cards.forEach(c => {
+		const makeCard = (icon: string, label: string): HTMLElement => {
 			const card = grid.createDiv({ cls: 'jarvis-stats-mini-card ad-tech-card' });
 			const valSpan = card.createSpan({ cls: 'jarvis-stats-mini-val' });
-			setIcon(valSpan, c.icon);
-			valSpan.createSpan({ text: ` ${c.val}` });
-			card.createSpan({ text: c.label, cls: 'jarvis-stats-mini-label' });
-		});
+			setIcon(valSpan, icon);
+			const numSpan = valSpan.createSpan({ text: ' --' });
+			card.createSpan({ text: label, cls: 'jarvis-stats-mini-label' });
+			return numSpan;
+		};
+
+		return {
+			days:    makeCard('calendar', '记录天数'),
+			avg:     makeCard('activity', '日均新增'),
+			atomics: makeCard('file-text', '原子笔记'),
+			inbox:   makeCard('folder', 'Inbox 待理'),
+			output:  makeCard('book-open', '输出文章'),
+			orphans: makeCard('link', '孤立笔记'),
+		};
+	}
+
+	private renderMiniGrid(parent: Element, stats: VaultOverviewStats): void {
+		const nodes = this.renderMiniGridSkeleton(parent);
+		nodes.days.setText(`${stats.totalDays} 天`);
+		nodes.avg.setText(`${stats.dailyAvg} 篇`);
+		nodes.atomics.setText(`${stats.countAtomics} 篇`);
+		nodes.inbox.setText(`${stats.countInbox} 篇`);
+		nodes.output.setText(`${stats.countOutput} 篇`);
+		nodes.orphans.setText(`${stats.countOrphans} 条`);
 	}
 
 	private renderChartSection(parent: Element): void {
 		const chartSec = parent.createDiv({ cls: 'jarvis-stats-chart-section ad-tech-card' });
+		this.renderChartSectionContent(chartSec);
+	}
+
+	private renderChartSectionContent(chartSec: Element): void {
 		const header = chartSec.createDiv({ cls: 'jarvis-stats-chart-header' });
 		
 		let title = '每日新增笔记';
@@ -3453,23 +3675,9 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	private getVaultDateCounts(): Map<string, number> {
 		if (this.cachedDateCounts) return this.cachedDateCounts;
 
-		const files = this.app.vault.getMarkdownFiles();
-		const dateCounts = new Map<string, number>();
-		files.forEach(f => {
-			const cache = this.app.metadataCache.getFileCache(f);
-			const rawFm: unknown = cache?.frontmatter;
-			const frontmatter = rawFm as Record<string, unknown> | undefined;
-			let m: moment.Moment;
-			const createdVal = frontmatter?.created;
-			if (createdVal && (typeof createdVal === 'string' || typeof createdVal === 'number' || createdVal instanceof Date)) {
-				m = moment(createdVal);
-			} else {
-				m = moment(f.stat.ctime);
-			}
-			const k = m.format('YYYY-MM-DD');
-			dateCounts.set(k, (dateCounts.get(k) || 0) + 1);
-		});
-
+		// Single scan that populates both caches simultaneously
+		const { stats, dateCounts } = this.vaultService.computeVaultData();
+		this.cachedVaultOverviewStats = stats;
 		this.cachedDateCounts = dateCounts;
 		return dateCounts;
 	}

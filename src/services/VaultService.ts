@@ -266,113 +266,77 @@ export class VaultService {
 	}
 
 	/**
-	 * Retrieve the most accurate creation time for a file.
-	 * Prioritizes 'created' or 'date' in frontmatter over file system ctime.
+	 * Single-pass scan: computes both VaultOverviewStats and date counts.
+	 * Uses file.stat.ctime only — no per-file metadataCache.getFileCache calls.
 	 */
-	private getFileCreationTime(file: TFile): number {
-		const cache = this.app.metadataCache.getFileCache(file);
-		const rawFm: unknown = cache?.frontmatter;
-		const fm = rawFm as Record<string, unknown> | undefined;
-		if (fm) {
-			const dateVal = fm['created'] || fm['date'];
-			if (dateVal && (typeof dateVal === 'string' || typeof dateVal === 'number' || dateVal instanceof Date)) {
-				const ts = new Date(dateVal).getTime();
-				if (!isNaN(ts)) return ts;
-			}
-		}
-		return file.stat.ctime;
-	}
-
-	/**
-	 * Scans the entire vault to calculate all main statistics
-	 * categorized strictly by the defined folder rules.
-	 */
-	async getVaultOverviewStats(): Promise<VaultOverviewStats> {
+	computeVaultData(): { stats: VaultOverviewStats; dateCounts: Map<string, number> } {
 		const stats: VaultOverviewStats = {
-			totalMdFiles: 0,
-			totalDays: 0,
-			dailyAvg: 0,
-			countDaily: 0,
-			countInbox: 0,
-			countProjects: 0,
-			countAtomics: 0,
-			countOutput: 0,
-			countOther: 0,
-			countOrphans: 0
+			totalMdFiles: 0, totalDays: 0, dailyAvg: 0,
+			countDaily: 0, countInbox: 0, countProjects: 0,
+			countAtomics: 0, countOutput: 0, countOther: 0, countOrphans: 0
 		};
+		const dateCounts = new Map<string, number>();
 
 		try {
 			let files = this.app.vault.getMarkdownFiles();
-			// Filter out files in .trash or other hidden folders
-			files = files.filter(file => !file.path.includes('.trash') && !file.path.startsWith('.'));
+			files = files.filter(f => !f.path.includes('.trash') && !f.path.startsWith('.'));
 			stats.totalMdFiles = files.length;
-			
-			if (stats.totalMdFiles === 0) return stats;
+			if (stats.totalMdFiles === 0) return { stats, dateCounts };
 
-			let oldestTime = Date.now();
-			
-			// For orphans (Aligning with strict OKF logic)
+			// Orphan detection: uses resolvedLinks (single object access, no per-file cache)
 			const resolvedLinks = this.app.metadataCache.resolvedLinks;
 			const linkedFiles = new Set<string>();
 			for (const sourcePath of Object.keys(resolvedLinks)) {
-				if (sourcePath.includes('Index')) continue;
-				if (sourcePath.includes('体检报告')) continue;
-				if (!sourcePath.startsWith(this.plugin.settings.atomicsFolder) && !sourcePath.startsWith(this.plugin.settings.outputFolder) && !sourcePath.startsWith(this.plugin.settings.dailyNoteFolder)) continue;
+				if (sourcePath.includes('Index') || sourcePath.includes('体检报告')) continue;
+				if (!sourcePath.startsWith(this.plugin.settings.atomicsFolder) &&
+					!sourcePath.startsWith(this.plugin.settings.outputFolder) &&
+					!sourcePath.startsWith(this.plugin.settings.dailyNoteFolder)) continue;
 				const targets = resolvedLinks[sourcePath];
-				if (targets) {
-					for (const targetPath of Object.keys(targets)) {
-						linkedFiles.add(targetPath);
-					}
-				}
+				if (targets) for (const t of Object.keys(targets)) linkedFiles.add(t);
 			}
 
-			files.forEach(file => {
+			const epochTime = new Date('2025-02-01').getTime();
+			const { dailyNoteFolder, inboxFolder, projectsFolder, atomicsFolder, outputFolder } = this.plugin.settings;
+			let oldestTime = Date.now();
+
+			for (const file of files) {
 				const path = file.path;
-				
-				// 1. Categorization by Folder Rules
-				if (path.startsWith(this.plugin.settings.dailyNoteFolder)) stats.countDaily++;
-				else if (path.startsWith(this.plugin.settings.inboxFolder)) stats.countInbox++;
-				else if (path.startsWith(this.plugin.settings.projectsFolder)) stats.countProjects++;
-				else if (path.startsWith(this.plugin.settings.atomicsFolder)) stats.countAtomics++;
-				else if (path.startsWith(this.plugin.settings.outputFolder)) stats.countOutput++;
-				else stats.countOther++;
 
-				// 2. Orphan check (Strict OKF logic: only Atomic notes can be orphans)
-				if (path.startsWith(this.plugin.settings.atomicsFolder)) {
-					if (!linkedFiles.has(path) && !file.name.includes('Index')) {
-						stats.countOrphans++;
-					}
+				// Categorize (pure string ops)
+				if      (path.startsWith(dailyNoteFolder)) stats.countDaily++;
+				else if (path.startsWith(inboxFolder))     stats.countInbox++;
+				else if (path.startsWith(projectsFolder))  stats.countProjects++;
+				else if (path.startsWith(atomicsFolder))   stats.countAtomics++;
+				else if (path.startsWith(outputFolder))    stats.countOutput++;
+				else                                       stats.countOther++;
+
+				// Orphan check
+				if (path.startsWith(atomicsFolder) && !linkedFiles.has(path) && !file.name.includes('Index')) {
+					stats.countOrphans++;
 				}
 
-				// 3. Finding the oldest date
-				const fileTime = this.getFileCreationTime(file);
-				
-				// Apply epoch cutoff: Ignore any date before 2025-02-01 (approximate start of system usage)
-				const epochTime = new Date('2025-02-01').getTime();
-				if (fileTime >= epochTime && fileTime < oldestTime) {
-					oldestTime = fileTime;
-				}
-			});
+				// Use file.stat.ctime directly — already in memory, no I/O
+				const ts = file.stat.ctime;
+				if (ts >= epochTime && ts < oldestTime) oldestTime = ts;
 
-			// If oldestTime wasn't updated (e.g. no files after epoch), fallback to epoch
-			if (oldestTime === Date.now()) {
-				oldestTime = new Date('2025-02-01').getTime();
+				// Date bucket for chart
+				const d = new Date(ts);
+				const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+				dateCounts.set(k, (dateCounts.get(k) || 0) + 1);
 			}
 
-			// Calculate total record days from the oldest date to now
-			const now = Date.now();
-			const spanMs = now - oldestTime;
-			let totalDays = Math.ceil(spanMs / (1000 * 60 * 60 * 24));
-			if (totalDays < 1) totalDays = 1;
-			stats.totalDays = totalDays;
-
-			// Daily average based on total md files and total days
+			if (oldestTime === Date.now()) oldestTime = epochTime;
+			stats.totalDays = Math.max(1, Math.ceil((Date.now() - oldestTime) / 86400000));
 			stats.dailyAvg = parseFloat((stats.totalMdFiles / stats.totalDays).toFixed(1));
 
-			return stats;
 		} catch (error) {
-			console.error('Failed to aggregate vault overview stats:', error);
-			return stats;
+			console.error('Failed to compute vault data:', error);
 		}
+
+		return { stats, dateCounts };
+	}
+
+	getVaultOverviewStats(): VaultOverviewStats {
+		return this.computeVaultData().stats;
 	}
 }
