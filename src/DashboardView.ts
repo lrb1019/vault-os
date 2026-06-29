@@ -374,14 +374,17 @@ export class AgentDashboardView extends ItemView {
 
 	private cachedVaultOverviewStats: VaultOverviewStats | null = null;
 	private cachedDateCounts: Map<string, number> | null = null;
-	private clearCacheTimer: ReturnType<typeof setTimeout> | null = null;
+	private clearCacheTimer: number | null = null;
 
 	private clearVaultStatsCache(): void {
-		if (this.clearCacheTimer) clearTimeout(this.clearCacheTimer);
-		this.clearCacheTimer = setTimeout(() => {
+		if (this.clearCacheTimer) window.clearTimeout(this.clearCacheTimer);
+		this.clearCacheTimer = window.setTimeout(() => {
 			this.cachedVaultOverviewStats = null;
 			this.cachedDateCounts = null;
-		}, 5000);
+			if (this.activeMainTab === 'vault') {
+				this.render();
+			}
+		}, 300);
 	}
 
 	// 服务实例
@@ -508,6 +511,8 @@ export class AgentDashboardView extends ItemView {
 		await this.taskService.initialize();
 		this.registerEvent(this.app.vault.on('create', () => this.clearVaultStatsCache()));
 		this.registerEvent(this.app.vault.on('delete', () => this.clearVaultStatsCache()));
+		this.registerEvent(this.app.vault.on('modify', () => this.clearVaultStatsCache()));
+		this.registerEvent(this.app.metadataCache.on('resolved', () => this.clearVaultStatsCache()));
 
 		this.render();
 		
@@ -2107,15 +2112,11 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	private renderVaultDashboard(parent: Element): void {
-		const container = parent.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 20px; flex-grow: 1; min-height: 0; height: 100%;' } });
+		const container = parent.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 14px; flex-grow: 1; min-height: 0; height: 100%;' } });
 		
 		this.renderStatsNav(container);
 
-		if (!this.cachedDateCounts) {
-			this.getVaultDateCounts();
-		} else if (!this.cachedVaultOverviewStats) {
-			this.cachedVaultOverviewStats = this.vaultService.getVaultOverviewStats();
-		}
+		this.getVaultDateCounts();
 
 		const finalStats = this.cachedVaultOverviewStats!;
 		this.renderVaultTelemetryBar(container, finalStats);
@@ -2143,11 +2144,11 @@ export class AgentDashboardView extends ItemView {
 
 		// 3. Chart card container (rendered immediately)
 		const chartCard = container.createDiv({ 
-			cls: 'jarvis-stats-chart-section ad-tech-card',
+			cls: 'ad-stats-chart-section ad-tech-card',
 			attr: { style: 'flex-grow: 1; min-height: 240px; display: flex; flex-direction: column;' }
 		});
-		const chartHeader = chartCard.createDiv({ cls: 'jarvis-stats-chart-header' });
-		chartHeader.createSpan({ text: '新增笔记统计', cls: 'jarvis-stats-chart-title' });
+		const chartHeader = chartCard.createDiv({ cls: 'ad-stats-chart-header' });
+		chartHeader.createSpan({ text: '新增笔记统计', cls: 'ad-stats-chart-title' });
 		const chartBody = chartCard.createDiv({ attr: { style: 'flex-grow: 1; display: flex; align-items: center; justify-content: center;' } });
 		chartBody.createDiv({ text: '数据读取中...', attr: { style: 'color: var(--text-muted); font-size: 13px;' } });
 
@@ -3301,16 +3302,12 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	 * =========================================================================
 	 */
 	private renderProjectsDashboard(parent: Element): void {
-		const container = parent.createDiv({ cls: 'ad-tasks-wrapper' });
+		const container = parent.createDiv({ cls: 'ad-tasks-wrapper', attr: { style: 'gap: 12px;' } });
 
-		const statsCard = container.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'margin-bottom: 0px;' } });
-		const header = statsCard.createDiv({ cls: 'ad-card-header' });
-		header.createEl('h3', { text: '项目全局统计' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
-		header.createSpan({ text: `根据标签自动抓取`, cls: 'ad-card-meta' });
-
-		const statsGrid = statsCard.createDiv({ cls: 'jarvis-stats-mini-grid', attr: { style: 'margin-top: 16px; margin-bottom: 0;' } });
+		const statsCard = container.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'margin-bottom: 0; padding: 14px 18px 16px;' } });
+		const statsGrid = statsCard.createDiv({ cls: 'ad-stats-mini-grid', attr: { style: 'margin-top: 0; margin-bottom: 0;' } });
 		
-		const baseCard = container.createDiv({ cls: 'ad-card ad-tech-card' });
+		const baseCard = container.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'padding-top: 16px;' } });
 		const baseHeader = baseCard.createDiv({ cls: 'ad-card-header' });
 		baseHeader.createEl('h3', { text: `项目数据库 (${this.plugin.settings.projectBaseFilePath})` , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
@@ -3328,9 +3325,9 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const completedPct = total > 0 ? Math.round((counts.completed / total) * 100) : 0;
 
 			const makeStatCard = (label: string, val: string) => {
-				const c = statsGrid.createDiv({ cls: 'jarvis-stats-mini-card' });
-				c.createDiv({ text: val, cls: 'jarvis-stats-mini-val' });
-				c.createDiv({ text: label, cls: 'jarvis-stats-mini-label' });
+				const c = statsGrid.createDiv({ cls: 'ad-stats-mini-card' });
+				c.createDiv({ text: val, cls: 'ad-stats-mini-val' });
+				c.createDiv({ text: label, cls: 'ad-stats-mini-label' });
 			};
 
 			makeStatCard('总项目数', String(total));
@@ -3552,11 +3549,11 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	 */
 	private renderStatsNav(parent: Element): void {
 		const navWrap = parent.createDiv({ 
-			cls: 'jarvis-stats-header-wrap',
+			cls: 'ad-stats-header-wrap',
 			attr: { style: 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;' }
 		});
 		
-		const tabsContainer = navWrap.createDiv({ cls: 'jarvis-stats-nav-tabs' });
+		const tabsContainer = navWrap.createDiv({ cls: 'ad-stats-nav-tabs' });
 		tabsContainer.setAttr('style', 'display: flex; background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 3px; gap: 4px;');
 		const tabs = [
 			{ id: 'week', label: '周' },
@@ -3569,7 +3566,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const isActive = this.statsTab === t.id;
 			const btn = tabsContainer.createEl('button', {
 				text: t.label,
-				cls: `jarvis-stats-tab-btn ${isActive ? 'is-active' : ''}`
+				cls: `ad-stats-tab-btn ${isActive ? 'is-active' : ''}`
 			});
 			btn.setAttr('style', [
 				'background: transparent',
@@ -3598,10 +3595,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		});
 
 		if (this.statsTab !== 'all') {
-			const picker = navWrap.createDiv({ cls: 'jarvis-stats-date-picker' });
+			const picker = navWrap.createDiv({ cls: 'ad-stats-date-picker' });
 			picker.setAttr('style', 'padding: 0 4px; border-radius: 999px; border: 1px solid var(--background-modifier-border); display: flex; align-items: center; height: 32px; background: var(--background-primary);');
 			
-			const prevBtn = picker.createEl('button', { cls: 'jarvis-stats-date-btn' });
+			const prevBtn = picker.createEl('button', { cls: 'ad-stats-date-btn' });
 			prevBtn.setAttr('style', 'background: transparent; border: none; box-shadow: none; padding: 0; margin: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted);');
 			setIcon(prevBtn, 'chevron-left');
 			prevBtn.addEventListener('click', () => {
@@ -3610,10 +3607,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			});
 
 			const dateStr = this.calculateDateRangeString();
-			const dateText = picker.createEl('span', { text: dateStr, cls: 'jarvis-stats-date-text' });
+			const dateText = picker.createEl('span', { text: dateStr, cls: 'ad-stats-date-text' });
 			dateText.setAttr('style', 'font-size: 14px; font-weight: 500; line-height: 1; margin: 0 6px; color: var(--text-normal);');
 
-			const nextBtn = picker.createEl('button', { cls: 'jarvis-stats-date-btn' });
+			const nextBtn = picker.createEl('button', { cls: 'ad-stats-date-btn' });
 			nextBtn.setAttr('style', 'background: transparent; border: none; box-shadow: none; padding: 0; margin: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted);');
 			setIcon(nextBtn, 'chevron-right');
 			nextBtn.addEventListener('click', () => {
@@ -3647,14 +3644,14 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		days: HTMLElement; avg: HTMLElement; atomics: HTMLElement;
 		inbox: HTMLElement; output: HTMLElement; orphans: HTMLElement;
 	} {
-		const grid = parent.createDiv({ cls: 'jarvis-stats-mini-grid' });
+		const grid = parent.createDiv({ cls: 'ad-stats-mini-grid' });
 		
 		const makeCard = (icon: string, label: string): HTMLElement => {
-			const card = grid.createDiv({ cls: 'jarvis-stats-mini-card ad-tech-card' });
-			const valSpan = card.createSpan({ cls: 'jarvis-stats-mini-val' });
+			const card = grid.createDiv({ cls: 'ad-stats-mini-card ad-tech-card' });
+			const valSpan = card.createSpan({ cls: 'ad-stats-mini-val' });
 			setIcon(valSpan, icon);
 			const numSpan = valSpan.createSpan({ text: ' --' });
-			card.createSpan({ text: label, cls: 'jarvis-stats-mini-label' });
+			card.createSpan({ text: label, cls: 'ad-stats-mini-label' });
 			return numSpan;
 		};
 
@@ -3679,23 +3676,23 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	}
 
 	private renderChartSection(parent: Element): void {
-		const chartSec = parent.createDiv({ cls: 'jarvis-stats-chart-section ad-tech-card' });
+		const chartSec = parent.createDiv({ cls: 'ad-stats-chart-section ad-tech-card' });
 		this.renderChartSectionContent(chartSec);
 	}
 
 	private renderChartSectionContent(chartSec: Element): void {
-		const header = chartSec.createDiv({ cls: 'jarvis-stats-chart-header' });
+		const header = chartSec.createDiv({ cls: 'ad-stats-chart-header' });
 		
 		let title = '每日新增笔记';
 		if (this.statsTab === 'year' && this.statsChartType === 'bar') title = '每月新增笔记';
 		if (this.statsTab === 'all' && this.statsChartType === 'bar') title = '每年新增笔记';
-		header.createSpan({ text: title, cls: 'jarvis-stats-chart-title' });
+		header.createSpan({ text: title, cls: 'ad-stats-chart-title' });
 
-		const toggles = header.createDiv({ cls: 'jarvis-stats-chart-toggles' });
+		const toggles = header.createDiv({ cls: 'ad-stats-chart-toggles' });
 		
 		if (this.statsTab === 'month') {
 			const btnBar = toggles.createEl('button', { 
-				cls: `jarvis-stats-chart-toggle-btn ${this.statsChartType === 'bar' ? 'is-active' : ''}` 
+				cls: `ad-stats-chart-toggle-btn ${this.statsChartType === 'bar' ? 'is-active' : ''}` 
 			});
 			setIcon(btnBar, 'activity');
 			btnBar.addEventListener('click', () => {
@@ -3704,7 +3701,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			});
 
 			const btnCal = toggles.createEl('button', { 
-				cls: `jarvis-stats-chart-toggle-btn ${this.statsChartType === 'calendar' ? 'is-active' : ''}` 
+				cls: `ad-stats-chart-toggle-btn ${this.statsChartType === 'calendar' ? 'is-active' : ''}` 
 			});
 			setIcon(btnCal, 'calendar');
 			btnCal.addEventListener('click', () => {
@@ -3713,7 +3710,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			});
 		} else if (this.statsTab === 'year' || this.statsTab === 'all') {
 			const btnHeat = toggles.createEl('button', { 
-				cls: `jarvis-stats-chart-toggle-btn ${this.statsChartType === 'heatmap' ? 'is-active' : ''}` 
+				cls: `ad-stats-chart-toggle-btn ${this.statsChartType === 'heatmap' ? 'is-active' : ''}` 
 			});
 			setIcon(btnHeat, 'layout-dashboard');
 			btnHeat.addEventListener('click', () => {
@@ -3722,7 +3719,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			});
 
 			const btnBar = toggles.createEl('button', { 
-				cls: `jarvis-stats-chart-toggle-btn ${this.statsChartType === 'bar' ? 'is-active' : ''}` 
+				cls: `ad-stats-chart-toggle-btn ${this.statsChartType === 'bar' ? 'is-active' : ''}` 
 			});
 			setIcon(btnBar, 'activity');
 			btnBar.addEventListener('click', () => {
@@ -3741,7 +3738,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	}
 
 	private getVaultDateCounts(): Map<string, number> {
-		if (this.cachedDateCounts) return this.cachedDateCounts;
+		if (this.cachedDateCounts && this.cachedVaultOverviewStats) return this.cachedDateCounts;
 
 		// Single scan that populates both caches simultaneously
 		const { stats, dateCounts } = this.vaultService.computeVaultData();
@@ -3835,29 +3832,45 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		});
 	}
 
+	private getCalendarWeekRowCount(offset: number, totalDays: number): number {
+		return Math.ceil((offset + totalDays) / 7);
+	}
+
+	private formatCalendarCountLabel(count: number, isCompact: boolean): string {
+		return isCompact ? `+${count}` : `+${count} 篇`;
+	}
+
 	private renderCalendarChart(parent: Element): void {
 		const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-		
-		const gridHeader = parent.createDiv({ cls: 'jarvis-stats-calendar-grid', attr: { style: 'margin-bottom: 8px;' } });
-		weekdays.forEach(wd => {
-			gridHeader.createDiv({ text: wd, cls: 'jarvis-stats-calendar-weekday' });
-		});
 
-		const gridBody = parent.createDiv({ cls: 'jarvis-stats-calendar-grid' });
+		const panel = parent.createDiv({ cls: 'ad-stats-calendar-panel' });
+		const gridHeader = panel.createDiv({
+			cls: 'ad-stats-calendar-grid ad-stats-calendar-grid--header',
+			attr: { style: 'margin-bottom: 6px;' }
+		});
+		weekdays.forEach(wd => {
+			gridHeader.createDiv({ text: wd, cls: 'ad-stats-calendar-weekday' });
+		});
 		
 		const now = window.moment();
-		let targetMonth = now.clone().add(this.currentDateOffset, 'months');
+		const targetMonth = now.clone().add(this.currentDateOffset, 'months');
 		
 		const totalDays = targetMonth.daysInMonth();
 		const startOfMonth = targetMonth.clone().startOf('month');
 		
 		// isoWeekday(): 1=Monday, 7=Sunday
 		const offset = startOfMonth.isoWeekday() - 1;
+		const weekRows = this.getCalendarWeekRowCount(offset, totalDays);
+		const isCompact = weekRows >= 6;
+		const gridBody = panel.createDiv({
+			cls: `ad-stats-calendar-grid ad-stats-calendar-grid--body ${isCompact ? 'is-compact' : ''}`,
+			attr: { style: `--ad-stats-calendar-rows: ${weekRows};` }
+		});
 
 		for (let i = 0; i < offset; i++) {
-			gridBody.createDiv({ cls: 'jarvis-stats-calendar-cell is-empty' });
+			gridBody.createDiv({ cls: 'ad-stats-calendar-cell is-empty' });
 		}
-		// Get real data counts
+
 		const dateCounts = this.getVaultDateCounts();
 
 		for (let d = 1; d <= totalDays; d++) {
@@ -3865,17 +3878,24 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const count = dateCounts.get(currentDay.format('YYYY-MM-DD')) || 0;
 			
 			const cell = gridBody.createDiv({ 
-				cls: `jarvis-stats-calendar-cell ${count > 0 ? 'has-read' : ''}` 
+				cls: `ad-stats-calendar-cell ${count > 0 ? 'has-read' : ''}` 
 			});
-			cell.createEl('span', { text: String(d), attr: { style: count > 0 ? 'font-weight: 700;' : '' } });
+			cell.createEl('span', {
+				text: String(d),
+				cls: 'ad-stats-calendar-cell-day',
+				attr: { style: count > 0 ? 'font-weight: 700;' : '' }
+			});
 			if (count > 0) {
-				cell.createEl('span', { text: `+${count} 篇`, cls: 'jarvis-stats-calendar-cell-time' });
+				cell.createEl('span', {
+					text: this.formatCalendarCountLabel(count, isCompact),
+					cls: 'ad-stats-calendar-cell-count'
+				});
 			}
 		}
 	}
 
 	private renderHeatmapChart(parent: Element): void {
-		const heatmapWrapper = parent.createDiv({ cls: 'jarvis-stats-heatmap-wrapper' });
+		const heatmapWrapper = parent.createDiv({ cls: 'ad-stats-heatmap-wrapper' });
 		const now = moment();
 		let targetYear = now.year();
 		if (this.statsTab === 'month') {
@@ -3934,7 +3954,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const endDate = window.moment(`${year}-12-31`).endOf('isoWeek');
 			
 			while (currentDate.isBefore(endDate)) {
-				const col = gridContainer.createDiv({ cls: 'jarvis-stats-heatmap-col', attr: { style: `width: ${cellSize}px; gap: ${cellGap}px;` } });
+				const col = gridContainer.createDiv({ cls: 'ad-stats-heatmap-col', attr: { style: `width: ${cellSize}px; gap: ${cellGap}px;` } });
 				for (let d = 0; d < 7; d++) {
 					const dateStr = currentDate.format('YYYY-MM-DD');
 					const count = dateCounts.get(dateStr) || 0;
@@ -3951,25 +3971,25 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					else if (count > 2) level = 2;
 					else if (count > 0) level = 1;
 
-					const cell = col.createDiv({ cls: `jarvis-stats-heatmap-cell ${isCurrentYear ? `level-${level}` : ''}`, attr: { style: `width: ${cellSize}px; height: ${cellSize}px;` } });
+					const cell = col.createDiv({ cls: `ad-stats-heatmap-cell ${isCurrentYear ? `level-${level}` : ''}`, attr: { style: `width: ${cellSize}px; height: ${cellSize}px;` } });
 					if (!isCurrentYear) {
 						cell.setCssStyles({ visibility: 'hidden' });
 					} else {
-						cell.createDiv({ text: `${dateStr} 新增 ${count} 篇笔记`, cls: 'jarvis-stats-heatmap-cell-tooltip' });
+						cell.createDiv({ text: `${dateStr} 新增 ${count} 篇笔记`, cls: 'ad-stats-heatmap-cell-tooltip' });
 					}
 					currentDate.add(1, 'day');
 				}
 			}
 		});
 
-		const footer = parent.createDiv({ cls: 'jarvis-stats-heatmap-footer' });
+		const footer = parent.createDiv({ cls: 'ad-stats-heatmap-footer' });
 		const prefix = this.statsTab === 'all' ? '总计' : '本年度';
 		footer.createSpan({ text: `${prefix}共活跃 ${totalActiveDays} 天，累计新增 ${totalNotes} 篇笔记` });
 		
-		const legend = footer.createDiv({ cls: 'jarvis-stats-heatmap-legend' });
+		const legend = footer.createDiv({ cls: 'ad-stats-heatmap-legend' });
 		legend.createSpan({ text: '少' });
 		for (let i = 0; i <= 4; i++) {
-			legend.createDiv({ cls: `jarvis-stats-heatmap-legend-box level-${i}` });
+			legend.createDiv({ cls: `ad-stats-heatmap-legend-box level-${i}` });
 		}
 		legend.createSpan({ text: '多' });
 	}

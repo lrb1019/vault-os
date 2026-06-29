@@ -82,10 +82,10 @@
 .ad-vault-telemetry-bar {
 	display: flex;
 	width: 100%;
-	height: 8px;
-	border-radius: 4px;
+	height: 6px;
+	border-radius: 999px;
 	overflow: hidden;
-	margin-bottom: 6px;
+	margin-bottom: 10px;
 	background: var(--background-secondary);
 }
 
@@ -126,7 +126,7 @@
 .ad-container h3, 
 .ad-container h4, 
 .ad-bus-section-title,
-.jarvis-stats-header-wrap span {
+.ad-stats-header-wrap span {
 	font-weight: 500 !important;
 	font-size: 1.1em !important;
 	color: var(--text-normal);
@@ -142,15 +142,28 @@
 
 /* 压缩仓库容量卡片的高度 */
 .ad-vault-telemetry-card {
-	padding: 6px 12px !important;
+	padding: 8px 12px 10px !important;
+	margin-bottom: 12px !important;
+	min-height: 58px;
+	overflow: hidden !important;
 }
 .ad-vault-telemetry-card .ad-card-header h3 {
 	margin-bottom: 4px !important;
 	font-size: 13px !important;
 }
 
-/* 压缩阅读统计的日期选择器 */
-.jarvis-stats-date-picker {
+.ad-vault-telemetry-legend {
+	row-gap: 6px;
+	min-height: 18px;
+	align-items: center;
+}
+
+.ad-vault-telemetry-card + .ad-stats-mini-grid {
+	margin-top: 10px;
+}
+
+/* 仓库统计日期选择器 */
+.ad-stats-date-picker {
 	padding: 0 4px !important;
 	border-radius: 6px;
 	border: 1px solid var(--background-modifier-border);
@@ -159,7 +172,7 @@
 	height: 24px;
 	background: var(--background-primary);
 }
-.jarvis-stats-header-wrap .jarvis-stats-date-text {
+.ad-stats-header-wrap .ad-stats-date-text {
 	font-size: 14px !important;
 	font-weight: 500 !important;
 	line-height: 1 !important;
@@ -167,7 +180,7 @@
 	margin-left: 6px !important;
 	margin-right: 6px !important;
 }
-.jarvis-stats-date-btn {
+.ad-stats-date-btn {
 	background: transparent !important;
 	border: none !important;
 	box-shadow: none !important;
@@ -181,12 +194,12 @@
 	cursor: pointer;
 	color: var(--text-muted);
 }
-.jarvis-stats-date-btn:hover {
+.ad-stats-date-btn:hover {
 	color: var(--text-normal);
 	background: var(--background-modifier-hover) !important;
 	border-radius: 4px;
 }
-.jarvis-stats-date-btn svg {
+.ad-stats-date-btn svg {
 	width: 14px !important;
 	height: 14px !important;
 }
@@ -273,122 +286,177 @@
 }
 
 /* 图表区域拉伸 */
-.jarvis-stats-chart-section {\n\theight: 100%;\n\tjustify-content: space-between;
+.ad-stats-chart-section {
+	height: 100%;
+	justify-content: space-between;
 	display: flex;
 	flex-direction: column;
 	flex-grow: 1;
 	min-height: 200px;
 }
 
-/* 覆盖 jarvis-reader 里的固定高度，允许图表柱子纵向拉伸 */
-.jarvis-stats-bar-chart-container {
+/* 柱状图区域允许纵向拉伸 */
+.ad-stats-bar-chart-container {
 	height: auto !important;
 	flex-grow: 1 !important;
 }
 
-\n
 /* Calendar Chart */
-.jarvis-stats-calendar-grid {\n    grid-auto-rows: 1fr;\n    flex-grow: 1;
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
+.ad-stats-calendar-panel {
+	display: flex;
+	flex-direction: column;
+	flex-grow: 1;
+	min-height: 0;
 }
-.jarvis-stats-calendar-weekday {
-    text-align: center;
-    font-size: 11px;
-    font-weight: 500;
-    color: var(--text-muted);
-    padding-bottom: 8px;
+
+.ad-stats-calendar-grid {
+	display: grid;
+	grid-template-columns: repeat(7, minmax(0, 1fr));
 }
-.jarvis-stats-calendar-cell {
-    border-radius: 6px;
-    border: 1px solid var(--background-modifier-border);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: 12px;
-    color: var(--text-normal);
-    position: relative;
-    background-color: var(--background-secondary);
-    box-sizing: border-box;
+
+.ad-stats-calendar-grid--header {
+	gap: 3px;
 }
-.jarvis-stats-calendar-cell.is-empty {
-    background-color: transparent;
-    border: none;
+
+.ad-stats-calendar-grid--body {
+	--ad-stats-calendar-rows: 5;
+	flex-grow: 1;
+	align-content: start;
+	grid-auto-rows: minmax(68px, 1fr);
+	gap: 4px;
 }
-.jarvis-stats-calendar-cell.has-read {
-    background-color: #d8f0ed;
-    border-color: #8ad3c5;
-    color: #2f8e7b;
+
+.ad-stats-calendar-grid--body.is-compact {
+	grid-auto-rows: minmax(52px, 1fr);
+	gap: 3px;
 }
-.jarvis-stats-calendar-cell-time {
-    font-size: 9px;
-    margin-top: 4px;
-    opacity: 0.8;
+
+.ad-stats-calendar-weekday {
+	text-align: center;
+	font-size: 10px;
+	font-weight: 500;
+	color: var(--text-muted);
+	padding-bottom: 4px;
+}
+
+.ad-stats-calendar-cell {
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 2px;
+	padding: 6px 4px;
+	font-size: 11px;
+	color: var(--text-normal);
+	position: relative;
+	background-color: var(--background-secondary);
+	box-sizing: border-box;
+	min-width: 0;
+	text-align: center;
+}
+
+.ad-stats-calendar-grid--body.is-compact .ad-stats-calendar-cell {
+	border-radius: 5px;
+	padding: 4px 3px;
+	gap: 1px;
+	font-size: 10px;
+}
+
+.ad-stats-calendar-cell.is-empty {
+	background-color: transparent;
+	border: none;
+}
+
+.ad-stats-calendar-cell.has-read {
+	background-color: #d8f0ed;
+	border-color: #8ad3c5;
+	color: #2f8e7b;
+}
+
+.ad-stats-calendar-cell-day {
+	line-height: 1.1;
+}
+
+.ad-stats-calendar-cell-count {
+	font-size: 9px;
+	line-height: 1.1;
+	opacity: 0.85;
+	white-space: nowrap;
+}
+
+.ad-stats-calendar-grid--body.is-compact .ad-stats-calendar-cell-count {
+	font-size: 8px;
 }
 
 /* Heatmap Chart */
-.jarvis-stats-heatmap-wrapper {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    flex-grow: 1;
-    height: 100%;
-    overflow-x: auto;
-    padding-bottom: 15px;
+.ad-stats-heatmap-wrapper {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	flex-grow: 1;
+	height: 100%;
+	overflow-x: auto;
+	padding-bottom: 15px;
 }
-.jarvis-stats-heatmap-col {
-    display: flex;
-    flex-direction: column;
+
+.ad-stats-heatmap-col {
+	display: flex;
+	flex-direction: column;
 }
-.jarvis-stats-heatmap-cell {
-    border-radius: 2px;
-    background-color: color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
-    position: relative;
+
+.ad-stats-heatmap-cell {
+	border-radius: 2px;
+	background-color: color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
+	position: relative;
 }
-.jarvis-stats-heatmap-cell:hover .jarvis-stats-heatmap-cell-tooltip {
-    display: block;
+
+.ad-stats-heatmap-cell:hover .ad-stats-heatmap-cell-tooltip {
+	display: block;
 }
-.jarvis-stats-heatmap-cell-tooltip {
-    display: none;
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background-color: var(--background-primary);
-    border: 1px solid var(--background-modifier-border);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    white-space: nowrap;
-    z-index: 100;
-    margin-bottom: 4px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+
+.ad-stats-heatmap-cell-tooltip {
+	display: none;
+	position: absolute;
+	bottom: 100%;
+	left: 50%;
+	transform: translateX(-50%);
+	background-color: var(--background-primary);
+	border: 1px solid var(--background-modifier-border);
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 11px;
+	white-space: nowrap;
+	z-index: 100;
+	margin-bottom: 4px;
+	box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 .level-1 { background-color: #d8f0ed !important; }
 .level-2 { background-color: #8ad3c5 !important; }
 .level-3 { background-color: #4ab69f !important; }
 .level-4 { background-color: #2f8e7b !important; }
 
-.jarvis-stats-heatmap-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    font-size: 11px;
-    color: var(--text-muted);
-    margin-top: 10px;
+.ad-stats-heatmap-footer {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	font-size: 11px;
+	color: var(--text-muted);
+	margin-top: 10px;
 }
-.jarvis-stats-heatmap-legend {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+
+.ad-stats-heatmap-legend {
+	display: flex;
+	align-items: center;
+	gap: 4px;
 }
-.jarvis-stats-heatmap-legend-box {
-    width: 10px;
-    height: 10px;
-    border-radius: 2px;
-    background-color: color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
+
+.ad-stats-heatmap-legend-box {
+	width: 10px;
+	height: 10px;
+	border-radius: 2px;
+	background-color: color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
 }
 
 /* 今日待办与今日习惯打卡大屏布局 */
@@ -511,15 +579,15 @@ select.dropdown option {
 	color: var(--text-normal) !important;
 }
 
-/* 小数据卡片组 */
-.jarvis-stats-mini-grid {
+/* 统计小数据卡片组 */
+.ad-stats-mini-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
 	gap: 12px;
-	margin-bottom: 24px;
+	margin-bottom: 12px;
 }
 
-.jarvis-stats-mini-card {
+.ad-stats-mini-card {
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
@@ -530,46 +598,47 @@ select.dropdown option {
 	gap: 4px;
 }
 
-.theme-light .jarvis-stats-mini-card {
+.theme-light .ad-stats-mini-card {
 	background: transparent;
 }
 
-.jarvis-stats-mini-val {
+.ad-stats-mini-val {
 	font-size: 18px;
 	font-weight: 700;
 }
 
-.jarvis-stats-mini-label {
+.ad-stats-mini-label {
 	font-size: 11px;
 	color: var(--text-muted);
 }
 
 /* 图表区结构 */
-.jarvis-stats-chart-section {
+.ad-stats-chart-section {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 12px;
-	padding: 20px;
+	padding: 16px 18px 18px;
 	background: var(--background-secondary);
-	margin-bottom: 24px;
+	margin-bottom: 12px;
+	min-height: 0;
 }
 
-.theme-light .jarvis-stats-chart-section {
+.theme-light .ad-stats-chart-section {
 	background: transparent;
 }
 
-.jarvis-stats-chart-header {
+.ad-stats-chart-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	margin-bottom: 16px;
+	margin-bottom: 10px;
 }
 
-.jarvis-stats-chart-title {
+.ad-stats-chart-title {
 	font-size: 14px;
 	font-weight: 700;
 }
 
-.jarvis-stats-chart-toggles {
+.ad-stats-chart-toggles {
 	display: flex;
 	background: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
@@ -577,7 +646,7 @@ select.dropdown option {
 	padding: 2px;
 }
 
-.jarvis-stats-chart-toggle-btn {
+.ad-stats-chart-toggle-btn {
 	background: none;
 	border: none;
 	padding: 4px 8px;
@@ -588,18 +657,18 @@ select.dropdown option {
 	align-items: center;
 }
 
-.jarvis-stats-chart-toggle-btn.is-active {
+.ad-stats-chart-toggle-btn.is-active {
 	background: var(--background-secondary);
 	color: var(--interactive-accent);
 }
 
-.theme-light .jarvis-stats-chart-toggle-btn.is-active {
+.theme-light .ad-stats-chart-toggle-btn.is-active {
 	background: #F5F2E9;
 	color: #8C1A1A;
 }
 
 /* 每日柱状图样式 */
-.jarvis-stats-bar-chart-container {
+.ad-stats-bar-chart-container {
 	display: flex;
 	align-items: flex-end;
 	justify-content: space-between;
@@ -719,7 +788,7 @@ select.dropdown option {
 }
 
 /* 仓库统计子导航 */
-.jarvis-stats-header-wrap {
+.ad-stats-header-wrap {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -728,7 +797,7 @@ select.dropdown option {
 	margin-bottom: 16px;
 }
 
-.jarvis-stats-nav-tabs {
+.ad-stats-nav-tabs {
 	display: flex;
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
@@ -737,7 +806,7 @@ select.dropdown option {
 	gap: 4px;
 }
 
-.jarvis-stats-tab-btn {
+.ad-stats-tab-btn {
 	background: transparent;
 	border: none;
 	outline: none;
@@ -751,12 +820,12 @@ select.dropdown option {
 	box-shadow: none;
 }
 
-.jarvis-stats-tab-btn:hover {
+.ad-stats-tab-btn:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.jarvis-stats-tab-btn.is-active {
+.ad-stats-tab-btn.is-active {
 	background-color: var(--interactive-accent) !important;
 	color: var(--text-on-accent) !important;
 	border-color: var(--interactive-accent) !important;
