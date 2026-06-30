@@ -1,5 +1,5 @@
 import { App, Modal, PluginSettingTab, Setting, setIcon } from 'obsidian';
-import AgentDashboardPlugin from './main';
+import VaultOsPlugin from './main';
 
 function stringifyHeaderLines(headers: Record<string, string>): string {
 	return Object.entries(headers)
@@ -42,7 +42,7 @@ export interface TickTickMcpConfig {
 	headers: Record<string, string>;
 }
 
-export interface AgentDashboardSettings {
+export interface VaultOsSettings {
 	dashboardTitle: string;
 	enabledShortcuts: Record<string, boolean>;
 	claudianActions: ClaudianAction[];
@@ -70,8 +70,8 @@ export interface AgentDashboardSettings {
 
 type SettingsTabId = 'general' | 'paths' | 'mcp' | 'actions';
 
-export const DEFAULT_SETTINGS: AgentDashboardSettings = {
-	dashboardTitle: "BYLRB 的智能控制中心",
+export const DEFAULT_SETTINGS: VaultOsSettings = {
+	dashboardTitle: "Vault OS",
 	enabledShortcuts: {
 		"jarvis-reader": true,
 		"rss-dashboard": true,
@@ -126,7 +126,7 @@ class ClaudianActionEditModal extends Modal {
 
 	onOpen(): void {
 		const { contentEl, modalEl } = this;
-		modalEl.addClass('ad-action-modal');
+		modalEl.addClass('vo-action-modal');
 		contentEl.empty();
 
 		let draft: ClaudianAction = {
@@ -199,12 +199,12 @@ class ClaudianActionEditModal extends Modal {
 					.onChange((value) => {
 						draft = { ...draft, prompt: value };
 					});
-				text.inputEl.addClass('ad-action-modal-prompt');
+				text.inputEl.addClass('vo-action-modal-prompt');
 			});
 
-		const footer = contentEl.createDiv({ cls: 'ad-action-modal-footer' });
-		const leftActions = footer.createDiv({ cls: 'ad-action-modal-footer-left' });
-		const rightActions = footer.createDiv({ cls: 'ad-action-modal-footer-right' });
+		const footer = contentEl.createDiv({ cls: 'vo-action-modal-footer' });
+		const leftActions = footer.createDiv({ cls: 'vo-action-modal-footer-left' });
+		const rightActions = footer.createDiv({ cls: 'vo-action-modal-footer-right' });
 		if (this.onDeleteAction) {
 			const deleteBtn = leftActions.createEl('button', { text: 'Delete', cls: 'mod-warning' });
 			deleteBtn.addEventListener('click', () => {
@@ -233,11 +233,11 @@ class ClaudianActionEditModal extends Modal {
 	}
 }
 
-export class AgentDashboardSettingTab extends PluginSettingTab {
-	plugin: AgentDashboardPlugin;
+export class VaultOsSettingTab extends PluginSettingTab {
+	plugin: VaultOsPlugin;
 	private activeTab: SettingsTabId = 'general';
 
-	constructor(app: App, plugin: AgentDashboardPlugin) {
+	constructor(app: App, plugin: VaultOsPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -249,17 +249,17 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 	private createNote(container: HTMLElement, text: string, extraClass?: string): void {
 		container.createEl('p', {
 			text,
-			cls: `ad-settings-note${extraClass ? ` ${extraClass}` : ''}`
+			cls: `vo-settings-note${extraClass ? ` ${extraClass}` : ''}`
 		});
 	}
 
 	private createLucideNote(container: HTMLElement): void {
-		const note = container.createEl('p', { cls: 'ad-settings-note ad-settings-note-subtle' });
+		const note = container.createEl('p', { cls: 'vo-settings-note vo-settings-note-subtle' });
 		note.appendText('图标名称来自 ');
 		note.createEl('a', {
 			text: 'Lucide Icons',
 			href: 'https://lucide.dev/icons/',
-			cls: 'ad-settings-note-link',
+			cls: 'vo-settings-note-link',
 			attr: { target: '_blank', rel: 'noopener noreferrer' }
 		});
 		note.appendText('。把站点上的图标名填进图标字段即可。');
@@ -291,9 +291,9 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 		const actions = (this.plugin.settings.claudianActions || []).map(action => this.normalizeAction(action));
 		this.plugin.settings.claudianActions = actions;
 
-		const header = sectionContent.createDiv({ cls: 'ad-actions-toolbar' });
-		header.createEl('h3', { text: '指令列表', cls: 'ad-actions-toolbar-title' });
-		const addBtn = header.createEl('button', { text: '+', cls: 'ad-actions-toolbar-add' });
+		const header = sectionContent.createDiv({ cls: 'vo-actions-toolbar' });
+		header.createEl('h3', { text: '指令列表', cls: 'vo-actions-toolbar-title' });
+		const addBtn = header.createEl('button', { text: '+', cls: 'vo-actions-toolbar-add' });
 		addBtn.addEventListener('click', async () => {
 			this.plugin.settings.claudianActions.push({
 				id: `action-${Date.now()}`,
@@ -310,23 +310,23 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 			this.refreshDashboardView();
 		});
 
-		const list = sectionContent.createDiv({ cls: 'ad-actions-list' });
+		const list = sectionContent.createDiv({ cls: 'vo-actions-list' });
 
 		actions.forEach((action, index) => {
-			const row = list.createDiv({ cls: 'ad-actions-list-row' });
-			const main = row.createDiv({ cls: 'ad-actions-list-main' });
-			const iconWrap = main.createDiv({ cls: 'ad-actions-list-icon' });
+			const row = list.createDiv({ cls: 'vo-actions-list-row' });
+			const main = row.createDiv({ cls: 'vo-actions-list-main' });
+			const iconWrap = main.createDiv({ cls: 'vo-actions-list-icon' });
 			setIcon(iconWrap, action.icon || 'bot');
 
-			const textWrap = main.createDiv({ cls: 'ad-actions-list-text' });
-			textWrap.createDiv({ text: action.label || `指令 ${index + 1}`, cls: 'ad-actions-list-title' });
+			const textWrap = main.createDiv({ cls: 'vo-actions-list-text' });
+			textWrap.createDiv({ text: action.label || `指令 ${index + 1}`, cls: 'vo-actions-list-title' });
 			textWrap.createDiv({
 				text: `${action.requireInput ? '带输入框' : '纯按钮'} · ${this.getActionSummary(action)}`,
-				cls: 'ad-actions-list-desc'
+				cls: 'vo-actions-list-desc'
 			});
 
-			const controls = row.createDiv({ cls: 'ad-actions-list-controls' });
-			const statusWrap = controls.createDiv({ cls: 'ad-actions-list-status' });
+			const controls = row.createDiv({ cls: 'vo-actions-list-controls' });
+			const statusWrap = controls.createDiv({ cls: 'vo-actions-list-status' });
 			statusWrap.createSpan({ text: action.enabled !== false ? '启用' : '关闭' });
 			new Setting(statusWrap)
 				.addToggle(toggle => toggle
@@ -358,9 +358,9 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 		const actions = (this.plugin.settings.claudianActions || []).map(action => this.normalizeAction(action));
 		this.plugin.settings.claudianActions = actions;
 
-		const header = sectionContent.createDiv({ cls: 'ad-actions-toolbar' });
-		header.createEl('h3', { text: '指令列表', cls: 'ad-actions-toolbar-title' });
-		const addBtn = header.createEl('button', { text: '+', cls: 'ad-actions-toolbar-add' });
+		const header = sectionContent.createDiv({ cls: 'vo-actions-toolbar' });
+		header.createEl('h3', { text: '指令列表', cls: 'vo-actions-toolbar-title' });
+		const addBtn = header.createEl('button', { text: '+', cls: 'vo-actions-toolbar-add' });
 		addBtn.addEventListener('click', async () => {
 			this.plugin.settings.claudianActions.push({
 				id: `action-${Date.now()}`,
@@ -377,22 +377,22 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 			this.refreshDashboardView();
 		});
 
-		const list = sectionContent.createDiv({ cls: 'ad-actions-compact-list' });
+		const list = sectionContent.createDiv({ cls: 'vo-actions-compact-list' });
 		actions.forEach((action, index) => {
-			const row = list.createDiv({ cls: 'ad-actions-compact-row' });
+			const row = list.createDiv({ cls: 'vo-actions-compact-row' });
 
-			const left = row.createDiv({ cls: 'ad-actions-compact-main' });
-			const iconWrap = left.createDiv({ cls: 'ad-actions-compact-icon' });
+			const left = row.createDiv({ cls: 'vo-actions-compact-main' });
+			const iconWrap = left.createDiv({ cls: 'vo-actions-compact-icon' });
 			setIcon(iconWrap, action.icon || 'bot');
 
-			const textWrap = left.createDiv({ cls: 'ad-actions-compact-text' });
-			textWrap.createDiv({ text: action.label || `指令 ${index + 1}`, cls: 'ad-actions-compact-title' });
+			const textWrap = left.createDiv({ cls: 'vo-actions-compact-text' });
+			textWrap.createDiv({ text: action.label || `指令 ${index + 1}`, cls: 'vo-actions-compact-title' });
 			textWrap.createDiv({
 				text: (action.description || '').trim() || (action.requireInput ? '带输入框的智能指令' : '纯按钮智能指令'),
-				cls: 'ad-actions-compact-desc'
+				cls: 'vo-actions-compact-desc'
 			});
 
-			const right = row.createDiv({ cls: 'ad-actions-compact-controls' });
+			const right = row.createDiv({ cls: 'vo-actions-compact-controls' });
 			const editBtn = right.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': '编辑指令' } });
 			setIcon(editBtn, 'pencil');
 			editBtn.addEventListener('click', () => {
@@ -429,31 +429,31 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 		const iconOnlyActions = enabledActions.filter(action => !action.requireInput);
 		const inputActions = enabledActions.filter(action => action.requireInput);
 
-		const previewSection = sectionContent.createDiv({ cls: 'ad-actions-preview-section' });
-		previewSection.createEl('h3', { text: '面板预览', cls: 'ad-actions-toolbar-title' });
+		const previewSection = sectionContent.createDiv({ cls: 'vo-actions-preview-section' });
+		previewSection.createEl('h3', { text: '面板预览', cls: 'vo-actions-toolbar-title' });
 
-		const iconCard = previewSection.createDiv({ cls: 'ad-actions-preview-card' });
-		iconCard.createDiv({ text: '纯按钮区', cls: 'ad-actions-preview-label' });
-		const iconGrid = iconCard.createDiv({ cls: 'ad-actions-preview-grid ad-actions-preview-grid-four' });
+		const iconCard = previewSection.createDiv({ cls: 'vo-actions-preview-card' });
+		iconCard.createDiv({ text: '纯按钮区', cls: 'vo-actions-preview-label' });
+		const iconGrid = iconCard.createDiv({ cls: 'vo-actions-preview-grid vo-actions-preview-grid-four' });
 		iconOnlyActions.forEach(action => {
-			const btn = iconGrid.createDiv({ cls: 'ad-actions-preview-button' });
-			const iconWrap = btn.createDiv({ cls: 'ad-actions-preview-button-icon' });
+			const btn = iconGrid.createDiv({ cls: 'vo-actions-preview-button' });
+			const iconWrap = btn.createDiv({ cls: 'vo-actions-preview-button-icon' });
 			setIcon(iconWrap, action.icon || 'bot');
 			btn.createSpan({ text: action.label });
 		});
 
-		const inputCard = previewSection.createDiv({ cls: 'ad-actions-preview-card' });
-		inputCard.createDiv({ text: '输入框区', cls: 'ad-actions-preview-label' });
-		const inputGrid = inputCard.createDiv({ cls: 'ad-actions-preview-grid ad-actions-preview-grid-two' });
+		const inputCard = previewSection.createDiv({ cls: 'vo-actions-preview-card' });
+		inputCard.createDiv({ text: '输入框区', cls: 'vo-actions-preview-label' });
+		const inputGrid = inputCard.createDiv({ cls: 'vo-actions-preview-grid vo-actions-preview-grid-two' });
 		inputActions.forEach(action => {
-			const row = inputGrid.createDiv({ cls: 'ad-actions-preview-input-row' });
+			const row = inputGrid.createDiv({ cls: 'vo-actions-preview-input-row' });
 			row.createEl('input', {
 				type: 'text',
 				placeholder: action.inputPlaceholder || '',
 				attr: { disabled: 'true' }
 			});
-			const btn = row.createDiv({ cls: 'ad-actions-preview-input-button' });
-			const iconWrap = btn.createDiv({ cls: 'ad-actions-preview-button-icon' });
+			const btn = row.createDiv({ cls: 'vo-actions-preview-input-button' });
+			const iconWrap = btn.createDiv({ cls: 'vo-actions-preview-button-icon' });
 			setIcon(iconWrap, action.icon || 'bot');
 			btn.createSpan({ text: action.label });
 		});
@@ -464,13 +464,13 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		// Horizontal tabs menu
-		const tabsContainer = containerEl.createDiv({ cls: 'ad-settings-tabs-container' });
+		const tabsContainer = containerEl.createDiv({ cls: 'vo-settings-tabs-container' });
 
 		const createTabBtn = (id: SettingsTabId, label: string, icon: string) => {
 			const btn = tabsContainer.createDiv({
-				cls: `ad-settings-tab-btn ${this.activeTab === id ? 'is-active' : ''}`
+				cls: `vo-settings-tab-btn ${this.activeTab === id ? 'is-active' : ''}`
 			});
-			const iconSpan = btn.createSpan({ cls: 'ad-settings-tab-icon' });
+			const iconSpan = btn.createSpan({ cls: 'vo-settings-tab-icon' });
 			setIcon(iconSpan, icon);
 			btn.createSpan({ text: ` ${label}` });
 			btn.addEventListener('click', () => {
@@ -485,7 +485,7 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 		createTabBtn('actions', '智能指令', 'bot');
 
 		// Render active tab content
-		const sectionContent = containerEl.createDiv({ cls: 'ad-settings-section-content' });
+		const sectionContent = containerEl.createDiv({ cls: 'vo-settings-section-content' });
 
 		if (this.activeTab === 'general') {
 			this.createNote(
@@ -599,7 +599,7 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 			this.createNote(
 				sectionContent,
 				'补充说明：空白笔记清理目前仍按全库扫描，而不是只看某一个文件夹。这是为了覆盖“空文件、只有标题、只有属性没有正文”的所有笔记。',
-				'ad-settings-note-subtle'
+				'vo-settings-note-subtle'
 			);
 
 		} else if (this.activeTab === 'mcp') {
@@ -610,7 +610,7 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 			this.createNote(
 				sectionContent,
 				'本地缓存文件由插件内部自动读写，不需要再单独暴露给设置页。只有在你明确知道自己要改什么时，才需要动下面的高级字段。',
-				'ad-settings-note-subtle'
+				'vo-settings-note-subtle'
 			);
 
 			new Setting(sectionContent)
@@ -679,14 +679,14 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 			this.createNote(
 				sectionContent,
 				'需要用户临时输入内容时，请在模板里使用 {{input}}。如果你改了上面的日记 / Inbox / 项目等路径，这里的 {{daily_path}}、{{inbox_path}}、{{projects_path}} 也会自动跟着替换。',
-				'ad-settings-note-subtle'
+				'vo-settings-note-subtle'
 			);
 			this.createLucideNote(sectionContent);
 			this.renderActionListCompact(sectionContent);
 			return;
 
 			this.plugin.settings.claudianActions.forEach((action, index) => {
-				const settingWrap = sectionContent.createDiv({ cls: 'ad-setting-action-item' });
+				const settingWrap = sectionContent.createDiv({ cls: 'vo-setting-action-item' });
 				
 				// Label & Icon
 				new Setting(settingWrap)
@@ -782,7 +782,7 @@ export class AgentDashboardSettingTab extends PluginSettingTab {
 		interface DashboardViewInterface {
 			render(): void;
 		}
-		this.app.workspace.getLeavesOfType('agent-dashboard-view').forEach(leaf => {
+		this.app.workspace.getLeavesOfType('vault-os-view').forEach(leaf => {
 			const view = leaf.view as unknown as DashboardViewInterface;
 			if (view && typeof view.render === 'function') {
 				view.render();

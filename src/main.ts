@@ -1,31 +1,31 @@
 import { Plugin } from 'obsidian';
-import { AgentDashboardView, VIEW_TYPE_AGENT_DASHBOARD } from './DashboardView';
-import { AgentDashboardSettings, DEFAULT_SETTINGS, AgentDashboardSettingTab } from './settings';
+import { VaultOsView, VIEW_TYPE_VAULT_OS } from './DashboardView';
+import { VaultOsSettings, DEFAULT_SETTINGS, VaultOsSettingTab } from './settings';
 
-export default class AgentDashboardPlugin extends Plugin {
-	settings!: AgentDashboardSettings;
+export default class VaultOsPlugin extends Plugin {
+	settings!: VaultOsSettings;
 
 	async onload() {
 		await this.loadSettings();
 
 		this.registerView(
-			VIEW_TYPE_AGENT_DASHBOARD,
-			(leaf) => new AgentDashboardView(leaf, this)
+			VIEW_TYPE_VAULT_OS,
+			(leaf) => new VaultOsView(leaf, this)
 		);
 
-		this.addRibbonIcon('layout-dashboard', 'Open agent dashboard', () => {
+		this.addRibbonIcon('layout-dashboard', 'Open Vault OS', () => {
 			void this.activateView();
 		});
 
 		this.addCommand({
-			id: 'open-dashboard',
-			name: 'Open dashboard',
+			id: 'open-vault-os',
+			name: 'Open Vault OS',
 			callback: () => {
 				void this.activateView();
 			}
 		});
 
-		this.addSettingTab(new AgentDashboardSettingTab(this.app, this));
+		this.addSettingTab(new VaultOsSettingTab(this.app, this));
 	}
 
 	onunload() {
@@ -37,9 +37,9 @@ export default class AgentDashboardPlugin extends Plugin {
 
 	async saveSettings() {
 		await this.saveData(this.settings);
-		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_AGENT_DASHBOARD);
+		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_VAULT_OS);
 		for (const leaf of leaves) {
-			if (leaf.view instanceof AgentDashboardView) {
+			if (leaf.view instanceof VaultOsView) {
 				leaf.view.render();
 			}
 		}
@@ -49,7 +49,7 @@ export default class AgentDashboardPlugin extends Plugin {
 		const { workspace } = this.app;
 
 		let leaf = null;
-		const leaves = workspace.getLeavesOfType(VIEW_TYPE_AGENT_DASHBOARD);
+		const leaves = workspace.getLeavesOfType(VIEW_TYPE_VAULT_OS);
 
 		if (leaves.length > 0) {
 			leaf = leaves[0];
@@ -57,7 +57,7 @@ export default class AgentDashboardPlugin extends Plugin {
 			leaf = workspace.getLeaf(true);
 			if (leaf) {
 				await leaf.setViewState({
-					type: VIEW_TYPE_AGENT_DASHBOARD,
+					type: VIEW_TYPE_VAULT_OS,
 					active: true
 				});
 			}

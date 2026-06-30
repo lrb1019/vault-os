@@ -1,5 +1,5 @@
-import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, MarkdownRenderer, parseYaml } from 'obsidian';
-import AgentDashboardPlugin from './main';
+﻿import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, MarkdownRenderer, parseYaml } from 'obsidian';
+import VaultOsPlugin from './main';
 import { ReadingService } from './services/ReadingService';
 import { DiaryService } from './services/DiaryService';
 import { TaskService, CompletedTaskItem, HabitCheckinItem, FocusItem, HabitItem } from './services/TaskService';
@@ -38,7 +38,7 @@ interface McpCallResult {
 	}[];
 }
 
-export const VIEW_TYPE_AGENT_DASHBOARD = 'agent-dashboard-view';
+export const VIEW_TYPE_VAULT_OS = 'vault-os-view';
 
 class SimpleListModal extends Modal {
 	private titleText: string;
@@ -84,7 +84,7 @@ class SimpleListModal extends Modal {
 			});
 		}
 		
-		const closeBtn = contentEl.createEl('button', { text: '关闭', cls: 'ad-btn ad-btn-secondary', attr: { style: 'float: right; margin-top: 15px;' } });
+		const closeBtn = contentEl.createEl('button', { text: '关闭', cls: 'vo-btn vo-btn-secondary', attr: { style: 'float: right; margin-top: 15px;' } });
 		closeBtn.onclick = () => this.close();
 	}
 
@@ -95,9 +95,9 @@ class SimpleListModal extends Modal {
 
 class LintModal extends Modal {
 	private vaultService: VaultService;
-	private dashboardView: AgentDashboardView;
+	private dashboardView: VaultOsView;
 	
-	constructor(app: App, vaultService: VaultService, dashboardView: AgentDashboardView) {
+	constructor(app: App, vaultService: VaultService, dashboardView: VaultOsView) {
 		super(app);
 		this.vaultService = vaultService;
 		this.dashboardView = dashboardView;
@@ -122,8 +122,8 @@ class LintModal extends Modal {
 		});
 		
 		const buttons = contentEl.createDiv({ attr: { style: 'display: flex; gap: 10px; justify-content: flex-end;' } });
-		const startBtn = buttons.createEl('button', { text: '开始体检', cls: 'ad-btn ad-btn-primary' });
-		const closeBtn = buttons.createEl('button', { text: '取消', cls: 'ad-btn ad-btn-secondary' });
+		const startBtn = buttons.createEl('button', { text: '开始体检', cls: 'vo-btn vo-btn-primary' });
+		const closeBtn = buttons.createEl('button', { text: '取消', cls: 'vo-btn vo-btn-secondary' });
 		
 		closeBtn.addEventListener('click', () => {
 			this.close();
@@ -175,7 +175,7 @@ class LintModal extends Modal {
 						statusText.setText('体检报告生成成功！已推荐优化策略。');
 						startBtn.setCssStyles({ display: 'none' });
 						
-						const actionBtn = buttons.createEl('button', { text: '一键自动修复', cls: 'ad-btn ad-btn-primary' });
+						const actionBtn = buttons.createEl('button', { text: '一键自动修复', cls: 'vo-btn vo-btn-primary' });
 						actionBtn.addEventListener('click', () => {
 							actionBtn.disabled = true;
 							closeBtn.disabled = true;
@@ -229,9 +229,9 @@ class LintModal extends Modal {
 }
 
 class IngestModal extends Modal {
-	private plugin: AgentDashboardPlugin;
+	private plugin: VaultOsPlugin;
 
-	constructor(plugin: AgentDashboardPlugin) {
+	constructor(plugin: VaultOsPlugin) {
 		super(plugin.app);
 		this.plugin = plugin;
 	}
@@ -256,7 +256,7 @@ class IngestModal extends Modal {
 				text: `收件箱 (${this.plugin.settings.inboxFolder}) 暂无待分类的笔记！`,
 				attr: { style: 'color: var(--text-muted); font-style: italic; text-align: center; margin: 30px 0;' }
 			});
-			const closeBtn = contentEl.createEl('button', { text: '关闭', cls: 'ad-btn ad-btn-secondary', attr: { style: 'float: right;' } });
+			const closeBtn = contentEl.createEl('button', { text: '关闭', cls: 'vo-btn vo-btn-secondary', attr: { style: 'float: right;' } });
 			closeBtn.onclick = () => this.close();
 			return;
 		}
@@ -279,7 +279,7 @@ class IngestModal extends Modal {
 			const actionGroup = row.createDiv({ attr: { style: 'display: flex; gap: 6px; flex-shrink: 0;' } });
 			
 			// 1. Move to Projects
-			const projBtn = actionGroup.createEl('button', { text: '分流至项目', cls: 'ad-btn ad-btn-primary' });
+			const projBtn = actionGroup.createEl('button', { text: '分流至项目', cls: 'vo-btn vo-btn-primary' });
 			projBtn.onclick = () => {
 				void (async () => {
 					const newPath = `${this.plugin.settings.projectsFolder}/${file.name}`;
@@ -290,7 +290,7 @@ class IngestModal extends Modal {
 			};
 
 			// 2. Archive
-			const archiveBtn = actionGroup.createEl('button', { text: '归档', cls: 'ad-btn ad-btn-secondary' });
+			const archiveBtn = actionGroup.createEl('button', { text: '归档', cls: 'vo-btn vo-btn-secondary' });
 			archiveBtn.onclick = () => {
 				void (async () => {
 					const archiveDir = this.app.vault.getAbstractFileByPath(this.plugin.settings.archiveFolder);
@@ -324,8 +324,8 @@ interface ProjectInfo {
 	mtimeStr: string;
 }
 
-export class AgentDashboardView extends ItemView {
-	plugin: AgentDashboardPlugin;
+export class VaultOsView extends ItemView {
+	plugin: VaultOsPlugin;
 	
 	// 看板激活状态 (5个主Tab)
 	private activeMainTab: 'vault' | 'diary' | 'lint' | 'ticktick' | 'projects' = 'vault';
@@ -393,7 +393,7 @@ export class AgentDashboardView extends ItemView {
 	private taskService: TaskService;
 	private vaultService: VaultService;
 
-	constructor(leaf: WorkspaceLeaf, plugin: AgentDashboardPlugin) {
+	constructor(leaf: WorkspaceLeaf, plugin: VaultOsPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 		
@@ -421,7 +421,7 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	getViewType(): string {
-		return VIEW_TYPE_AGENT_DASHBOARD;
+		return VIEW_TYPE_VAULT_OS;
 	}
 
 	getDisplayText(): string {
@@ -530,13 +530,13 @@ export class AgentDashboardView extends ItemView {
 		if (!container) return;
 
 		container.empty();
-		container.addClass('ad-container');
+		container.addClass('vo-container');
 
 		// 1. 上方区域：系统状态栏 (Telemetry Header)
 		this.renderTopTelemetry(container);
 
 		// 2. 下方区域：单页流式展示区 (Viewport)
-		const viewport = container.createDiv({ cls: 'ad-viewport' });
+		const viewport = container.createDiv({ cls: 'vo-viewport' });
 		this.renderRightViewport(viewport);
 	}
 
@@ -545,7 +545,7 @@ export class AgentDashboardView extends ItemView {
 	 */
 	private renderTopTelemetry(parent: Element): void {
 		const telemetry = parent.createDiv({ 
-			cls: 'ad-top-telemetry', 
+			cls: 'vo-top-telemetry', 
 			attr: { style: 'border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent); padding-bottom: 16px; margin-bottom: 48px;' } 
 		});
 		
@@ -560,7 +560,7 @@ export class AgentDashboardView extends ItemView {
 		// 2. Center column: Core OS Title
 		const centerCol = headerRow.createDiv({ attr: { style: 'display: flex; justify-content: center; align-items: center; flex: 2;' } });
 		centerCol.createEl('h1', { 
-			text: this.plugin.settings.dashboardTitle || 'BYLRB CORE OS', 
+			text: this.plugin.settings.dashboardTitle || 'Vault OS', 
 			attr: { style: 'font-size: 22px; font-weight: 600 !important; margin: 0; color: var(--text-normal); letter-spacing: 5px; font-family: \'Cinzel\', serif;' } 
 		});
 		
@@ -578,7 +578,7 @@ export class AgentDashboardView extends ItemView {
 	 * 2.1 渲染左侧常驻控制总线 (Control Bus)
 	 */
 	private renderLeftControlBus(parent: Element): void {
-		const sidebar = parent.createDiv({ cls: 'ad-sidebar-bus' });
+		const sidebar = parent.createDiv({ cls: 'vo-sidebar-bus' });
 
 		// 1. Navigation Bus
 		this.renderNavigationBus(sidebar);
@@ -591,8 +591,8 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	private renderClaudianWorkflows(parent: Element): void {
-		const section = parent.createDiv({ cls: 'ad-bus-section' });
-		section.createDiv({ text: '// CLAUDIAN WORKFLOWS', cls: 'ad-bus-section-title' });
+		const section = parent.createDiv({ cls: 'vo-bus-section' });
+		section.createDiv({ text: '// CLAUDIAN WORKFLOWS', cls: 'vo-bus-section-title' });
 
 		const grid = section.createDiv({ 
 			attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;' } 
@@ -607,7 +607,7 @@ export class AgentDashboardView extends ItemView {
 
 		workflows.forEach(wf => {
 			const btn = grid.createEl('button', {
-				cls: 'ad-btn ad-btn-secondary',
+				cls: 'vo-btn vo-btn-secondary',
 				attr: { style: 'text-align: left; padding: 8px; font-size: 11px; display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' }
 			});
 			setIcon(btn, wf.icon);
@@ -620,27 +620,27 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	private renderNavigationBus(parent: Element): void {
-		const section = parent.createDiv({ cls: 'ad-bus-section' });
-		section.createDiv({ text: '// NAVIGATION BUS', cls: 'ad-bus-section-title' });
+		const section = parent.createDiv({ cls: 'vo-bus-section' });
+		section.createDiv({ text: '// NAVIGATION BUS', cls: 'vo-bus-section-title' });
 
 		const projectsFolder = this.plugin.settings.projectsFolder;
 		const docList = [
-			{ name: '00 项目总览', path: `${projectsFolder}/Agent Dashboard/00 项目总览.md` },
-			{ name: '01 规则指南', path: `${projectsFolder}/Agent Dashboard/01 PROJECT_RULES.md` },
-			{ name: '02 后续想法', path: `${projectsFolder}/Agent Dashboard/02 后续想法.md` },
-			{ name: '03 改动日志', path: `${projectsFolder}/Agent Dashboard/03 改动日志.md` },
-			{ name: '04 接续说明', path: `${projectsFolder}/Agent Dashboard/04 接续说明.md` },
-			{ name: '05 审查流程', path: `${projectsFolder}/Agent Dashboard/05 审查流程.md` },
-			{ name: '06 快捷同步', path: `${projectsFolder}/Agent Dashboard/06 GITHUB_SYNC.md` },
+			{ name: '00 项目总览', path: `${projectsFolder}/Vault OS/00 项目总览.md` },
+			{ name: '01 规则指南', path: `${projectsFolder}/Vault OS/01 PROJECT_RULES.md` },
+			{ name: '02 后续想法', path: `${projectsFolder}/Vault OS/02 后续想法.md` },
+			{ name: '03 改动日志', path: `${projectsFolder}/Vault OS/03 改动日志.md` },
+			{ name: '04 接续说明', path: `${projectsFolder}/Vault OS/04 接续说明.md` },
+			{ name: '05 审查流程', path: `${projectsFolder}/Vault OS/05 审查流程.md` },
+			{ name: '06 快捷同步', path: `${projectsFolder}/Vault OS/06 GITHUB_SYNC.md` },
 		];
 
-		const listWrapper = section.createDiv({ cls: 'ad-recent-feed' });
+		const listWrapper = section.createDiv({ cls: 'vo-recent-feed' });
 
 		docList.forEach(doc => {
-			const item = listWrapper.createDiv({ cls: 'ad-nav-link-item' });
+			const item = listWrapper.createDiv({ cls: 'vo-nav-link-item' });
 			item.createSpan({ text: doc.name });
 			
-			const dot = item.createDiv({ cls: 'ad-nav-dot' });
+			const dot = item.createDiv({ cls: 'vo-nav-dot' });
 			const file = this.app.vault.getAbstractFileByPath(doc.path);
 			if (file instanceof TFile) {
 				dot.addClass('is-active');
@@ -654,10 +654,10 @@ export class AgentDashboardView extends ItemView {
 
 
 	private renderRecentFilesFeed(parent: Element): void {
-		const section = parent.createDiv({ cls: 'ad-bus-section' });
-		section.createDiv({ text: '// RECENT FILES', cls: 'ad-bus-section-title' });
+		const section = parent.createDiv({ cls: 'vo-bus-section' });
+		section.createDiv({ text: '// RECENT FILES', cls: 'vo-bus-section-title' });
 
-		const feed = section.createDiv({ cls: 'ad-recent-feed' });
+		const feed = section.createDiv({ cls: 'vo-recent-feed' });
 
 		const recentPaths = this.app.workspace.getLastOpenFiles().slice(0, 5);
 
@@ -672,11 +672,11 @@ export class AgentDashboardView extends ItemView {
 		recentPaths.forEach(path => {
 			const file = this.app.vault.getAbstractFileByPath(path);
 			if (file instanceof TFile) {
-				const item = feed.createDiv({ cls: 'ad-feed-item' });
-				item.createDiv({ text: file.basename, cls: 'ad-feed-name' });
+				const item = feed.createDiv({ cls: 'vo-feed-item' });
+				item.createDiv({ text: file.basename, cls: 'vo-feed-name' });
 				
 				const relativeTime = this.formatRelativeTime(file.stat.mtime);
-				item.createDiv({ text: relativeTime, cls: 'ad-feed-time' });
+				item.createDiv({ text: relativeTime, cls: 'vo-feed-time' });
 
 				item.addEventListener('click', () => {
 					void this.app.workspace.openLinkText(path, '', false);
@@ -702,7 +702,7 @@ export class AgentDashboardView extends ItemView {
 	 * 2.2 渲染右侧展示区 (Viewport)
 	 */
 	private renderRightViewport(parent: Element): void {
-		const tabWrapper = parent.createDiv({ cls: 'ad-viewport-tabs' });
+		const tabWrapper = parent.createDiv({ cls: 'vo-viewport-tabs' });
 		
 		const mainTabs = [
 			{ id: 'vault', label: '01 / 仓库', icon: 'activity' },
@@ -714,7 +714,7 @@ export class AgentDashboardView extends ItemView {
 
 		mainTabs.forEach(t => {
 			const btn = tabWrapper.createEl('button', { 
-				cls: `ad-viewport-tab-btn ${this.activeMainTab === t.id ? 'is-active' : ''}` 
+				cls: `vo-viewport-tab-btn ${this.activeMainTab === t.id ? 'is-active' : ''}` 
 			});
 			setIcon(btn, t.icon);
 			btn.createSpan({ text: ` ${t.label}` });
@@ -723,7 +723,7 @@ export class AgentDashboardView extends ItemView {
 				this.activeMainTab = t.id as 'vault' | 'diary' | 'lint' | 'ticktick' | 'projects';
 
 				// Update tab button active states without full re-render
-				tabWrapper.querySelectorAll('.ad-viewport-tab-btn').forEach((b, i) => {
+				tabWrapper.querySelectorAll('.vo-viewport-tab-btn').forEach((b, i) => {
 					const tab = mainTabs[i];
 					if (tab) b.toggleClass('is-active', tab.id === this.activeMainTab);
 				});
@@ -738,7 +738,7 @@ export class AgentDashboardView extends ItemView {
 			});
 		});
 
-		const contentWrapper = parent.createDiv({ cls: 'ad-tab-content' });
+		const contentWrapper = parent.createDiv({ cls: 'vo-tab-content' });
 		this.renderTabContent(contentWrapper);
 	}
 
@@ -764,7 +764,7 @@ export class AgentDashboardView extends ItemView {
 	
 	private renderTickTickDashboard(parent: Element): void {
 		const wrapper = parent.createDiv({ 
-			cls: 'ad-ticktick-wrapper', 
+			cls: 'vo-ticktick-wrapper', 
 			attr: { style: 'animation: fadeIn 0.4s ease-out; display: flex; flex-direction: column; gap: 20px;' } 
 		});
 
@@ -864,7 +864,7 @@ export class AgentDashboardView extends ItemView {
 		const focuses = stats.focuses || [];
 
 		// 1. Top account telemetry bar
-		const telemetry = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; margin-bottom: 8px;' } });
+		const telemetry = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; justify-content: space-between; align-items: center; padding: 16px 24px; margin-bottom: 8px;' } });
 		const leftTel = telemetry.createDiv({ attr: { style: 'display: flex; gap: 24px;' } });
 		
 		const totalUndone = tasks.length;
@@ -901,7 +901,7 @@ export class AgentDashboardView extends ItemView {
 
 		// --- Card A: 概览 (Overview) ---
 		const overviewCard = grid.createDiv({ 
-			cls: 'ad-card ad-tech-card', 
+			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'display: flex; flex-direction: column; padding: 16px; overflow: hidden; height: 100%; box-sizing: border-box;' } 
 		});
 		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
@@ -942,7 +942,7 @@ export class AgentDashboardView extends ItemView {
 
 		// --- Card E: 最近完成率趋势 (SVG Bar Chart) ---
 		const completionRateCard = grid.createDiv({ 
-			cls: 'ad-card ad-tech-card', 
+			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'display: flex; flex-direction: column; padding: 16px; overflow: hidden; height: 100%; box-sizing: border-box;' } 
 		});
 		completionRateCard.createEl('h3', { text: '最近完成率趋势', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
@@ -966,7 +966,7 @@ export class AgentDashboardView extends ItemView {
 
 		// --- Card B: 最近已完成趋势 (SVG Line/Area Chart) ---
 		const completedTrendCard = grid.createDiv({ 
-			cls: 'ad-card ad-tech-card', 
+			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'display: flex; flex-direction: column; padding: 16px; overflow: hidden; height: 100%; box-sizing: border-box;' } 
 		});
 		completedTrendCard.createEl('h3', { text: '最近已完成趋势', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
@@ -979,7 +979,7 @@ export class AgentDashboardView extends ItemView {
 
 		// --- Card C: 本周打卡进展 (Weekly Habit Rings) ---
 		const habitsProgressCard = grid.createDiv({ 
-			cls: 'ad-card ad-tech-card', 
+			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'display: flex; flex-direction: column; padding: 16px; overflow: hidden; height: 100%; box-sizing: border-box;' } 
 		});
 		habitsProgressCard.createEl('h3', { text: '本周打卡进展', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
@@ -1060,7 +1060,7 @@ export class AgentDashboardView extends ItemView {
 				
 				// Draw gradient path
 				const defs = svg.createSvg('defs');
-				const gradId = `line-grad-${Math.floor(Math.random() * 100000)}`;
+				const gradId = `line-grvo-${Math.floor(Math.random() * 100000)}`;
 				const linearGradient = defs.createSvg('linearGradient', {
 					attr: { id: gradId, x1: '0%', y1: '0%', x2: '0%', y2: '100%' }
 				});
@@ -1389,7 +1389,7 @@ export class AgentDashboardView extends ItemView {
 		
 		// Date Selector dropdown
 		const dateDrop = topBar.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-normal); font-weight: 500;' } });
-		const dateSelect = dateDrop.createEl('select', { cls: 'ad-select' });
+		const dateSelect = dateDrop.createEl('select', { cls: 'vo-select' });
 		dateSelect.createEl('option', { value: 'day', text: '按日' });
 		dateSelect.createEl('option', { value: 'week', text: '按周' });
 		dateSelect.createEl('option', { value: 'month', text: '按月' });
@@ -1404,7 +1404,7 @@ export class AgentDashboardView extends ItemView {
 		const grid = parent.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;' } });
 		
 		// Card 1: Overview (概览)
-		const overviewCard = grid.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; padding: 20px;' } });
+		const overviewCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; padding: 20px;' } });
 		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
 		
 		const innerGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex-grow: 1; align-items: center;' } });
@@ -1429,7 +1429,7 @@ export class AgentDashboardView extends ItemView {
 		drawMetric(innerGrid, `${rateThisPeriod.toFixed(2)}%`, '完成率', diffRateText, diffRate >= 0);
 
 		// Card 2: Completion Rate Status (完成率分布)
-		const distCard = grid.createDiv({ cls: 'ad-card ad-tech-card' });
+		const distCard = grid.createDiv({ cls: 'vo-card vo-tech-card' });
 		distCard.createEl('h3', { text: '完成率分布', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
 		
 		let overdueDone = 0;
@@ -1467,7 +1467,7 @@ export class AgentDashboardView extends ItemView {
 		this.drawDonutChart(distCard, donutData, '完成率', `${rateThisPeriod.toFixed(2)}%`);
 
 		// Card 3: Completed tasks by Category (已完成分类统计)
-		const categoryCard = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'margin-top: 10px;' } });
+		const categoryCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px;' } });
 		categoryCard.createEl('h3', { text: '已完成分类统计', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
 		
 		const projectCounts: Record<string, number> = {};
@@ -1616,7 +1616,7 @@ export class AgentDashboardView extends ItemView {
 		const totalFocusDurationMin = focuses.reduce((sum, f) => sum + (f.duration || 0), 0);
 
 		// 1. Overview Card
-		const overviewCard = parent.createDiv({ cls: 'ad-card ad-tech-card' });
+		const overviewCard = parent.createDiv({ cls: 'vo-card vo-tech-card' });
 		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
 		
 		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;' } });
@@ -1647,7 +1647,7 @@ export class AgentDashboardView extends ItemView {
 		const grid = parent.createDiv({ attr: { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px;' } });
 
 		// Donut Detail Card
-		const detailCard = grid.createDiv({ cls: 'ad-card ad-tech-card' });
+		const detailCard = grid.createDiv({ cls: 'vo-card vo-tech-card' });
 		detailCard.createEl('h3', { text: '专注详情', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
 		
 		const tagCounts: Record<string, number> = {};
@@ -1669,7 +1669,7 @@ export class AgentDashboardView extends ItemView {
 		this.drawDonutChart(detailCard, finalDetailData, '分类比例', '');
 
 		// Focus Records Card
-		const recordCard = grid.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 260px;' } });
+		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 260px;' } });
 		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;' } });
 		recordHeader.createEl('h3', { text: '专注记录', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
 		
@@ -1705,7 +1705,7 @@ export class AgentDashboardView extends ItemView {
 		}
 
 		// 3. Github style contribution heatmap
-		const heatmapCard = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'margin-top: 10px;' } });
+		const heatmapCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px;' } });
 		const heatHeader = heatmapCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;' } });
 		heatHeader.createEl('h3', { text: '年度热力图', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
 		heatHeader.createDiv({ text: String(now.getFullYear()), attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
@@ -1785,7 +1785,7 @@ export class AgentDashboardView extends ItemView {
 		const streakDays = this.getHabitsStreak(habitCheckins, now);
 
 		const overviewCard = parent.createDiv({ 
-			cls: 'ad-card ad-tech-card', 
+			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'padding: 10px 16px;' } 
 		});
 		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
@@ -1807,7 +1807,7 @@ export class AgentDashboardView extends ItemView {
 		drawHabitMetric(overviewGrid, `${streakDays}天`, '连续打卡天数', '每日至少打卡一次习惯');
 
 		const listCard = parent.createDiv({ 
-			cls: 'ad-card ad-tech-card', 
+			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'margin-top: 10px; display: flex; flex-direction: column; padding: 12px 16px;' } 
 		});
 		
@@ -1846,7 +1846,7 @@ export class AgentDashboardView extends ItemView {
 				const isCompletedToday = !!(todayChk && todayChk.status === 2);
 
 				const checkBtn = leftSide.createEl('button', {
-					cls: `ad-task-check-btn ${isCompletedToday ? 'is-completed' : ''}`,
+					cls: `vo-task-check-btn ${isCompletedToday ? 'is-completed' : ''}`,
 					attr: { style: 'margin: 0;' }
 				});
 				if (isCompletedToday) {
@@ -1904,7 +1904,7 @@ export class AgentDashboardView extends ItemView {
 			});
 		}
 
-		const annualCard = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'margin-top: 10px;' } });
+		const annualCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px;' } });
 		const annualHeader = annualCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;' } });
 		annualHeader.createEl('h3', { text: '年度习惯打卡热力图', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
 		annualHeader.createDiv({ text: String(now.getFullYear()), attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
@@ -2127,15 +2127,15 @@ export class AgentDashboardView extends ItemView {
 		return;
 
 		// 1. Telemetry bar card container (rendered immediately)
-		const telemetryCard = container.createDiv({ cls: 'ad-card ad-tech-card ad-vault-telemetry-card' });
-		const barContainer = telemetryCard.createDiv({ cls: 'ad-vault-telemetry-bar' });
+		const telemetryCard = container.createDiv({ cls: 'vo-card vo-tech-card vo-vault-telemetry-card' });
+		const barContainer = telemetryCard.createDiv({ cls: 'vo-vault-telemetry-bar' });
 		barContainer.createDiv({
-			cls: 'ad-bar-segment ad-segment-other',
+			cls: 'vo-bar-segment vo-segment-other',
 			attr: { style: 'width: 100%;', title: '数据读取中...' }
 		});
-		const legendContainer = telemetryCard.createDiv({ cls: 'ad-vault-telemetry-legend' });
-		const legItem = legendContainer.createDiv({ cls: 'ad-legend-item' });
-		legItem.createDiv({ cls: 'ad-legend-color ad-segment-other' });
+		const legendContainer = telemetryCard.createDiv({ cls: 'vo-vault-telemetry-legend' });
+		const legItem = legendContainer.createDiv({ cls: 'vo-legend-item' });
+		legItem.createDiv({ cls: 'vo-legend-color vo-segment-other' });
 		legItem.createSpan({ text: '数据读取中...' });
 
 		// 2. Mini grid ?render skeleton immediately with '--' values
@@ -2144,11 +2144,11 @@ export class AgentDashboardView extends ItemView {
 
 		// 3. Chart card container (rendered immediately)
 		const chartCard = container.createDiv({ 
-			cls: 'ad-stats-chart-section ad-tech-card',
+			cls: 'vo-stats-chart-section vo-tech-card',
 			attr: { style: 'flex-grow: 1; min-height: 240px; display: flex; flex-direction: column;' }
 		});
-		const chartHeader = chartCard.createDiv({ cls: 'ad-stats-chart-header' });
-		chartHeader.createSpan({ text: '新增笔记统计', cls: 'ad-stats-chart-title' });
+		const chartHeader = chartCard.createDiv({ cls: 'vo-stats-chart-header' });
+		chartHeader.createSpan({ text: '新增笔记统计', cls: 'vo-stats-chart-title' });
 		const chartBody = chartCard.createDiv({ attr: { style: 'flex-grow: 1; display: flex; align-items: center; justify-content: center;' } });
 		chartBody.createDiv({ text: '数据读取中...', attr: { style: 'color: var(--text-muted); font-size: 13px;' } });
 
@@ -2172,20 +2172,20 @@ export class AgentDashboardView extends ItemView {
 
 			// Update telemetry bar card
 			telemetryCard.empty();
-			const realBarContainer = telemetryCard.createDiv({ cls: 'ad-vault-telemetry-bar' });
-			const realLegendContainer = telemetryCard.createDiv({ cls: 'ad-vault-telemetry-legend' });
+			const realBarContainer = telemetryCard.createDiv({ cls: 'vo-vault-telemetry-bar' });
+			const realLegendContainer = telemetryCard.createDiv({ cls: 'vo-vault-telemetry-legend' });
 
 			const total = s.totalMdFiles || 1;
 			const data = [
-				{ name: '日记 (Daily)', count: s.countDaily, pct: Math.round((s.countDaily / total) * 100), cls: 'ad-segment-daily' },
-				{ name: '项目 (Projects)', count: s.countProjects, pct: Math.round((s.countProjects / total) * 100), cls: 'ad-segment-atomics' },
-				{ name: '其他 (Other)', count: s.countOther + s.countInbox + s.countAtomics + s.countOutput, pct: Math.round(((s.countOther + s.countInbox + s.countAtomics + s.countOutput) / total) * 100), cls: 'ad-segment-other' }
+				{ name: '日记 (Daily)', count: s.countDaily, pct: Math.round((s.countDaily / total) * 100), cls: 'vo-segment-daily' },
+				{ name: '项目 (Projects)', count: s.countProjects, pct: Math.round((s.countProjects / total) * 100), cls: 'vo-segment-atomics' },
+				{ name: '其他 (Other)', count: s.countOther + s.countInbox + s.countAtomics + s.countOutput, pct: Math.round(((s.countOther + s.countInbox + s.countAtomics + s.countOutput) / total) * 100), cls: 'vo-segment-other' }
 			].filter(item => item.count > 0);
 
 			data.forEach(item => {
 				if (item.pct > 0) {
 					realBarContainer.createDiv({
-						cls: `ad-bar-segment ${item.cls}`,
+						cls: `vo-bar-segment ${item.cls}`,
 						attr: {
 							style: `width: ${item.pct}%;`,
 							title: `${item.name}: ${item.count} ?(${item.pct}%)`
@@ -2193,8 +2193,8 @@ export class AgentDashboardView extends ItemView {
 					});
 				}
 
-				const legItem = realLegendContainer.createDiv({ cls: 'ad-legend-item' });
-				legItem.createDiv({ cls: `ad-legend-color ${item.cls}` });
+				const legItem = realLegendContainer.createDiv({ cls: 'vo-legend-item' });
+				legItem.createDiv({ cls: `vo-legend-color ${item.cls}` });
 				legItem.createSpan({ text: `${item.name}: ${item.count} ?(${item.pct}%)` });
 			});
 
@@ -2205,22 +2205,22 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	private renderVaultTelemetryBar(parent: Element, stats: VaultOverviewStats): void {
-		const card = parent.createDiv({ cls: 'ad-card ad-tech-card ad-vault-telemetry-card' });
+		const card = parent.createDiv({ cls: 'vo-card vo-tech-card vo-vault-telemetry-card' });
 		
-		const barContainer = card.createDiv({ cls: 'ad-vault-telemetry-bar' });
-		const legendContainer = card.createDiv({ cls: 'ad-vault-telemetry-legend' });
+		const barContainer = card.createDiv({ cls: 'vo-vault-telemetry-bar' });
+		const legendContainer = card.createDiv({ cls: 'vo-vault-telemetry-legend' });
 
 		const total = stats.totalMdFiles || 1;
 		const data = [
-			{ name: '日记 (Daily)', count: stats.countDaily, pct: Math.round((stats.countDaily / total) * 100), cls: 'ad-segment-daily' },
-			{ name: '项目 (Projects)', count: stats.countProjects, pct: Math.round((stats.countProjects / total) * 100), cls: 'ad-segment-atomics' },
-			{ name: '其他 (Other)', count: stats.countOther + stats.countInbox + stats.countAtomics + stats.countOutput, pct: Math.round(((stats.countOther + stats.countInbox + stats.countAtomics + stats.countOutput) / total) * 100), cls: 'ad-segment-other' }
+			{ name: '日记 (Daily)', count: stats.countDaily, pct: Math.round((stats.countDaily / total) * 100), cls: 'vo-segment-daily' },
+			{ name: '项目 (Projects)', count: stats.countProjects, pct: Math.round((stats.countProjects / total) * 100), cls: 'vo-segment-atomics' },
+			{ name: '其他 (Other)', count: stats.countOther + stats.countInbox + stats.countAtomics + stats.countOutput, pct: Math.round(((stats.countOther + stats.countInbox + stats.countAtomics + stats.countOutput) / total) * 100), cls: 'vo-segment-other' }
 		].filter(item => item.count > 0);
 
 		data.forEach(item => {
 			if (item.pct > 0) {
 				barContainer.createDiv({
-					cls: `ad-bar-segment ${item.cls}`,
+					cls: `vo-bar-segment ${item.cls}`,
 					attr: {
 						style: `width: ${item.pct}%;`,
 						title: `${item.name}: ${item.count} 篇 (${item.pct}%)`
@@ -2228,8 +2228,8 @@ export class AgentDashboardView extends ItemView {
 				});
 			}
 
-			const legItem = legendContainer.createDiv({ cls: 'ad-legend-item' });
-			legItem.createDiv({ cls: `ad-legend-color ${item.cls}` });
+			const legItem = legendContainer.createDiv({ cls: 'vo-legend-item' });
+			legItem.createDiv({ cls: `vo-legend-color ${item.cls}` });
 			legItem.createSpan({ text: `${item.name}: ${item.count} 篇 (${item.pct}%)` });
 		});
 	}
@@ -2241,7 +2241,7 @@ export class AgentDashboardView extends ItemView {
 	 */
 	private renderDiaryDashboard(contentContainer: Element): void {
 		const grid = contentContainer.createDiv({ 
-			cls: 'ad-dashboard-grid ad-diary-grid',
+			cls: 'vo-dashboard-grid vo-diary-grid',
 			attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;' }
 		});
 		
@@ -2274,10 +2274,10 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	private renderPeriodicNotesPanel(parent: Element): void {
-		const card = parent.createDiv({ cls: 'ad-card ad-periodic-card ad-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column;' } });
-		const header = card.createDiv({ cls: 'ad-card-header', attr: { style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px;' } });
+		const card = parent.createDiv({ cls: 'vo-card vo-periodic-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column;' } });
+		const header = card.createDiv({ cls: 'vo-card-header', attr: { style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px;' } });
 
-		const subTabs = header.createDiv({ cls: 'ad-card-tabs' });
+		const subTabs = header.createDiv({ cls: 'vo-card-tabs' });
 		const tabs = [
 			{ id: 'day', label: '日记' },
 			{ id: 'week', label: '周记' },
@@ -2289,7 +2289,7 @@ export class AgentDashboardView extends ItemView {
 		tabs.forEach(t => {
 			const btn = subTabs.createEl('button', {
 				text: t.label,
-				cls: `ad-card-tab-btn ${this.periodicTab === t.id ? 'is-active' : ''}`
+				cls: `vo-card-tab-btn ${this.periodicTab === t.id ? 'is-active' : ''}`
 			});
 			btn.addEventListener('click', () => {
 				this.periodicTab = t.id as 'day' | 'week' | 'month' | 'quarter' | 'year';
@@ -2322,7 +2322,7 @@ export class AgentDashboardView extends ItemView {
 			this.render();
 		});
 
-		const gridContainer = card.createDiv({ cls: 'ad-periodic-grid-container', attr: { style: 'flex-grow: 1; max-height: none; overflow-y: auto; margin-top: 16px;' } });
+		const gridContainer = card.createDiv({ cls: 'vo-periodic-grid-container', attr: { style: 'flex-grow: 1; max-height: none; overflow-y: auto; margin-top: 16px;' } });
 
 		if (this.periodicTab === 'day') {
 			const grid = gridContainer.createDiv({ 
@@ -2341,7 +2341,7 @@ export class AgentDashboardView extends ItemView {
 			const offset = isoDay === 0 ? 6 : isoDay - 1;
 
 			for (let i = 0; i < offset; i++) {
-				grid.createDiv({ cls: 'ad-periodic-cell is-empty', attr: { style: 'pointer-events: none; opacity: 0;' } });
+				grid.createDiv({ cls: 'vo-periodic-cell is-empty', attr: { style: 'pointer-events: none; opacity: 0;' } });
 			}
 
 			for (let d = 1; d <= daysInMonth; d++) {
@@ -2350,7 +2350,7 @@ export class AgentDashboardView extends ItemView {
 				const isCreated = this.app.vault.getAbstractFileByPath(filePath) instanceof TFile;
 				
 				const cell = grid.createDiv({ 
-					cls: `ad-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
+					cls: `vo-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
 					text: String(d),
 					attr: { 
 						'title': isCreated ? `日记: ${fileName} (已创建，点击打开)` : `日记: ${fileName} (未创建，点击基于模板新建)`
@@ -2372,7 +2372,7 @@ export class AgentDashboardView extends ItemView {
 				const isCreated = this.app.vault.getAbstractFileByPath(filePath) instanceof TFile;
 				
 				const cell = grid.createDiv({
-					cls: `ad-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
+					cls: `vo-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
 					text: String(w),
 					attr: { 'title': isCreated ? `周记: ${fileName} (已创建)` : `周记: ${fileName} (未创建)` }
 				});
@@ -2381,7 +2381,7 @@ export class AgentDashboardView extends ItemView {
 				});
 			}
 		} else if (this.periodicTab === 'month') {
-			const grid = gridContainer.createDiv({ cls: 'ad-periodic-grid', attr: { style: 'display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; width: 100%;' } });
+			const grid = gridContainer.createDiv({ cls: 'vo-periodic-grid', attr: { style: 'display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; width: 100%;' } });
 			const baseDate = moment().add(this.diaryDateOffset, 'years');
 			
 			for (let m = 0; m < 12; m++) {
@@ -2391,7 +2391,7 @@ export class AgentDashboardView extends ItemView {
 				const isCreated = file instanceof TFile;
 				
 				const cell = grid.createDiv({
-					cls: `ad-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
+					cls: `vo-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
 					text: String(m + 1),
 					attr: { 'title': isCreated ? `月记: ${fileName} (已创建)` : `月记: ${fileName} (未创建)` }
 				});
@@ -2401,7 +2401,7 @@ export class AgentDashboardView extends ItemView {
 				});
 			}
 		} else if (this.periodicTab === 'quarter') {
-			const grid = gridContainer.createDiv({ cls: 'ad-periodic-grid', attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%;' } });
+			const grid = gridContainer.createDiv({ cls: 'vo-periodic-grid', attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%;' } });
 			const baseDate = moment().add(this.diaryDateOffset, 'years');
 			
 			for (let q = 1; q <= 4; q++) {
@@ -2411,7 +2411,7 @@ export class AgentDashboardView extends ItemView {
 				const isCreated = file instanceof TFile;
 				
 				const cell = grid.createDiv({
-					cls: `ad-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
+					cls: `vo-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
 					text: `Q${q}`,
 					attr: { 'title': isCreated ? `季记: ${fileName} (已创建)` : `季记: ${fileName} (未创建)` }
 				});
@@ -2421,7 +2421,7 @@ export class AgentDashboardView extends ItemView {
 				});
 			}
 		} else { // year
-			const grid = gridContainer.createDiv({ cls: 'ad-periodic-grid', attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%;' } });
+			const grid = gridContainer.createDiv({ cls: 'vo-periodic-grid', attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%;' } });
 			const baseDate = moment().add(this.diaryDateOffset, 'years');
 			const centerYear = baseDate.year();
 			const startYear = centerYear - 5;
@@ -2434,7 +2434,7 @@ export class AgentDashboardView extends ItemView {
 				const isCreated = file instanceof TFile;
 				
 				const cell = grid.createDiv({
-					cls: `ad-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
+					cls: `vo-periodic-cell ${isCreated ? 'is-created' : 'is-missing'}`,
 					text: String(y),
 					attr: { 'title': isCreated ? `年记: ${fileName} (已创建)` : `年记: ${fileName} (未创建)` }
 				});
@@ -2447,20 +2447,20 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	private renderCurrentPeriodicNote(parent: Element): void {
-		const diaryCard = parent.createDiv({ cls: 'ad-card ad-diary-card ad-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column;' } });
+		const diaryCard = parent.createDiv({ cls: 'vo-card vo-diary-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column;' } });
 		
 		const tabNames: Record<string, string> = {
 			'day': '日记', 'week': '周记', 'month': '月记', 'quarter': '季记', 'year': '年记'
 		};
 		const currentName = tabNames[this.periodicTab] || '日记';
 
-		const header = diaryCard.createDiv({ cls: 'ad-card-header', attr: { style: 'display: flex; align-items: center; width: 100%; text-align: left;' } });
+		const header = diaryCard.createDiv({ cls: 'vo-card-header', attr: { style: 'display: flex; align-items: center; width: 100%; text-align: left;' } });
 		header.createEl('h3', { text: `今日${currentName}`, attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
 		const baseDate = moment().add(this.diaryDateOffset, (this.periodicTab + 's') as 'days' | 'weeks' | 'months' | 'quarters' | 'years');
 		const { filePath } = this.diaryService.resolvePeriodicNotePath(baseDate, this.periodicTab);
 		
-		const content = diaryCard.createDiv({ cls: 'ad-diary-content', attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; margin-top: 12px;' } });
+		const content = diaryCard.createDiv({ cls: 'vo-diary-content', attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; margin-top: 12px;' } });
 		
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		const isCreated = file instanceof TFile;
@@ -2468,8 +2468,8 @@ export class AgentDashboardView extends ItemView {
 		const borderStyle = isCreated ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
 		const innerDiv = content.createDiv({ attr: { style: `border: ${borderStyle}; border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column;` } });
 		
-		innerDiv.createEl('div', { text: filePath, cls: 'ad-diary-path', attr: { style: 'font-family: var(--font-monospace); font-size: 11px; margin-bottom: 10px; color: var(--text-muted);' } });
-		const summaryEl = innerDiv.createEl('p', { text: `读取中...`, cls: 'ad-diary-summary', attr: { style: 'font-size: 13px; line-height: 1.5; color: var(--text-normal); flex-grow: 1; overflow-y: auto;' } });
+		innerDiv.createEl('div', { text: filePath, cls: 'vo-diary-path', attr: { style: 'font-family: var(--font-monospace); font-size: 11px; margin-bottom: 10px; color: var(--text-muted);' } });
+		const summaryEl = innerDiv.createEl('p', { text: `读取中...`, cls: 'vo-diary-summary', attr: { style: 'font-size: 13px; line-height: 1.5; color: var(--text-normal); flex-grow: 1; overflow-y: auto;' } });
 		
 		if (isCreated) {
 			void this.app.vault.read(file).then(fileContent => {
@@ -2482,7 +2482,7 @@ export class AgentDashboardView extends ItemView {
 
 		const openBtn = content.createEl('button', { 
 			text: `打开今日${currentName}`, 
-			cls: 'ad-btn ad-btn-secondary',
+			cls: 'vo-btn vo-btn-secondary',
 			attr: { style: 'width: 100%; margin-top: 15px;' }
 		});
 		
@@ -2506,8 +2506,8 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	private async renderDiaryStatsCard(parent: Element): Promise<void> {
-		const card = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'display: flex; flex-direction: column;' } });
-		const header = card.createDiv({ cls: 'ad-card-header' });
+		const card = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column;' } });
+		const header = card.createDiv({ cls: 'vo-card-header' });
 		header.createEl('h3', { text: '日记数据概览' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 
 		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 8px 0; align-content: center;' } });
@@ -2536,8 +2536,8 @@ export class AgentDashboardView extends ItemView {
 	}
 
 	private async renderLastYearPreviewCard(parent: Element): Promise<void> {
-		const card = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'display: flex; flex-direction: column;' } });
-		const header = card.createDiv({ cls: 'ad-card-header' });
+		const card = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column;' } });
+		const header = card.createDiv({ cls: 'vo-card-header' });
 		
 		const baseDate = moment().add(this.diaryDateOffset, (this.periodicTab + 's') as 'days' | 'weeks' | 'months' | 'quarters' | 'years');
 		const targetLabel = this.periodicTab === 'day' ? '去年今日' : 
@@ -2577,7 +2577,7 @@ export class AgentDashboardView extends ItemView {
 				});
 			}
 
-			const btn = content.createEl('button', { cls: 'ad-btn ad-btn-primary', attr: { style: 'width: 100%; margin-top: auto;' } });
+			const btn = content.createEl('button', { cls: 'vo-btn vo-btn-primary', attr: { style: 'width: 100%; margin-top: auto;' } });
 			btn.createSpan({ text: `打开${targetLabel}` });
 			btn.addEventListener('click', () => {
 				void (async () => {
@@ -2615,26 +2615,26 @@ export class AgentDashboardView extends ItemView {
 	private renderLintDashboard(parent: Element): void {
 		parent.empty();
 
-		const grid = parent.createDiv({ cls: 'ad-middle-grid', attr: { style: 'display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 16px;' } });
+		const grid = parent.createDiv({ cls: 'vo-middle-grid', attr: { style: 'display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 16px;' } });
 
-		const leftCard = grid.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; min-height: 320px;' } });
+		const leftCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; min-height: 320px;' } });
 		leftCard.createEl('h3', { text: '仓库健康度', attr: { style: 'margin: 0; text-align: left; align-self: flex-start; width: 100%;' } });
 		leftCard.createEl('p', {
 			text: `基于 Inbox、日记待入库、知识笔记死链/孤儿和全库空白笔记综合评估`,
 			attr: { style: 'margin: 6px 0 0 0; font-size: 11px; color: var(--text-muted); text-align: left; width: 100%;' }
 		});
 
-		const ringContainer = leftCard.createDiv({ cls: 'ad-progress-ring-container', attr: { style: 'margin: 15px auto; position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center;' } });
-		const svg = ringContainer.createSvg('svg', { cls: 'ad-progress-ring', attr: { width: '120', height: '120', style: 'position: absolute; top: 0; left: 0; transform: rotate(-90deg);' } });
+		const ringContainer = leftCard.createDiv({ cls: 'vo-progress-ring-container', attr: { style: 'margin: 15px auto; position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center;' } });
+		const svg = ringContainer.createSvg('svg', { cls: 'vo-progress-ring', attr: { width: '120', height: '120', style: 'position: absolute; top: 0; left: 0; transform: rotate(-90deg);' } });
 		svg.createSvg('circle', {
-			cls: 'ad-progress-ring-circle-bg',
+			cls: 'vo-progress-ring-circle-bg',
 			attr: { r: '45', cx: '60', cy: '60', fill: 'none', stroke: 'var(--background-modifier-border)', 'stroke-width': '8' }
 		});
 		const progressCircle = svg.createSvg('circle', {
-			cls: 'ad-progress-ring-circle',
+			cls: 'vo-progress-ring-circle',
 			attr: { r: '45', cx: '60', cy: '60', id: 'health-progress-circle', fill: 'none', stroke: 'var(--interactive-accent)', 'stroke-width': '8', 'stroke-dasharray': '282.7', 'stroke-dashoffset': '282.7', style: 'transition: stroke-dashoffset 0.5s ease;' }
 		});
-		const textPercentage = ringContainer.createDiv({ cls: 'ad-progress-ring-text', text: '--%', attr: { style: 'font-size: 20px; font-weight: bold; z-index: 1;' } });
+		const textPercentage = ringContainer.createDiv({ cls: 'vo-progress-ring-text', text: '--%', attr: { style: 'font-size: 20px; font-weight: bold; z-index: 1;' } });
 
 		const statusInfoDiv = leftCard.createDiv({ attr: { style: 'margin: 10px 0; font-size: 11px; color: var(--text-muted); font-family: var(--font-monospace);' } });
 		const scanTimeSpan = statusInfoDiv.createDiv({ text: `上次体检: ${this.lastScanTime}` });
@@ -2645,26 +2645,26 @@ export class AgentDashboardView extends ItemView {
 
 		const btnGroup = leftCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 10px;' } });
 		const runBtn = btnGroup.createEl('button', {
-			cls: 'ad-btn ad-btn-secondary',
+			cls: 'vo-btn vo-btn-secondary',
 			attr: { style: 'width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;' }
 		});
 		setIcon(runBtn, 'play');
 		runBtn.createSpan({ text: '开始体检' });
 
-		const rightCard = grid.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'padding: 16px; display: flex; flex-direction: column; justify-content: flex-start; min-height: 320px; gap: 12px;' } });
+		const rightCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding: 16px; display: flex; flex-direction: column; justify-content: flex-start; min-height: 320px; gap: 12px;' } });
 		rightCard.createEl('h3', { text: '诊断面板', attr: { style: 'margin: 0; text-align: left; align-self: flex-start; width: 100%;' } });
 		
 		// Log layout (compressed)
 		const topLogContainer = rightCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex-shrink: 0;' } });
 		
-		const inboxItem = topLogContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const inboxItem = topLogContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const inboxLeft = inboxItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px;' } });
 		const inboxIconEl = inboxLeft.createDiv(); setIcon(inboxIconEl, 'inbox');
 		const inboxTextWrap = inboxLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 0;' } });
 		inboxTextWrap.createSpan({ text: '待分类文件', attr: { style: 'font-weight: 600; font-size: 12px;' } });
 		const inboxDesc = inboxTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 10px; color: var(--text-muted);' } });
 
-		const diaryItem = topLogContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const diaryItem = topLogContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const diaryLeft = diaryItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px;' } });
 		const diaryIconEl = diaryLeft.createDiv(); setIcon(diaryIconEl, 'calendar');
 		const diaryTextWrap = diaryLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 0;' } });
@@ -2674,21 +2674,21 @@ export class AgentDashboardView extends ItemView {
 		// Inspect layout (expanded)
 		const bottomInspectContainer = rightCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 10px; flex-grow: 1; overflow-y: auto;' } });
 		
-		const orphanItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const orphanItem = bottomInspectContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const orphanLeft = orphanItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
 		const orphanIconEl = orphanLeft.createDiv(); setIcon(orphanIconEl, 'compass');
 		const orphanTextWrap = orphanLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
 		orphanTextWrap.createSpan({ text: '孤儿笔记 (Orphans)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
 		const orphanDesc = orphanTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
-		const deadLinkItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const deadLinkItem = bottomInspectContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const deadLinkLeft = deadLinkItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
 		const deadLinkIconEl = deadLinkLeft.createDiv(); setIcon(deadLinkIconEl, 'link');
 		const deadLinkTextWrap = deadLinkLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
 		deadLinkTextWrap.createSpan({ text: '未解析死链 (Dead Links)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
 		const deadLinkDesc = deadLinkTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
-		const emptyNoteItem = bottomInspectContainer.createDiv({ cls: 'ad-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const emptyNoteItem = bottomInspectContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const emptyNoteLeft = emptyNoteItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
 		const emptyNoteIconEl = emptyNoteLeft.createDiv(); setIcon(emptyNoteIconEl, 'file-text');
 		const emptyNoteTextWrap = emptyNoteLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
@@ -2703,9 +2703,9 @@ export class AgentDashboardView extends ItemView {
 		emptyNoteItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.empty.files) new SimpleListModal(this.app, '空白笔记 (Empty Notes)', this.currentScanData.empty.files).open(); });
 
 		// Bottom Console: claudian Skill Panel
-		const consoleCard = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'margin-bottom: 16px; padding: 16px;' } });
+		const consoleCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-bottom: 16px; padding: 16px;' } });
 
-		const consoleLayout = consoleCard.createDiv({ cls: 'ad-console-layout', attr: { style: 'display: flex; flex-direction: column; gap: 12px; margin-top: 10px;' } });
+		const consoleLayout = consoleCard.createDiv({ cls: 'vo-console-layout', attr: { style: 'display: flex; flex-direction: column; gap: 12px; margin-top: 10px;' } });
 		
 		// Dynamic Claudian Actions from Settings
 		const presetsCard = consoleLayout.createDiv({ attr: { style: 'border: 1px solid var(--background-modifier-border); border-radius: 12px; padding: 12px; background: color-mix(in srgb, var(--background-secondary) 45%, transparent);' } });
@@ -2719,7 +2719,7 @@ export class AgentDashboardView extends ItemView {
 
 		actions.forEach(action => {
 			if (!action.requireInput) {
-				const btn = presetsGrid.createEl('button', { cls: 'ad-btn ad-btn-secondary', attr: { style: 'justify-content: flex-start; gap: 6px; font-size: 11px; padding: 8px;' } });
+				const btn = presetsGrid.createEl('button', { cls: 'vo-btn vo-btn-secondary', attr: { style: 'justify-content: flex-start; gap: 6px; font-size: 11px; padding: 8px;' } });
 				if (action.icon) setIcon(btn, action.icon);
 				btn.createSpan({ text: action.label });
 				btn.addEventListener('click', () => {
@@ -2729,7 +2729,7 @@ export class AgentDashboardView extends ItemView {
 			} else {
 				const group = inputsDiv.createDiv({ attr: { style: 'display: flex; gap: 6px; align-items: center; min-width: 0;' } });
 				const input = group.createEl('input', { type: 'text', placeholder: action.inputPlaceholder || '', attr: { style: 'flex-grow: 1; min-width: 0; height: 30px; font-size: 12px; padding: 0 8px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal);' } });
-				const btn = group.createEl('button', { cls: 'ad-btn ad-btn-primary', attr: { style: 'height: 30px; min-width: 96px; justify-content: flex-start; gap: 4px; font-size: 11px; white-space: nowrap; flex-shrink: 0;' } });
+				const btn = group.createEl('button', { cls: 'vo-btn vo-btn-primary', attr: { style: 'height: 30px; min-width: 96px; justify-content: flex-start; gap: 4px; font-size: 11px; white-space: nowrap; flex-shrink: 0;' } });
 				if (action.icon) setIcon(btn, action.icon);
 				btn.createSpan({ text: action.label });
 				btn.addEventListener('click', () => {
@@ -2746,14 +2746,14 @@ export class AgentDashboardView extends ItemView {
 		});
 
 		// Bottom Monthly Stats & Report Generating Card
-		const reportCard = parent.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'padding: 16px; display: flex; justify-content: space-between; align-items: center;' } });
+		const reportCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding: 16px; display: flex; justify-content: space-between; align-items: center;' } });
 		
 		const statsWrap = reportCard.createDiv({ attr: { style: 'display: flex; gap: 20px; font-size: 12px; color: var(--text-muted); font-family: var(--font-monospace);' } });
 		statsWrap.createDiv({ text: `本月分类入库: ${this.historyStats.ingested} 篇` });
 		statsWrap.createDiv({ text: `本月修复死链: ${this.historyStats.fixedLinks} 处` });
 		statsWrap.createDiv({ text: `本月清理空白: ${this.historyStats.cleanedEmpty} 篇` });
 
-		const reportBtn = reportCard.createEl('button', { cls: 'ad-btn ad-btn-secondary', attr: { style: 'gap: 6px;' } });
+		const reportBtn = reportCard.createEl('button', { cls: 'vo-btn vo-btn-secondary', attr: { style: 'gap: 6px;' } });
 		setIcon(reportBtn, 'file-text');
 		reportBtn.createSpan({ text: '打开最近一次体检报告' });
 		reportBtn.addEventListener('click', () => {
@@ -2845,7 +2845,7 @@ export class AgentDashboardView extends ItemView {
 	}
 	async generateMonthlyReport(): Promise<void> {
 		const ymStr = moment().format('YYYY-MM');
-		const dirPath = `${this.plugin.settings.projectsFolder}/Agent Dashboard/Reports`;
+		const dirPath = `${this.plugin.settings.projectsFolder}/Vault OS/Reports`;
 		const filePath = `${dirPath}/${ymStr} 巡检报告.md`;
 
 		try {
@@ -2972,18 +2972,18 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	 * =========================================================================
 	 */
 	private renderTasksDashboard(parent: Element): void {
-		const wrapper = parent.createDiv({ cls: 'ad-tasks-wrapper' });
-		const grid = wrapper.createDiv({ cls: 'ad-middle-grid', attr: { style: 'display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px;' } });
+		const wrapper = parent.createDiv({ cls: 'vo-tasks-wrapper' });
+		const grid = wrapper.createDiv({ cls: 'vo-middle-grid', attr: { style: 'display: grid; grid-template-columns: 1.2fr 1fr; gap: 20px;' } });
 
-		const leftCol = grid.createDiv({ cls: 'ad-tasks-main-col', attr: { style: 'display: flex; flex-direction: column; gap: 20px;' } });
+		const leftCol = grid.createDiv({ cls: 'vo-tasks-main-col', attr: { style: 'display: flex; flex-direction: column; gap: 20px;' } });
 		this.renderTodayTasks(leftCol);
 
-		const rightCol = grid.createDiv({ cls: 'ad-tasks-side-col', attr: { style: 'display: flex; flex-direction: column; gap: 20px;' } });
+		const rightCol = grid.createDiv({ cls: 'vo-tasks-side-col', attr: { style: 'display: flex; flex-direction: column; gap: 20px;' } });
 		this.renderTodayHabits(rightCol);
 	}
 
 	private renderTodayTasks(parent: Element): void {
-		const todayCard = parent.createDiv({ cls: 'ad-card ad-task-card ad-tech-card' });
+		const todayCard = parent.createDiv({ cls: 'vo-card vo-task-card vo-tech-card' });
 		const headerContainer = todayCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center;' } });
 		headerContainer.createEl('h3', { text: '今日待办' , attr: { style: 'margin: 0; text-align: left;' } });
 		
@@ -3012,7 +3012,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			this.render();
 		});
 		
-		const taskList = todayCard.createDiv({ cls: 'ad-task-list' });
+		const taskList = todayCard.createDiv({ cls: 'vo-task-list' });
 		const tasks = stats.tasks || [];
 
 		// Filter tasks due today
@@ -3096,10 +3096,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		} else {
 			// Render uncompleted today tasks
 			uncompletedToday.forEach(t => {
-				const item = taskList.createDiv({ cls: 'ad-task-item' });
+				const item = taskList.createDiv({ cls: 'vo-task-item' });
 				
 				const checkBtn = item.createEl('button', { 
-					cls: 'ad-task-check-btn',
+					cls: 'vo-task-check-btn',
 				});
 				
 				checkBtn.addEventListener('click', () => {
@@ -3118,7 +3118,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				});
 
 				const txtContainer = item.createDiv({ attr: { style: 'display: flex; flex-direction: column; flex: 1;' } });
-				txtContainer.createEl('span', { text: t.title || t.text || '无标题', cls: 'ad-task-text' });
+				txtContainer.createEl('span', { text: t.title || t.text || '无标题', cls: 'vo-task-text' });
 				
 				const dueStr = t.dueDate || t.startDate || t.time;
 				if (dueStr && !t.isAllDay) {
@@ -3126,22 +3126,22 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					const hours = dt.getHours().toString().padStart(2, '0');
 					const minutes = dt.getMinutes().toString().padStart(2, '0');
 					if (hours !== '00' || minutes !== '00') {
-						txtContainer.createEl('span', { text: `${hours}:${minutes}`, cls: 'ad-task-time', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
+						txtContainer.createEl('span', { text: `${hours}:${minutes}`, cls: 'vo-task-time', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 					}
 				}
 			});
 
 			// Render completed today tasks
 			completedToday.forEach(t => {
-				const item = taskList.createDiv({ cls: 'ad-task-item' });
+				const item = taskList.createDiv({ cls: 'vo-task-item' });
 				
 				const checkBtn = item.createEl('button', { 
-					cls: 'ad-task-check-btn is-completed',
+					cls: 'vo-task-check-btn is-completed',
 				});
 				setIcon(checkBtn, 'check');
 
 				const txtContainer = item.createDiv({ attr: { style: 'display: flex; flex-direction: column; flex: 1;' } });
-				txtContainer.createEl('span', { text: t.text || '无标题', cls: 'ad-task-text is-completed' });
+				txtContainer.createEl('span', { text: t.text || '无标题', cls: 'vo-task-text is-completed' });
 				
 				const dueStr = t.time;
 				if (dueStr && !t.isAllDay) {
@@ -3149,15 +3149,15 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					const hours = dt.getHours().toString().padStart(2, '0');
 					const minutes = dt.getMinutes().toString().padStart(2, '0');
 					if (hours !== '00' || minutes !== '00') {
-						txtContainer.createEl('span', { text: `${hours}:${minutes}`, cls: 'ad-task-time', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
+						txtContainer.createEl('span', { text: `${hours}:${minutes}`, cls: 'vo-task-time', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 					}
 				}
 			});
 		}
 
-		const addWrapper = todayCard.createDiv({ cls: 'ad-task-add-wrapper', attr: { style: 'margin-top: 15px; display: flex; gap: 8px;' } });
+		const addWrapper = todayCard.createDiv({ cls: 'vo-task-add-wrapper', attr: { style: 'margin-top: 15px; display: flex; gap: 8px;' } });
 		const input = addWrapper.createEl('input', { type: 'text', placeholder: '添加今日待办...' });
-		const btn = addWrapper.createEl('button', { text: '添加', cls: 'ad-btn ad-btn-primary' });
+		const btn = addWrapper.createEl('button', { text: '添加', cls: 'vo-btn vo-btn-primary' });
 		btn.addEventListener('click', () => {
 			void (async () => {
 				if (input.value) {
@@ -3194,10 +3194,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 
 
 	private renderTodayHabits(parent: Element): void {
-		const habitCard = parent.createDiv({ cls: 'ad-card ad-habit-card ad-tech-card' });
+		const habitCard = parent.createDiv({ cls: 'vo-card vo-habit-card vo-tech-card' });
 		habitCard.createEl('h3', { text: '今日习惯打卡' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
-		const habitList = habitCard.createDiv({ cls: 'ad-habit-list' });
+		const habitList = habitCard.createDiv({ cls: 'vo-habit-list' });
 		const stats = this.taskService.getCache();
 		const habits = stats.habits || [];
 		const habitCheckins = stats.habitCheckins || {};
@@ -3216,12 +3216,12 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const todayCheckin = checkins.find(c => c.stamp === todayStamp);
 			const isCompleted = todayCheckin ? todayCheckin.status === 2 : false;
 
-			const item = habitList.createDiv({ cls: 'ad-habit-item', attr: { style: 'margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;' } });
+			const item = habitList.createDiv({ cls: 'vo-habit-item', attr: { style: 'margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between;' } });
 			
 			const leftWrap = item.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
 			
 			const checkBtn = leftWrap.createEl('button', { 
-				cls: `ad-habit-check-btn ${isCompleted ? 'is-completed' : ''}`,
+				cls: `vo-habit-check-btn ${isCompleted ? 'is-completed' : ''}`,
 				attr: { 
 					style: `border-radius: 50%; width: 24px; height: 24px; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; ` +
 					       (isCompleted 
@@ -3249,23 +3249,23 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				})();
 			});
 
-			leftWrap.createEl('span', { text: h.name, cls: 'ad-habit-name', attr: { style: isCompleted ? 'text-decoration: line-through; color: var(--text-muted);' : 'color: var(--text-normal);' } });
+			leftWrap.createEl('span', { text: h.name, cls: 'vo-habit-name', attr: { style: isCompleted ? 'text-decoration: line-through; color: var(--text-muted);' : 'color: var(--text-normal);' } });
 			
 			item.createEl('span', { 
 				text: `${h.totalCheckIns || 0} 次`, 
-				cls: 'ad-habit-count', 
+				cls: 'vo-habit-count', 
 				attr: { style: 'font-size: 11px; color: var(--text-muted); font-family: var(--font-monospace);' } 
 			});
 		});
 	}
 
 	private renderMcpConsole(parent: Element): void {
-		const statsCard = parent.createDiv({ cls: 'ad-card ad-task-stats-card ad-tech-card' });
+		const statsCard = parent.createDiv({ cls: 'vo-card vo-task-stats-card vo-tech-card' });
 		statsCard.createEl('h4', { text: 'Ticktick mcp 交互控制台' });
 		
-		const mcpConsole = statsCard.createDiv({ cls: 'ad-mcp-console' });
+		const mcpConsole = statsCard.createDiv({ cls: 'vo-mcp-console' });
 		const mcpInput = mcpConsole.createEl('input', { type: 'text', placeholder: '输入 MCP 指令，例如: get_tasks今天...' });
-		const mcpBtn = mcpConsole.createEl('button', { text: '发送', cls: 'ad-btn ad-btn-secondary' });
+		const mcpBtn = mcpConsole.createEl('button', { text: '发送', cls: 'vo-btn vo-btn-secondary' });
 		
 		mcpBtn.addEventListener('click', () => {
 			if (mcpInput.value) {
@@ -3304,13 +3304,13 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	 * =========================================================================
 	 */
 	private renderProjectsDashboard(parent: Element): void {
-		const container = parent.createDiv({ cls: 'ad-tasks-wrapper', attr: { style: 'gap: 12px;' } });
+		const container = parent.createDiv({ cls: 'vo-tasks-wrapper', attr: { style: 'gap: 12px;' } });
 
-		const statsCard = container.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'margin-bottom: 0; padding: 14px 18px 16px;' } });
-		const statsGrid = statsCard.createDiv({ cls: 'ad-stats-mini-grid', attr: { style: 'margin-top: 0; margin-bottom: 0;' } });
+		const statsCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-bottom: 0; padding: 14px 18px 16px;' } });
+		const statsGrid = statsCard.createDiv({ cls: 'vo-stats-mini-grid', attr: { style: 'margin-top: 0; margin-bottom: 0;' } });
 		
-		const baseCard = container.createDiv({ cls: 'ad-card ad-tech-card', attr: { style: 'padding-top: 16px;' } });
-		const baseHeader = baseCard.createDiv({ cls: 'ad-card-header' });
+		const baseCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding-top: 16px;' } });
+		const baseHeader = baseCard.createDiv({ cls: 'vo-card-header' });
 		baseHeader.createEl('h3', { text: `项目数据库 (${this.plugin.settings.projectBaseFilePath})` , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
 		void this.getProjectsData().then(projects => {
@@ -3327,9 +3327,9 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const completedPct = total > 0 ? Math.round((counts.completed / total) * 100) : 0;
 
 			const makeStatCard = (label: string, val: string) => {
-				const c = statsGrid.createDiv({ cls: 'ad-stats-mini-card' });
-				c.createDiv({ text: val, cls: 'ad-stats-mini-val' });
-				c.createDiv({ text: label, cls: 'ad-stats-mini-label' });
+				const c = statsGrid.createDiv({ cls: 'vo-stats-mini-card' });
+				c.createDiv({ text: val, cls: 'vo-stats-mini-val' });
+				c.createDiv({ text: label, cls: 'vo-stats-mini-label' });
 			};
 
 			makeStatCard('总项目数', String(total));
@@ -3339,8 +3339,8 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			makeStatCard('Completed 完成', `${counts.completed} (${completedPct}%)`);
 
 			// ====== Render Native Table ======
-			const tableContainer = baseCard.createDiv({ cls: 'ad-projects-table-container' });
-			const table = tableContainer.createEl('table', { cls: 'ad-projects-table' });
+			const tableContainer = baseCard.createDiv({ cls: 'vo-projects-table-container' });
+			const table = tableContainer.createEl('table', { cls: 'vo-projects-table' });
 			
 			// Table Header
 			const thead = table.createEl('thead');
@@ -3368,7 +3368,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				const tr = tbody.createEl('tr');
 				
 				// Col 1: Name
-				const tdName = tr.createEl('td', { cls: 'ad-projects-table-name' });
+				const tdName = tr.createEl('td', { cls: 'vo-projects-table-name' });
 				const nameLink = tdName.createEl('a', { text: proj.title });
 				nameLink.addEventListener('click', (e) => {
 					e.preventDefault();
@@ -3378,18 +3378,18 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				// Col 2: Status
 				const tdStatus = tr.createEl('td');
 				const config = statusConfig[proj.status] || statusConfig.pending || { label: 'Pending', iconId: 'circle', color: 'var(--text-muted)' };
-				const badge = tdStatus.createSpan({ cls: 'ad-status-badge' });
-				const iconSpan = badge.createSpan({ cls: 'ad-status-icon' });
+				const badge = tdStatus.createSpan({ cls: 'vo-status-badge' });
+				const iconSpan = badge.createSpan({ cls: 'vo-status-icon' });
 				setIcon(iconSpan, config.iconId);
 				iconSpan.style.color = config.color;
 				const labelSpan = badge.createSpan({ text: ` ${config.label}` });
 				labelSpan.style.color = config.color;
 
 				// Col 3: Ctime
-				tr.createEl('td', { text: proj.ctimeStr, cls: 'ad-projects-table-time' });
+				tr.createEl('td', { text: proj.ctimeStr, cls: 'vo-projects-table-time' });
 
 				// Col 4: Topics
-				const tdTopics = tr.createEl('td', { cls: 'ad-projects-table-topics' });
+				const tdTopics = tr.createEl('td', { cls: 'vo-projects-table-topics' });
 				proj.topics.forEach(topic => {
 					let displayText = topic;
 					let linkTarget = topic;
@@ -3405,7 +3405,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					}
 
 					if (isLink) {
-						const linkEl = tdTopics.createEl('a', { text: displayText, cls: 'ad-topic-badge' });
+						const linkEl = tdTopics.createEl('a', { text: displayText, cls: 'vo-topic-badge' });
 						linkEl.style.cursor = 'pointer';
 						linkEl.style.textDecoration = 'none';
 						linkEl.addEventListener('click', (e) => {
@@ -3413,7 +3413,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 							void this.app.workspace.openLinkText(linkTarget, proj.path, false);
 						});
 					} else {
-						tdTopics.createSpan({ text: displayText, cls: 'ad-topic-badge' });
+						tdTopics.createSpan({ text: displayText, cls: 'vo-topic-badge' });
 					}
 				});
 			});
@@ -3551,11 +3551,11 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	 */
 	private renderStatsNav(parent: Element): void {
 		const navWrap = parent.createDiv({ 
-			cls: 'ad-stats-header-wrap',
+			cls: 'vo-stats-header-wrap',
 			attr: { style: 'display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;' }
 		});
 		
-		const tabsContainer = navWrap.createDiv({ cls: 'ad-stats-nav-tabs' });
+		const tabsContainer = navWrap.createDiv({ cls: 'vo-stats-nav-tabs' });
 		tabsContainer.setAttr('style', 'display: flex; background: var(--background-secondary); border: 1px solid var(--background-modifier-border); border-radius: 8px; padding: 3px; gap: 4px;');
 		const tabs = [
 			{ id: 'week', label: '周' },
@@ -3568,7 +3568,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const isActive = this.statsTab === t.id;
 			const btn = tabsContainer.createEl('button', {
 				text: t.label,
-				cls: `ad-stats-tab-btn ${isActive ? 'is-active' : ''}`
+				cls: `vo-stats-tab-btn ${isActive ? 'is-active' : ''}`
 			});
 			btn.setAttr('style', [
 				'background: transparent',
@@ -3597,10 +3597,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		});
 
 		if (this.statsTab !== 'all') {
-			const picker = navWrap.createDiv({ cls: 'ad-stats-date-picker' });
+			const picker = navWrap.createDiv({ cls: 'vo-stats-date-picker' });
 			picker.setAttr('style', 'padding: 0 4px; border-radius: 999px; border: 1px solid var(--background-modifier-border); display: flex; align-items: center; height: 32px; background: var(--background-primary);');
 			
-			const prevBtn = picker.createEl('button', { cls: 'ad-stats-date-btn' });
+			const prevBtn = picker.createEl('button', { cls: 'vo-stats-date-btn' });
 			prevBtn.setAttr('style', 'background: transparent; border: none; box-shadow: none; padding: 0; margin: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted);');
 			setIcon(prevBtn, 'chevron-left');
 			prevBtn.addEventListener('click', () => {
@@ -3609,10 +3609,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			});
 
 			const dateStr = this.calculateDateRangeString();
-			const dateText = picker.createEl('span', { text: dateStr, cls: 'ad-stats-date-text' });
+			const dateText = picker.createEl('span', { text: dateStr, cls: 'vo-stats-date-text' });
 			dateText.setAttr('style', 'font-size: 14px; font-weight: 500; line-height: 1; margin: 0 6px; color: var(--text-normal);');
 
-			const nextBtn = picker.createEl('button', { cls: 'ad-stats-date-btn' });
+			const nextBtn = picker.createEl('button', { cls: 'vo-stats-date-btn' });
 			nextBtn.setAttr('style', 'background: transparent; border: none; box-shadow: none; padding: 0; margin: 0; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text-muted);');
 			setIcon(nextBtn, 'chevron-right');
 			nextBtn.addEventListener('click', () => {
@@ -3646,14 +3646,14 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		days: HTMLElement; avg: HTMLElement; atomics: HTMLElement;
 		inbox: HTMLElement; output: HTMLElement; orphans: HTMLElement;
 	} {
-		const grid = parent.createDiv({ cls: 'ad-stats-mini-grid' });
+		const grid = parent.createDiv({ cls: 'vo-stats-mini-grid' });
 		
 		const makeCard = (icon: string, label: string): HTMLElement => {
-			const card = grid.createDiv({ cls: 'ad-stats-mini-card ad-tech-card' });
-			const valSpan = card.createSpan({ cls: 'ad-stats-mini-val' });
+			const card = grid.createDiv({ cls: 'vo-stats-mini-card vo-tech-card' });
+			const valSpan = card.createSpan({ cls: 'vo-stats-mini-val' });
 			setIcon(valSpan, icon);
 			const numSpan = valSpan.createSpan({ text: ' --' });
-			card.createSpan({ text: label, cls: 'ad-stats-mini-label' });
+			card.createSpan({ text: label, cls: 'vo-stats-mini-label' });
 			return numSpan;
 		};
 
@@ -3678,23 +3678,23 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	}
 
 	private renderChartSection(parent: Element): void {
-		const chartSec = parent.createDiv({ cls: 'ad-stats-chart-section ad-tech-card' });
+		const chartSec = parent.createDiv({ cls: 'vo-stats-chart-section vo-tech-card' });
 		this.renderChartSectionContent(chartSec);
 	}
 
 	private renderChartSectionContent(chartSec: Element): void {
-		const header = chartSec.createDiv({ cls: 'ad-stats-chart-header' });
+		const header = chartSec.createDiv({ cls: 'vo-stats-chart-header' });
 		
 		let title = '每日新增笔记';
 		if (this.statsTab === 'year' && this.statsChartType === 'bar') title = '每月新增笔记';
 		if (this.statsTab === 'all' && this.statsChartType === 'bar') title = '每年新增笔记';
-		header.createSpan({ text: title, cls: 'ad-stats-chart-title' });
+		header.createSpan({ text: title, cls: 'vo-stats-chart-title' });
 
-		const toggles = header.createDiv({ cls: 'ad-stats-chart-toggles' });
+		const toggles = header.createDiv({ cls: 'vo-stats-chart-toggles' });
 		
 		if (this.statsTab === 'month') {
 			const btnBar = toggles.createEl('button', { 
-				cls: `ad-stats-chart-toggle-btn ${this.statsChartType === 'bar' ? 'is-active' : ''}` 
+				cls: `vo-stats-chart-toggle-btn ${this.statsChartType === 'bar' ? 'is-active' : ''}` 
 			});
 			setIcon(btnBar, 'activity');
 			btnBar.addEventListener('click', () => {
@@ -3703,7 +3703,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			});
 
 			const btnCal = toggles.createEl('button', { 
-				cls: `ad-stats-chart-toggle-btn ${this.statsChartType === 'calendar' ? 'is-active' : ''}` 
+				cls: `vo-stats-chart-toggle-btn ${this.statsChartType === 'calendar' ? 'is-active' : ''}` 
 			});
 			setIcon(btnCal, 'calendar');
 			btnCal.addEventListener('click', () => {
@@ -3712,7 +3712,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			});
 		} else if (this.statsTab === 'year' || this.statsTab === 'all') {
 			const btnHeat = toggles.createEl('button', { 
-				cls: `ad-stats-chart-toggle-btn ${this.statsChartType === 'heatmap' ? 'is-active' : ''}` 
+				cls: `vo-stats-chart-toggle-btn ${this.statsChartType === 'heatmap' ? 'is-active' : ''}` 
 			});
 			setIcon(btnHeat, 'layout-dashboard');
 			btnHeat.addEventListener('click', () => {
@@ -3721,7 +3721,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			});
 
 			const btnBar = toggles.createEl('button', { 
-				cls: `ad-stats-chart-toggle-btn ${this.statsChartType === 'bar' ? 'is-active' : ''}` 
+				cls: `vo-stats-chart-toggle-btn ${this.statsChartType === 'bar' ? 'is-active' : ''}` 
 			});
 			setIcon(btnBar, 'activity');
 			btnBar.addEventListener('click', () => {
@@ -3845,13 +3845,13 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	private renderCalendarChart(parent: Element): void {
 		const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
 
-		const panel = parent.createDiv({ cls: 'ad-stats-calendar-panel' });
+		const panel = parent.createDiv({ cls: 'vo-stats-calendar-panel' });
 		const gridHeader = panel.createDiv({
-			cls: 'ad-stats-calendar-grid ad-stats-calendar-grid--header',
+			cls: 'vo-stats-calendar-grid vo-stats-calendar-grid--header',
 			attr: { style: 'margin-bottom: 6px;' }
 		});
 		weekdays.forEach(wd => {
-			gridHeader.createDiv({ text: wd, cls: 'ad-stats-calendar-weekday' });
+			gridHeader.createDiv({ text: wd, cls: 'vo-stats-calendar-weekday' });
 		});
 		
 		const now = window.moment();
@@ -3865,12 +3865,12 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		const weekRows = this.getCalendarWeekRowCount(offset, totalDays);
 		const isCompact = weekRows >= 6;
 		const gridBody = panel.createDiv({
-			cls: `ad-stats-calendar-grid ad-stats-calendar-grid--body ${isCompact ? 'is-compact' : ''}`,
-			attr: { style: `--ad-stats-calendar-rows: ${weekRows};` }
+			cls: `vo-stats-calendar-grid vo-stats-calendar-grid--body ${isCompact ? 'is-compact' : ''}`,
+			attr: { style: `--vo-stats-calendar-rows: ${weekRows};` }
 		});
 
 		for (let i = 0; i < offset; i++) {
-			gridBody.createDiv({ cls: 'ad-stats-calendar-cell is-empty' });
+			gridBody.createDiv({ cls: 'vo-stats-calendar-cell is-empty' });
 		}
 
 		const dateCounts = this.getVaultDateCounts();
@@ -3880,24 +3880,24 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const count = dateCounts.get(currentDay.format('YYYY-MM-DD')) || 0;
 			
 			const cell = gridBody.createDiv({ 
-				cls: `ad-stats-calendar-cell ${count > 0 ? 'has-read' : ''}` 
+				cls: `vo-stats-calendar-cell ${count > 0 ? 'has-read' : ''}` 
 			});
 			cell.createEl('span', {
 				text: String(d),
-				cls: 'ad-stats-calendar-cell-day',
+				cls: 'vo-stats-calendar-cell-day',
 				attr: { style: count > 0 ? 'font-weight: 700;' : '' }
 			});
 			if (count > 0) {
 				cell.createEl('span', {
 					text: this.formatCalendarCountLabel(count, isCompact),
-					cls: 'ad-stats-calendar-cell-count'
+					cls: 'vo-stats-calendar-cell-count'
 				});
 			}
 		}
 	}
 
 	private renderHeatmapChart(parent: Element): void {
-		const heatmapWrapper = parent.createDiv({ cls: 'ad-stats-heatmap-wrapper' });
+		const heatmapWrapper = parent.createDiv({ cls: 'vo-stats-heatmap-wrapper' });
 		const now = moment();
 		let targetYear = now.year();
 		if (this.statsTab === 'month') {
@@ -3956,7 +3956,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const endDate = window.moment(`${year}-12-31`).endOf('isoWeek');
 			
 			while (currentDate.isBefore(endDate)) {
-				const col = gridContainer.createDiv({ cls: 'ad-stats-heatmap-col', attr: { style: `width: ${cellSize}px; gap: ${cellGap}px;` } });
+				const col = gridContainer.createDiv({ cls: 'vo-stats-heatmap-col', attr: { style: `width: ${cellSize}px; gap: ${cellGap}px;` } });
 				for (let d = 0; d < 7; d++) {
 					const dateStr = currentDate.format('YYYY-MM-DD');
 					const count = dateCounts.get(dateStr) || 0;
@@ -3973,25 +3973,25 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					else if (count > 2) level = 2;
 					else if (count > 0) level = 1;
 
-					const cell = col.createDiv({ cls: `ad-stats-heatmap-cell ${isCurrentYear ? `level-${level}` : ''}`, attr: { style: `width: ${cellSize}px; height: ${cellSize}px;` } });
+					const cell = col.createDiv({ cls: `vo-stats-heatmap-cell ${isCurrentYear ? `level-${level}` : ''}`, attr: { style: `width: ${cellSize}px; height: ${cellSize}px;` } });
 					if (!isCurrentYear) {
 						cell.setCssStyles({ visibility: 'hidden' });
 					} else {
-						cell.createDiv({ text: `${dateStr} 新增 ${count} 篇笔记`, cls: 'ad-stats-heatmap-cell-tooltip' });
+						cell.createDiv({ text: `${dateStr} 新增 ${count} 篇笔记`, cls: 'vo-stats-heatmap-cell-tooltip' });
 					}
 					currentDate.add(1, 'day');
 				}
 			}
 		});
 
-		const footer = parent.createDiv({ cls: 'ad-stats-heatmap-footer' });
+		const footer = parent.createDiv({ cls: 'vo-stats-heatmap-footer' });
 		const prefix = this.statsTab === 'all' ? '总计' : '本年度';
 		footer.createSpan({ text: `${prefix}共活跃 ${totalActiveDays} 天，累计新增 ${totalNotes} 篇笔记` });
 		
-		const legend = footer.createDiv({ cls: 'ad-stats-heatmap-legend' });
+		const legend = footer.createDiv({ cls: 'vo-stats-heatmap-legend' });
 		legend.createSpan({ text: '少' });
 		for (let i = 0; i <= 4; i++) {
-			legend.createDiv({ cls: `ad-stats-heatmap-legend-box level-${i}` });
+			legend.createDiv({ cls: `vo-stats-heatmap-legend-box level-${i}` });
 		}
 		legend.createSpan({ text: '多' });
 	}

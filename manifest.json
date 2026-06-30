@@ -1,9 +1,9 @@
 {
-	"id": "agent-dashboard",
-	"name": "Agent Dashboard",
+	"id": "vault-os",
+	"name": "Vault OS",
 	"version": "1.2.0",
 	"minAppVersion": "1.8.0",
-	"description": "A dashboard for tracking AI agent workflows, sessions, and outputs inside Obsidian.",
+	"description": "A unified Obsidian operating surface for vault stats, diaries, lint, TickTick, projects, and custom AI actions.",
 	"author": "Bylrb",
 	"isDesktopOnly": false
 }

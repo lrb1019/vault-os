@@ -1,5 +1,5 @@
 import { App, TFile, TFolder } from 'obsidian';
-import AgentDashboardPlugin from '../main';
+import VaultOsPlugin from '../main';
 
 export interface InboxBacklogInfo {
 	count: number;
@@ -30,10 +30,10 @@ export interface VaultOverviewStats {
 }
 
 export class VaultService {
-	private plugin: AgentDashboardPlugin;
+	private plugin: VaultOsPlugin;
 	private app: App;
 
-	constructor(plugin: AgentDashboardPlugin) {
+	constructor(plugin: VaultOsPlugin) {
 		this.plugin = plugin;
 		this.app = plugin.app;
 	}

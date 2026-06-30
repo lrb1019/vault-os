@@ -1,4 +1,4 @@
-# Agent Dashboard
+# Vault OS
 
 一个 Obsidian 插件，用于在一个自定义视图中统一呈现知识库活动、周期笔记、知识库巡检、TickTick 数据和项目追踪。
 
@@ -8,7 +8,7 @@
 
 - 自定义 dashboard 视图
 - Ribbon 快捷入口
-- `Open dashboard` 命令
+- `Open Vault OS` 命令
 - 设置面板，用于配置路径、TickTick/MCP、热力图尺寸和自定义动作
 
 当前实际生效的界面，是一个顶部状态栏加五个主频道：
@@ -38,8 +38,8 @@
 ### 手动安装
 
 1. 下载最新发布的 Release 资源文件 (`main.js`、`manifest.json`、`styles.css`)。
-2. 将这些文件复制到你金库的插件目录中：`你的金库路径/.obsidian/plugins/agent-dashboard/`。
-3. 重新加载 Obsidian，并在社区插件设置中启用 **Agent Dashboard**。
+2. 将这些文件复制到你金库的插件目录中：`你的金库路径/.obsidian/plugins/vault-os/`。
+3. 重新加载 Obsidian，并在社区插件设置中启用 **Vault OS**。
 
 ## 使用说明
 

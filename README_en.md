@@ -1,4 +1,4 @@
-# Agent Dashboard
+# Vault OS
 
 An Obsidian plugin that provides a unified dashboard for vault activity, periodic notes, vault health checks, TickTick data, and project tracking inside one custom view.
 
@@ -8,7 +8,7 @@ The plugin currently exposes:
 
 - a custom dashboard view
 - a ribbon shortcut
-- an `Open dashboard` command
+- an `Open Vault OS` command
 - a settings tab for paths, MCP/TickTick integration, heatmap sizing, and custom actions
 
 The live dashboard is organized into five main tabs:
@@ -38,8 +38,8 @@ The live dashboard is organized into five main tabs:
 ### Manually
 
 1. Download the latest release files (`main.js`, `manifest.json`, `styles.css`).
-2. Copy the files into your vault directory: `YourVault/.obsidian/plugins/agent-dashboard/`.
-3. Reload Obsidian and enable **Agent Dashboard** under Community Plugins.
+2. Copy the files into your vault directory: `YourVault/.obsidian/plugins/vault-os/`.
+3. Reload Obsidian and enable **Vault OS** under Community Plugins.
 
 ## Usage Guide
 
@@ -106,7 +106,7 @@ Recommended integrations:
 
 Fallback behavior:
 
-- Without those plugins, Agent Dashboard creates Markdown files directly inside the configured diary folder.
+- Without those plugins, Vault OS creates Markdown files directly inside the configured diary folder.
 - The fallback template writes:
   - `created: YYYY-MM-DD`
   - `author: "[[Jarvis]]"`

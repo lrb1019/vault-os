@@ -1,6 +1,6 @@
 @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap');
 
-.ad-container {
+.vo-container {
 	width: 100%;
 	max-width: 950px;
 	height: 100%;
@@ -13,11 +13,11 @@
 }
 
 /* 细线圆角框与底部轻微阴影 (参考 jarvis reader) */
-.ad-card, 
-.ad-tech-card,
-.ad-module-section > div,
-.ad-viewport-tabs,
-.ad-sidebar-bus {
+.vo-card, 
+.vo-tech-card,
+.vo-module-section > div,
+.vo-viewport-tabs,
+.vo-sidebar-bus {
 	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 60%, transparent);
 	border-radius: 12px;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
@@ -28,21 +28,21 @@
 }
 
 /* 左侧 Sidebar 特殊布局 */
-.ad-sidebar-bus {
+.vo-sidebar-bus {
 	display: flex;
 	flex-direction: column;
 	gap: 16px;
 	padding: 16px;
 }
 
-.ad-bus-section {
+.vo-bus-section {
 	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 60%, transparent);
 	border-radius: 8px;
 	padding: 12px;
 	background: var(--background-secondary);
 }
 
-.ad-bus-section .ad-nav-link-item {
+.vo-bus-section .vo-nav-link-item {
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -56,18 +56,18 @@
 	transition: all 0.2s;
 }
 
-.ad-bus-section .ad-nav-link-item:hover {
+.vo-bus-section .vo-nav-link-item:hover {
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 }
 
 /* 隐藏原本的圆点 */
-.ad-bus-section .ad-nav-dot {
+.vo-bus-section .vo-nav-dot {
 	display: none !important;
 }
 
 /* 顶部状态长条 (Top Stats Bar) */
-.ad-stats-bar {
+.vo-stats-bar {
 	width: 100%;
 	border: 1px solid color-mix(in srgb, var(--background-modifier-border) 60%, transparent);
 	border-radius: 12px;
@@ -79,7 +79,7 @@
 }
 
 /* 仓库容量条 (Vault Telemetry Bar) */
-.ad-vault-telemetry-bar {
+.vo-vault-telemetry-bar {
 	display: flex;
 	width: 100%;
 	height: 6px;
@@ -89,24 +89,24 @@
 	background: var(--background-secondary);
 }
 
-.ad-bar-segment {
+.vo-bar-segment {
 	height: 100%;
 	transition: width 0.3s ease;
 }
 
-.ad-segment-daily { background: #5c8bcf; }
-.ad-segment-atomics { background: #50b37e; }
-.ad-segment-inbox { background: #e3a936; }
-.ad-segment-archive { background: #a269c7; }
-.ad-segment-other { background: #888888; }
+.vo-segment-daily { background: #5c8bcf; }
+.vo-segment-atomics { background: #50b37e; }
+.vo-segment-inbox { background: #e3a936; }
+.vo-segment-archive { background: #a269c7; }
+.vo-segment-other { background: #888888; }
 
-.ad-vault-telemetry-legend {
+.vo-vault-telemetry-legend {
 	display: flex;
 	flex-wrap: wrap;
 	gap: 12px;
 }
 
-.ad-legend-item {
+.vo-legend-item {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -114,19 +114,19 @@
 	color: var(--text-muted);
 }
 
-.ad-legend-color {
+.vo-legend-color {
 	width: 10px;
 	height: 10px;
 	border-radius: 50%;
 }
 
 /* 标题字体不要太大，减少加粗 */
-.ad-container h1, 
-.ad-container h2, 
-.ad-container h3, 
-.ad-container h4, 
-.ad-bus-section-title,
-.ad-stats-header-wrap span {
+.vo-container h1, 
+.vo-container h2, 
+.vo-container h3, 
+.vo-container h4, 
+.vo-bus-section-title,
+.vo-stats-header-wrap span {
 	font-weight: 500 !important;
 	font-size: 1.1em !important;
 	color: var(--text-normal);
@@ -135,35 +135,35 @@
 }
 
 /* 减少加粗的字体 */
-.ad-container span, 
-.ad-container p {
+.vo-container span, 
+.vo-container p {
 	font-weight: 400 !important;
 }
 
 /* 压缩仓库容量卡片的高度 */
-.ad-vault-telemetry-card {
+.vo-vault-telemetry-card {
 	padding: 8px 12px 10px !important;
 	margin-bottom: 12px !important;
 	min-height: 58px;
 	overflow: hidden !important;
 }
-.ad-vault-telemetry-card .ad-card-header h3 {
+.vo-vault-telemetry-card .vo-card-header h3 {
 	margin-bottom: 4px !important;
 	font-size: 13px !important;
 }
 
-.ad-vault-telemetry-legend {
+.vo-vault-telemetry-legend {
 	row-gap: 6px;
 	min-height: 18px;
 	align-items: center;
 }
 
-.ad-vault-telemetry-card + .ad-stats-mini-grid {
+.vo-vault-telemetry-card + .vo-stats-mini-grid {
 	margin-top: 10px;
 }
 
 /* 仓库统计日期选择器 */
-.ad-stats-date-picker {
+.vo-stats-date-picker {
 	padding: 0 4px !important;
 	border-radius: 6px;
 	border: 1px solid var(--background-modifier-border);
@@ -172,7 +172,7 @@
 	height: 24px;
 	background: var(--background-primary);
 }
-.ad-stats-header-wrap .ad-stats-date-text {
+.vo-stats-header-wrap .vo-stats-date-text {
 	font-size: 14px !important;
 	font-weight: 500 !important;
 	line-height: 1 !important;
@@ -180,7 +180,7 @@
 	margin-left: 6px !important;
 	margin-right: 6px !important;
 }
-.ad-stats-date-btn {
+.vo-stats-date-btn {
 	background: transparent !important;
 	border: none !important;
 	box-shadow: none !important;
@@ -194,18 +194,18 @@
 	cursor: pointer;
 	color: var(--text-muted);
 }
-.ad-stats-date-btn:hover {
+.vo-stats-date-btn:hover {
 	color: var(--text-normal);
 	background: var(--background-modifier-hover) !important;
 	border-radius: 4px;
 }
-.ad-stats-date-btn svg {
+.vo-stats-date-btn svg {
 	width: 14px !important;
 	height: 14px !important;
 }
 
 /* 周期日记打卡墙样式 */
-.ad-periodic-cell {
+.vo-periodic-cell {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
@@ -221,19 +221,19 @@
 	position: relative;
 	transition: all 0.2s;
 }
-.ad-periodic-cell:hover {
+.vo-periodic-cell:hover {
 	background-color: var(--background-modifier-hover);
 }
-.ad-periodic-cell.is-created {
+.vo-periodic-cell.is-created {
 	border: 1px solid var(--text-success); /* 实线绿色框 */
 	color: var(--text-success); /* 数字也变绿，看起来更协调 */
 }
-.ad-periodic-cell.is-missing {
+.vo-periodic-cell.is-missing {
 	opacity: 0.8;
 }
 
 /* 顶部主菜单栏优化 */
-.ad-viewport-tabs {
+.vo-viewport-tabs {
 	display: flex;
 	justify-content: space-between;
 	gap: 16px;
@@ -241,7 +241,7 @@
 	padding: 14px 20px !important;
 }
 
-.ad-viewport-tab-btn {
+.vo-viewport-tab-btn {
 	flex: 1; /* 铺满整个条 */
 	display: flex;
 	justify-content: center;
@@ -258,12 +258,12 @@
 	transition: all 0.2s;
 }
 
-.ad-viewport-tab-btn:hover {
+.vo-viewport-tab-btn:hover {
 	background: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.ad-viewport-tab-btn.is-active {
+.vo-viewport-tab-btn.is-active {
 	background: var(--interactive-accent);
 	color: var(--text-on-accent);
 	border: 1px solid color-mix(in srgb, var(--interactive-accent) 80%, transparent);
@@ -271,14 +271,14 @@
 }
 
 /* 布局拉伸控制 */
-.ad-viewport {
+.vo-viewport {
 	display: flex;
 	flex-direction: column;
 	flex-grow: 1;
 	min-height: 0;
 }
 
-.ad-tab-content {
+.vo-tab-content {
 	display: flex;
 	flex-direction: column;
 	flex-grow: 1;
@@ -286,7 +286,7 @@
 }
 
 /* 图表区域拉伸 */
-.ad-stats-chart-section {
+.vo-stats-chart-section {
 	height: 100%;
 	justify-content: space-between;
 	display: flex;
@@ -296,42 +296,42 @@
 }
 
 /* 柱状图区域允许纵向拉伸 */
-.ad-stats-bar-chart-container {
+.vo-stats-bar-chart-container {
 	height: auto !important;
 	flex-grow: 1 !important;
 }
 
 /* Calendar Chart */
-.ad-stats-calendar-panel {
+.vo-stats-calendar-panel {
 	display: flex;
 	flex-direction: column;
 	flex-grow: 1;
 	min-height: 0;
 }
 
-.ad-stats-calendar-grid {
+.vo-stats-calendar-grid {
 	display: grid;
 	grid-template-columns: repeat(7, minmax(0, 1fr));
 }
 
-.ad-stats-calendar-grid--header {
+.vo-stats-calendar-grid--header {
 	gap: 3px;
 }
 
-.ad-stats-calendar-grid--body {
-	--ad-stats-calendar-rows: 5;
+.vo-stats-calendar-grid--body {
+	--vo-stats-calendar-rows: 5;
 	flex-grow: 1;
 	align-content: start;
 	grid-auto-rows: minmax(68px, 1fr);
 	gap: 4px;
 }
 
-.ad-stats-calendar-grid--body.is-compact {
+.vo-stats-calendar-grid--body.is-compact {
 	grid-auto-rows: minmax(52px, 1fr);
 	gap: 3px;
 }
 
-.ad-stats-calendar-weekday {
+.vo-stats-calendar-weekday {
 	text-align: center;
 	font-size: 10px;
 	font-weight: 500;
@@ -339,7 +339,7 @@
 	padding-bottom: 4px;
 }
 
-.ad-stats-calendar-cell {
+.vo-stats-calendar-cell {
 	border-radius: 6px;
 	border: 1px solid var(--background-modifier-border);
 	display: flex;
@@ -357,41 +357,41 @@
 	text-align: center;
 }
 
-.ad-stats-calendar-grid--body.is-compact .ad-stats-calendar-cell {
+.vo-stats-calendar-grid--body.is-compact .vo-stats-calendar-cell {
 	border-radius: 5px;
 	padding: 4px 3px;
 	gap: 1px;
 	font-size: 10px;
 }
 
-.ad-stats-calendar-cell.is-empty {
+.vo-stats-calendar-cell.is-empty {
 	background-color: transparent;
 	border: none;
 }
 
-.ad-stats-calendar-cell.has-read {
+.vo-stats-calendar-cell.has-read {
 	background-color: #d8f0ed;
 	border-color: #8ad3c5;
 	color: #2f8e7b;
 }
 
-.ad-stats-calendar-cell-day {
+.vo-stats-calendar-cell-day {
 	line-height: 1.1;
 }
 
-.ad-stats-calendar-cell-count {
+.vo-stats-calendar-cell-count {
 	font-size: 9px;
 	line-height: 1.1;
 	opacity: 0.85;
 	white-space: nowrap;
 }
 
-.ad-stats-calendar-grid--body.is-compact .ad-stats-calendar-cell-count {
+.vo-stats-calendar-grid--body.is-compact .vo-stats-calendar-cell-count {
 	font-size: 8px;
 }
 
 /* Heatmap Chart */
-.ad-stats-heatmap-wrapper {
+.vo-stats-heatmap-wrapper {
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
@@ -401,22 +401,22 @@
 	padding-bottom: 15px;
 }
 
-.ad-stats-heatmap-col {
+.vo-stats-heatmap-col {
 	display: flex;
 	flex-direction: column;
 }
 
-.ad-stats-heatmap-cell {
+.vo-stats-heatmap-cell {
 	border-radius: 2px;
 	background-color: color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
 	position: relative;
 }
 
-.ad-stats-heatmap-cell:hover .ad-stats-heatmap-cell-tooltip {
+.vo-stats-heatmap-cell:hover .vo-stats-heatmap-cell-tooltip {
 	display: block;
 }
 
-.ad-stats-heatmap-cell-tooltip {
+.vo-stats-heatmap-cell-tooltip {
 	display: none;
 	position: absolute;
 	bottom: 100%;
@@ -437,7 +437,7 @@
 .level-3 { background-color: #4ab69f !important; }
 .level-4 { background-color: #2f8e7b !important; }
 
-.ad-stats-heatmap-footer {
+.vo-stats-heatmap-footer {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
@@ -446,13 +446,13 @@
 	margin-top: 10px;
 }
 
-.ad-stats-heatmap-legend {
+.vo-stats-heatmap-legend {
 	display: flex;
 	align-items: center;
 	gap: 4px;
 }
 
-.ad-stats-heatmap-legend-box {
+.vo-stats-heatmap-legend-box {
 	width: 10px;
 	height: 10px;
 	border-radius: 2px;
@@ -460,21 +460,21 @@
 }
 
 /* 今日待办与今日习惯打卡大屏布局 */
-.ad-tasks-wrapper {
+.vo-tasks-wrapper {
 	width: 100%;
 	display: flex;
 	flex-direction: column;
 	gap: 20px;
 }
 
-.ad-habit-list {
+.vo-habit-list {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
 	margin-top: 12px;
 }
 
-.ad-habit-item {
+.vo-habit-item {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -485,30 +485,30 @@
 	transition: all 0.2s ease;
 }
 
-.ad-habit-item:hover {
+.vo-habit-item:hover {
 	background: var(--background-modifier-hover);
 }
 
-.ad-habit-check-btn {
+.vo-habit-check-btn {
 	transition: all 0.2s ease;
 }
 
-.ad-habit-check-btn:hover {
+.vo-habit-check-btn:hover {
 	transform: scale(1.1);
 }
 
-.ad-habit-check-btn.is-completed {
+.vo-habit-check-btn.is-completed {
 	background: var(--interactive-accent) !important;
 	border-color: var(--interactive-accent) !important;
 	color: var(--text-on-accent) !important;
 }
 
 /* Today's Tasks Styling */
-.ad-task-list {
+.vo-task-list {
 	margin-top: 16px;
 }
 
-.ad-task-item {
+.vo-task-item {
 	display: flex;
 	align-items: center;
 	gap: 12px;
@@ -520,11 +520,11 @@
 	margin-bottom: 8px;
 }
 
-.ad-task-item:hover {
+.vo-task-item:hover {
 	background: var(--background-modifier-hover);
 }
 
-.ad-task-check-btn {
+.vo-task-check-btn {
 	border-radius: 50%;
 	width: 24px;
 	height: 24px;
@@ -539,24 +539,24 @@
 	transition: all 0.2s ease;
 }
 
-.ad-task-check-btn:hover {
+.vo-task-check-btn:hover {
 	transform: scale(1.1);
 }
 
-.ad-task-check-btn.is-completed {
+.vo-task-check-btn.is-completed {
 	border: 1px solid var(--text-success) !important;
 	background: transparent !important;
 	color: var(--text-success) !important;
 	cursor: not-allowed;
 }
 
-.ad-task-text.is-completed {
+.vo-task-text.is-completed {
 	text-decoration: line-through;
 	color: var(--text-muted);
 }
 
 /* Custom Dropdown select menu styling to match Obsidian theme background */
-.ad-select {
+.vo-select {
 	background-color: var(--background-primary);
 	color: var(--text-normal);
 	border: 1px solid var(--background-modifier-border);
@@ -569,25 +569,25 @@
 	transition: border-color 0.2s ease;
 }
 
-.ad-select:hover {
+.vo-select:hover {
 	border-color: var(--text-muted);
 }
 
-.ad-select option,
+.vo-select option,
 select.dropdown option {
 	background-color: var(--background-primary) !important;
 	color: var(--text-normal) !important;
 }
 
 /* 统计小数据卡片组 */
-.ad-stats-mini-grid {
+.vo-stats-mini-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
 	gap: 12px;
 	margin-bottom: 12px;
 }
 
-.ad-stats-mini-card {
+.vo-stats-mini-card {
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
@@ -598,22 +598,22 @@ select.dropdown option {
 	gap: 4px;
 }
 
-.theme-light .ad-stats-mini-card {
+.theme-light .vo-stats-mini-card {
 	background: transparent;
 }
 
-.ad-stats-mini-val {
+.vo-stats-mini-val {
 	font-size: 18px;
 	font-weight: 700;
 }
 
-.ad-stats-mini-label {
+.vo-stats-mini-label {
 	font-size: 11px;
 	color: var(--text-muted);
 }
 
 /* 图表区结构 */
-.ad-stats-chart-section {
+.vo-stats-chart-section {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 12px;
 	padding: 16px 18px 18px;
@@ -622,23 +622,23 @@ select.dropdown option {
 	min-height: 0;
 }
 
-.theme-light .ad-stats-chart-section {
+.theme-light .vo-stats-chart-section {
 	background: transparent;
 }
 
-.ad-stats-chart-header {
+.vo-stats-chart-header {
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
 	margin-bottom: 10px;
 }
 
-.ad-stats-chart-title {
+.vo-stats-chart-title {
 	font-size: 14px;
 	font-weight: 700;
 }
 
-.ad-stats-chart-toggles {
+.vo-stats-chart-toggles {
 	display: flex;
 	background: var(--background-primary);
 	border: 1px solid var(--background-modifier-border);
@@ -646,7 +646,7 @@ select.dropdown option {
 	padding: 2px;
 }
 
-.ad-stats-chart-toggle-btn {
+.vo-stats-chart-toggle-btn {
 	background: none;
 	border: none;
 	padding: 4px 8px;
@@ -657,18 +657,18 @@ select.dropdown option {
 	align-items: center;
 }
 
-.ad-stats-chart-toggle-btn.is-active {
+.vo-stats-chart-toggle-btn.is-active {
 	background: var(--background-secondary);
 	color: var(--interactive-accent);
 }
 
-.theme-light .ad-stats-chart-toggle-btn.is-active {
+.theme-light .vo-stats-chart-toggle-btn.is-active {
 	background: #F5F2E9;
 	color: #8C1A1A;
 }
 
 /* 每日柱状图样式 */
-.ad-stats-bar-chart-container {
+.vo-stats-bar-chart-container {
 	display: flex;
 	align-items: flex-end;
 	justify-content: space-between;
@@ -679,12 +679,12 @@ select.dropdown option {
 }
 
 /* 日记模块周期切换按钮组与间距 */
-.ad-card-tabs {
+.vo-card-tabs {
 	display: flex;
 	gap: 8px;
 }
 
-.ad-card-tab-btn {
+.vo-card-tab-btn {
 	background-color: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
@@ -697,12 +697,12 @@ select.dropdown option {
 	box-shadow: none;
 }
 
-.ad-card-tab-btn:hover {
+.vo-card-tab-btn:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.ad-card-tab-btn.is-active {
+.vo-card-tab-btn.is-active {
 	background-color: var(--interactive-accent);
 	color: var(--text-on-accent);
 	border-color: var(--interactive-accent);
@@ -710,7 +710,7 @@ select.dropdown option {
 }
 
 /* 设置界面 Tab 样式 */
-.ad-settings-tabs-container {
+.vo-settings-tabs-container {
 	display: flex;
 	gap: 16px;
 	border-bottom: 1px solid var(--background-modifier-border);
@@ -718,7 +718,7 @@ select.dropdown option {
 	padding-bottom: 0px;
 }
 
-.ad-settings-tab-btn {
+.vo-settings-tab-btn {
 	display: flex;
 	align-items: center;
 	gap: 6px;
@@ -731,32 +731,32 @@ select.dropdown option {
 	transition: all 0.2s ease;
 }
 
-.ad-settings-tab-btn:hover {
+.vo-settings-tab-btn:hover {
 	color: var(--text-normal);
 }
 
-.ad-settings-tab-btn.is-active {
+.vo-settings-tab-btn.is-active {
 	color: var(--interactive-accent);
 	border-bottom: 2px solid var(--interactive-accent);
 	font-weight: 600;
 }
 
-.ad-settings-tab-icon {
+.vo-settings-tab-icon {
 	display: flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.ad-settings-tab-icon svg {
+.vo-settings-tab-icon svg {
 	width: 14px;
 	height: 14px;
 }
 
-.ad-settings-section-content {
+.vo-settings-section-content {
 	animation: fadeIn 0.3s ease-out;
 }
 
-.ad-settings-note {
+.vo-settings-note {
 	margin: 0 0 16px;
 	padding: 0 2px;
 	font-size: 12px;
@@ -764,22 +764,22 @@ select.dropdown option {
 	color: var(--text-muted);
 }
 
-.ad-settings-note-subtle {
+.vo-settings-note-subtle {
 	margin-top: -6px;
 	color: color-mix(in srgb, var(--text-muted) 88%, var(--text-normal) 12%);
 }
 
-.ad-settings-note-link {
+.vo-settings-note-link {
 	color: var(--text-accent);
 	text-decoration: none;
 }
 
-.ad-settings-note-link:hover {
+.vo-settings-note-link:hover {
 	color: var(--text-accent-hover);
 	text-decoration: underline;
 }
 
-.ad-setting-action-item {
+.vo-setting-action-item {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
 	padding: 12px;
@@ -787,7 +787,7 @@ select.dropdown option {
 	background: color-mix(in srgb, var(--background-secondary) 55%, transparent);
 }
 
-.ad-actions-toolbar {
+.vo-actions-toolbar {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -795,13 +795,13 @@ select.dropdown option {
 	margin: 8px 0 12px;
 }
 
-.ad-actions-toolbar-title {
+.vo-actions-toolbar-title {
 	margin: 0;
 	font-size: 16px;
 	font-weight: 700;
 }
 
-.ad-actions-toolbar-add {
+.vo-actions-toolbar-add {
 	width: 32px;
 	height: 32px;
 	border-radius: 8px;
@@ -812,14 +812,14 @@ select.dropdown option {
 	line-height: 1;
 }
 
-.ad-actions-compact-list {
+.vo-actions-compact-list {
 	display: flex;
 	flex-direction: column;
 	gap: 10px;
 	margin-bottom: 18px;
 }
 
-.ad-actions-compact-row {
+.vo-actions-compact-row {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -830,7 +830,7 @@ select.dropdown option {
 	background: color-mix(in srgb, var(--background-secondary) 58%, transparent);
 }
 
-.ad-actions-compact-main {
+.vo-actions-compact-main {
 	display: flex;
 	align-items: flex-start;
 	gap: 12px;
@@ -838,7 +838,7 @@ select.dropdown option {
 	flex: 1;
 }
 
-.ad-actions-compact-icon {
+.vo-actions-compact-icon {
 	width: 18px;
 	height: 18px;
 	display: inline-flex;
@@ -848,71 +848,71 @@ select.dropdown option {
 	color: var(--text-normal);
 }
 
-.ad-actions-compact-icon svg {
+.vo-actions-compact-icon svg {
 	width: 18px;
 	height: 18px;
 }
 
-.ad-actions-compact-text {
+.vo-actions-compact-text {
 	min-width: 0;
 	display: flex;
 	flex-direction: column;
 	gap: 4px;
 }
 
-.ad-actions-compact-title {
+.vo-actions-compact-title {
 	font-size: 14px;
 	font-weight: 600;
 	color: var(--text-normal);
 }
 
-.ad-actions-compact-desc {
+.vo-actions-compact-desc {
 	font-size: 12px;
 	line-height: 1.45;
 	color: var(--text-muted);
 }
 
-.ad-actions-compact-controls {
+.vo-actions-compact-controls {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
 	flex-shrink: 0;
 }
 
-.ad-actions-preview-section {
+.vo-actions-preview-section {
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
 }
 
-.ad-actions-preview-card {
+.vo-actions-preview-card {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 12px;
 	padding: 12px;
 	background: color-mix(in srgb, var(--background-secondary) 45%, transparent);
 }
 
-.ad-actions-preview-label {
+.vo-actions-preview-label {
 	font-size: 12px;
 	font-weight: 600;
 	color: var(--text-muted);
 	margin-bottom: 10px;
 }
 
-.ad-actions-preview-grid {
+.vo-actions-preview-grid {
 	display: grid;
 	gap: 10px 12px;
 }
 
-.ad-actions-preview-grid-four {
+.vo-actions-preview-grid-four {
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.ad-actions-preview-grid-two {
+.vo-actions-preview-grid-two {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.ad-actions-preview-button {
+.vo-actions-preview-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -923,7 +923,7 @@ select.dropdown option {
 	font-size: 12px;
 }
 
-.ad-actions-preview-button-icon {
+.vo-actions-preview-button-icon {
 	width: 16px;
 	height: 16px;
 	display: inline-flex;
@@ -931,19 +931,19 @@ select.dropdown option {
 	justify-content: center;
 }
 
-.ad-actions-preview-button-icon svg {
+.vo-actions-preview-button-icon svg {
 	width: 16px;
 	height: 16px;
 }
 
-.ad-actions-preview-input-row {
+.vo-actions-preview-input-row {
 	display: flex;
 	align-items: center;
 	gap: 8px;
 	min-width: 0;
 }
 
-.ad-actions-preview-input-row input {
+.vo-actions-preview-input-row input {
 	flex: 1;
 	min-width: 0;
 	height: 32px;
@@ -954,7 +954,7 @@ select.dropdown option {
 	color: var(--text-muted);
 }
 
-.ad-actions-preview-input-button {
+.vo-actions-preview-input-button {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -967,15 +967,15 @@ select.dropdown option {
 	flex-shrink: 0;
 }
 
-.ad-action-modal .modal-content {
+.vo-action-modal .modal-content {
 	padding-bottom: 12px;
 }
 
-.ad-action-modal-prompt {
+.vo-action-modal-prompt {
 	min-height: 180px;
 }
 
-.ad-action-modal-footer {
+.vo-action-modal-footer {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -983,15 +983,15 @@ select.dropdown option {
 	margin-top: 18px;
 }
 
-.ad-action-modal-footer-left,
-.ad-action-modal-footer-right {
+.vo-action-modal-footer-left,
+.vo-action-modal-footer-right {
 	display: inline-flex;
 	align-items: center;
 	gap: 8px;
 }
 
 /* 仓库统计子导航 */
-.ad-stats-header-wrap {
+.vo-stats-header-wrap {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -1000,7 +1000,7 @@ select.dropdown option {
 	margin-bottom: 16px;
 }
 
-.ad-stats-nav-tabs {
+.vo-stats-nav-tabs {
 	display: flex;
 	background: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
@@ -1009,7 +1009,7 @@ select.dropdown option {
 	gap: 4px;
 }
 
-.ad-stats-tab-btn {
+.vo-stats-tab-btn {
 	background: transparent;
 	border: none;
 	outline: none;
@@ -1023,12 +1023,12 @@ select.dropdown option {
 	box-shadow: none;
 }
 
-.ad-stats-tab-btn:hover {
+.vo-stats-tab-btn:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
 
-.ad-stats-tab-btn.is-active {
+.vo-stats-tab-btn.is-active {
 	background-color: var(--interactive-accent) !important;
 	color: var(--text-on-accent) !important;
 	border-color: var(--interactive-accent) !important;
@@ -1036,20 +1036,20 @@ select.dropdown option {
 }
 
 /* 项目数据库表格样式 */
-.ad-projects-table-container {
+.vo-projects-table-container {
 	width: 100%;
 	overflow-x: auto;
 	margin-top: 16px;
 }
 
-.ad-projects-table {
+.vo-projects-table {
 	width: 100%;
 	border-collapse: collapse;
 	font-size: 13px;
 	text-align: left;
 }
 
-.ad-projects-table th {
+.vo-projects-table th {
 	padding: 10px 12px;
 	font-weight: 600;
 	color: var(--text-muted);
@@ -1060,26 +1060,26 @@ select.dropdown option {
 	letter-spacing: 0.5px;
 }
 
-.ad-projects-table td {
+.vo-projects-table td {
 	padding: 12px;
 	border-bottom: 1px solid var(--background-modifier-border-hover);
 	vertical-align: middle;
 	color: var(--text-normal);
 }
 
-.ad-projects-table tr:last-child td {
+.vo-projects-table tr:last-child td {
 	border-bottom: none;
 }
 
-.ad-projects-table tr {
+.vo-projects-table tr {
 	transition: background-color 0.15s ease;
 }
 
-.ad-projects-table tr:hover {
+.vo-projects-table tr:hover {
 	background-color: var(--background-modifier-hover);
 }
 
-.ad-projects-table-name a {
+.vo-projects-table-name a {
 	color: var(--text-accent);
 	text-decoration: none;
 	font-weight: 500;
@@ -1087,13 +1087,13 @@ select.dropdown option {
 	cursor: pointer;
 }
 
-.ad-projects-table-name a:hover {
+.vo-projects-table-name a:hover {
 	color: var(--text-accent-hover);
 	opacity: 0.85;
 	text-decoration: underline;
 }
 
-.ad-status-badge {
+.vo-status-badge {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
@@ -1101,19 +1101,19 @@ select.dropdown option {
 	font-size: 12px;
 }
 
-.ad-status-icon {
+.vo-status-icon {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 }
 
-.ad-projects-table-time {
+.vo-projects-table-time {
 	color: var(--text-muted);
 	font-family: var(--font-monospace);
 	font-size: 12px;
 }
 
-.ad-topic-badge {
+.vo-topic-badge {
 	display: inline-block;
 	padding: 2px 8px;
 	border-radius: 12px;
@@ -1127,7 +1127,7 @@ select.dropdown option {
 	transition: all 0.15s ease;
 }
 
-.ad-topic-badge:hover {
+.vo-topic-badge:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }

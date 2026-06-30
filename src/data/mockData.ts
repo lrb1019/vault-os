@@ -64,7 +64,7 @@ export const mockTaskOverview: TaskOverview = {
 export const mockDiaryStatus: DiaryStatus = {
 	isCreated: true,
 	path: "01 Daily/2026-06-22.md",
-	summary: "今日重点：开始进行 Agent Dashboard UI 插件迁移；已读书半小时；处理了 Inbox 里的几篇技术文章。"
+	summary: "今日重点：开始进行 Vault OS UI 插件迁移；已读书半小时；处理了 Inbox 里的几篇技术文章。"
 };
 
 export const mockRecentReads: BookReflection[] = [

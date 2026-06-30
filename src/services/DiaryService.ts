@@ -1,5 +1,5 @@
 import { App, TFile, TFolder, moment } from 'obsidian';
-import AgentDashboardPlugin from '../main';
+import VaultOsPlugin from '../main';
 
 export interface DiaryInfo {
 	isCreated: boolean;
@@ -78,10 +78,10 @@ interface NavigatorConfig {
 }
 
 export class DiaryService {
-	private plugin: AgentDashboardPlugin;
+	private plugin: VaultOsPlugin;
 	private app: App;
 
-	constructor(plugin: AgentDashboardPlugin) {
+	constructor(plugin: VaultOsPlugin) {
 		this.plugin = plugin;
 		this.app = plugin.app;
 	}

@@ -1,6 +1,6 @@
 import { App, TFile } from 'obsidian';
 import { McpService } from './McpService';
-import AgentDashboardPlugin from '../main';
+import VaultOsPlugin from '../main';
 
 export interface TaskItem {
 	id: string;
@@ -88,7 +88,7 @@ interface CachedTaskData {
 
 
 export class TaskService {
-	private plugin: AgentDashboardPlugin;
+	private plugin: VaultOsPlugin;
 	private app: App;
 	public mcpService: McpService;
 	
@@ -107,7 +107,7 @@ export class TaskService {
 
 	private isInitialized = false;
 
-	constructor(plugin: AgentDashboardPlugin) {
+	constructor(plugin: VaultOsPlugin) {
 		this.plugin = plugin;
 		this.app = plugin.app;
 		this.mcpService = new McpService(plugin);
@@ -293,14 +293,14 @@ export class TaskService {
 									const parsedObj = parsed as { text?: string; error?: string };
 									if (!parsedObj.error) {
 										if (typeof parsedObj.text === 'string' && parsedObj.text.startsWith('Error')) {
-											console.warn('Agent Dashboard MCP Tool Error:', parsedObj.text);
+											console.warn('Vault OS MCP Tool Error:', parsedObj.text);
 										} else {
 											results.push(parsed);
 										}
 									}
 								}
 							} catch (e) {
-								console.warn('Agent Dashboard: Failed to parse MCP text result for', name, e);
+								console.warn('Vault OS: Failed to parse MCP text result for', name, e);
 							}
 						}
 					}

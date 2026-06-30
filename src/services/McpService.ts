@@ -1,5 +1,5 @@
 import { App, requestUrl } from 'obsidian';
-import AgentDashboardPlugin from '../main';
+import VaultOsPlugin from '../main';
 
 interface McpServerConfig {
 	type?: string;
@@ -18,10 +18,10 @@ interface JsonRpcResponse {
 }
 
 export class McpService {
-	private plugin: AgentDashboardPlugin;
+	private plugin: VaultOsPlugin;
 	private app: App;
 
-	constructor(plugin: AgentDashboardPlugin) {
+	constructor(plugin: VaultOsPlugin) {
 		this.plugin = plugin;
 		this.app = plugin.app;
 	}
