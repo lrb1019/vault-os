@@ -13,13 +13,13 @@ export default class VaultOsPlugin extends Plugin {
 			(leaf) => new VaultOsView(leaf, this)
 		);
 
-		this.addRibbonIcon('layout-dashboard', 'Open Vault OS', () => {
+		this.addRibbonIcon('waypoints', 'Open Vault OS', () => {
 			void this.activateView();
 		});
 
 		this.addCommand({
-			id: 'open-vault-os',
-			name: 'Open Vault OS',
+			id: 'open-dashboard',
+			name: 'Open dashboard',
 			callback: () => {
 				void this.activateView();
 			}

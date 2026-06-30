@@ -1,4 +1,4 @@
-﻿import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, MarkdownRenderer, parseYaml } from 'obsidian';
+﻿import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, parseYaml } from 'obsidian';
 import VaultOsPlugin from './main';
 import { ReadingService } from './services/ReadingService';
 import { DiaryService } from './services/DiaryService';
@@ -324,6 +324,93 @@ interface ProjectInfo {
 	mtimeStr: string;
 }
 
+type ProjectFilterCondition =
+	| string
+	| {
+		and?: ProjectFilterCondition[];
+		or?: ProjectFilterCondition[];
+	};
+
+interface ProjectBaseDefinition {
+	filters?: ProjectFilterCondition;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === 'object' && value !== null;
+}
+
+function isProjectFilterCondition(value: unknown): value is ProjectFilterCondition {
+	if (typeof value === 'string') {
+		return true;
+	}
+	if (!isRecord(value)) {
+		return false;
+	}
+
+	const andValue = value.and;
+	if (andValue !== undefined) {
+		if (!Array.isArray(andValue) || !andValue.every(isProjectFilterCondition)) {
+			return false;
+		}
+	}
+
+	const orValue = value.or;
+	if (orValue !== undefined) {
+		if (!Array.isArray(orValue) || !orValue.every(isProjectFilterCondition)) {
+			return false;
+		}
+	}
+
+	return andValue !== undefined || orValue !== undefined;
+}
+
+function toStringArray(value: unknown): string[] {
+	if (typeof value === 'string') {
+		return [value];
+	}
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((entry): entry is string => typeof entry === 'string');
+}
+
+function toComparableText(value: unknown): string {
+	if (typeof value === 'string') {
+		return value.toLowerCase();
+	}
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return String(value).toLowerCase();
+	}
+	return '';
+}
+
+function toOptionalText(value: unknown): string | undefined {
+	if (typeof value === 'string') {
+		return value;
+	}
+	if (typeof value === 'number' || typeof value === 'boolean') {
+		return String(value);
+	}
+	return undefined;
+}
+
+function getProjectBaseDefinition(value: unknown): ProjectBaseDefinition | null {
+	if (!isRecord(value)) {
+		return null;
+	}
+
+	const filters = value.filters;
+	if (filters === undefined) {
+		return {};
+	}
+
+	if (!isProjectFilterCondition(filters)) {
+		return null;
+	}
+
+	return { filters };
+}
+
 export class VaultOsView extends ItemView {
 	plugin: VaultOsPlugin;
 	
@@ -429,7 +516,7 @@ export class VaultOsView extends ItemView {
 	}
 
 	getIcon(): string {
-		return 'layout-dashboard';
+		return 'waypoints';
 	}
 
 	triggerClaudianPrompt(prompt: string): void {
@@ -3319,7 +3406,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			
 			projects.forEach(proj => {
 				if (proj.status in counts) {
-					counts[proj.status as keyof typeof counts]++;
+					counts[proj.status]++;
 				}
 			});
 
@@ -3405,9 +3492,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					}
 
 					if (isLink) {
-						const linkEl = tdTopics.createEl('a', { text: displayText, cls: 'vo-topic-badge' });
-						linkEl.style.cursor = 'pointer';
-						linkEl.style.textDecoration = 'none';
+						const linkEl = tdTopics.createEl('a', { text: displayText, cls: 'vo-topic-badge vo-topic-badge-link' });
 						linkEl.addEventListener('click', (e) => {
 							e.preventDefault();
 							void this.app.workspace.openLinkText(linkTarget, proj.path, false);
@@ -3429,9 +3514,9 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				return [];
 			}
 			const baseContent = await this.app.vault.read(baseFile);
-			const baseYaml = parseYaml(baseContent);
+			const baseDefinition = getProjectBaseDefinition(parseYaml(baseContent));
 			
-			const evaluateCondition = (cond: any, file: TFile, tags: string[]): boolean => {
+			const evaluateCondition = (cond: ProjectFilterCondition, file: TFile, tags: string[]): boolean => {
 				if (typeof cond === 'string') {
 					const isNegated = cond.startsWith('!');
 					const expr = isNegated ? cond.substring(1) : cond;
@@ -3455,77 +3540,73 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					}
 					
 					return isNegated ? !match : match;
-				} else if (cond && typeof cond === 'object') {
-					if (cond.and && Array.isArray(cond.and)) {
-						return cond.and.every((c: any) => evaluateCondition(c, file, tags));
-					}
-					if (cond.or && Array.isArray(cond.or)) {
-						return cond.or.some((c: any) => evaluateCondition(c, file, tags));
-					}
 				}
+
+				if (cond.and && Array.isArray(cond.and)) {
+					return cond.and.every((childCondition) => evaluateCondition(childCondition, file, tags));
+				}
+				if (cond.or && Array.isArray(cond.or)) {
+					return cond.or.some((childCondition) => evaluateCondition(childCondition, file, tags));
+				}
+
 				return true;
 			};
 
 			const allFiles = this.app.vault.getMarkdownFiles();
 			for (const child of allFiles) {
 				const cache = this.app.metadataCache.getFileCache(child);
-				const frontmatter = cache?.frontmatter || {};
+				const frontmatter = isRecord(cache?.frontmatter) ? cache.frontmatter : undefined;
 				const inlineTags = (cache?.tags || []).map(t => t.tag.replace(/^#/, ''));
-				let fmTags = frontmatter.tags || [];
-				if (typeof fmTags === 'string') fmTags = [fmTags];
-				if (!Array.isArray(fmTags)) fmTags = [];
+				const frontmatterTags = toStringArray(frontmatter?.tags);
+				const allTags = [...frontmatterTags, ...inlineTags];
 				
-				const allTags = [...fmTags, ...inlineTags];
-				
-				const isMatch = baseYaml?.filters ? evaluateCondition(baseYaml.filters, child, allTags) : false;
+				const isMatch = baseDefinition?.filters ? evaluateCondition(baseDefinition.filters, child, allTags) : false;
 				
 				if (!isMatch) {
 					continue;
 				}
-							const statusRaw = String(frontmatter.status || '').toLowerCase();
-							let status: ProjectInfo['status'] = 'active';
-							if (statusRaw.includes('pending') || statusRaw.includes('⚪')) {
-								status = 'pending';
-							} else if (statusRaw.includes('active') || statusRaw.includes('🟢')) {
-								status = 'active';
-							} else if (statusRaw.includes('on hold') || statusRaw.includes('🟡')) {
-								status = 'onhold';
-							} else if (statusRaw.includes('blocked') || statusRaw.includes('🔴')) {
-								status = 'blocked';
-							} else if (statusRaw.includes('completed') || statusRaw.includes('🔵')) {
-								status = 'completed';
-							} else if (statusRaw.includes('cancelled') || statusRaw.includes('⚫') || statusRaw.includes('archived') || statusRaw.includes('归档')) {
-								status = 'cancelled';
-							}
-							
-							const deadline = frontmatter.deadline ? String(frontmatter.deadline) : undefined;
-							
-							let topics = frontmatter.topics || [];
-							if (typeof topics === 'string') topics = [topics];
-							if (!Array.isArray(topics)) topics = [];
 
-							let goal = undefined;
-							const fileContent = await this.app.vault.cachedRead(child);
-							const goalMatch = fileContent.match(/>\s*\[!GOAL\]\s*核心目标\s*\n>\s*(.+)/);
-							if (goalMatch && goalMatch[1]) {
-								goal = goalMatch[1].trim();
-							}
+				const statusRaw = toComparableText(frontmatter?.status);
+				let status: ProjectInfo['status'] = 'active';
+				if (statusRaw.includes('pending') || statusRaw.includes('⚪')) {
+					status = 'pending';
+				} else if (statusRaw.includes('active') || statusRaw.includes('🟢')) {
+					status = 'active';
+				} else if (statusRaw.includes('on hold') || statusRaw.includes('🟡')) {
+					status = 'onhold';
+				} else if (statusRaw.includes('blocked') || statusRaw.includes('🔴')) {
+					status = 'blocked';
+				} else if (statusRaw.includes('completed') || statusRaw.includes('🔵')) {
+					status = 'completed';
+				} else if (statusRaw.includes('cancelled') || statusRaw.includes('⚫') || statusRaw.includes('archived') || statusRaw.includes('归档')) {
+					status = 'cancelled';
+				}
+				
+				const deadline = toOptionalText(frontmatter?.deadline);
+				const topics = toStringArray(frontmatter?.topics);
 
-							const progress = Number(frontmatter.progress || 0);
-							const mtimeStr = moment(child.stat.mtime).format('YYYY-MM-DD');
-							const ctimeStr = moment(child.stat.ctime).format('YYYY/MM/DD HH:mm:ss');
+				let goal = undefined;
+				const fileContent = await this.app.vault.cachedRead(child);
+				const goalMatch = fileContent.match(/>\s*\[!GOAL\]\s*核心目标\s*\n>\s*(.+)/);
+				if (goalMatch && goalMatch[1]) {
+					goal = goalMatch[1].trim();
+				}
 
-							projects.push({
-								title: child.basename,
-								path: child.path,
-								status,
-								deadline,
-								goal,
-								topics,
-								ctimeStr,
-								progress,
-								mtimeStr
-							});
+				const progress = Number(frontmatter?.progress || 0);
+				const mtimeStr = moment(child.stat.mtime).format('YYYY-MM-DD');
+				const ctimeStr = moment(child.stat.ctime).format('YYYY/MM/DD HH:mm:ss');
+
+				projects.push({
+					title: child.basename,
+					path: child.path,
+					status,
+					deadline,
+					goal,
+					topics,
+					ctimeStr,
+					progress,
+					mtimeStr
+				});
 			}
 		} catch (error) {
 			console.error('Failed to scan projects:', error);
@@ -3996,3 +4077,4 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		legend.createSpan({ text: '多' });
 	}
 }
+

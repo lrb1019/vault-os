@@ -795,6 +795,17 @@ select.dropdown option {
 	margin: 8px 0 12px;
 }
 
+.vo-settings-section-heading {
+	flex: 1;
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+.vo-settings-section-heading .setting-item-info {
+	padding: 0;
+}
+
 .vo-actions-toolbar-title {
 	margin: 0;
 	font-size: 16px;
@@ -1127,10 +1138,14 @@ select.dropdown option {
 	transition: all 0.15s ease;
 }
 
+.vo-topic-badge-link {
+	cursor: pointer;
+	text-decoration: none;
+}
+
 .vo-topic-badge:hover {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
-
 
 

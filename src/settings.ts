@@ -265,6 +265,50 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		note.appendText('。把站点上的图标名填进图标字段即可。');
 	}
 
+	private runAsyncTask(task: () => Promise<void>): void {
+		void task().catch(error => {
+			console.error('Vault OS settings action failed:', error);
+		});
+	}
+
+	private createActionTemplate(): ClaudianAction {
+		return {
+			id: `action-${Date.now()}`,
+			label: '新指令',
+			description: '',
+			icon: 'bot',
+			prompt: '',
+			requireInput: false,
+			enabled: true,
+			inputPlaceholder: ''
+		};
+	}
+
+	private async addAction(): Promise<void> {
+		this.plugin.settings.claudianActions.push(this.createActionTemplate());
+		await this.plugin.saveSettings();
+		this.display();
+		this.refreshDashboardView();
+	}
+
+	private createSectionHeading(container: HTMLElement, title: string): void {
+		const heading = new Setting(container).setName(title).setHeading();
+		heading.settingEl.addClass('vo-settings-section-heading');
+		heading.nameEl.addClass('vo-actions-toolbar-title');
+	}
+
+	private createActionToolbar(container: HTMLElement, title: string): void {
+		const header = container.createDiv({ cls: 'vo-actions-toolbar' });
+		this.createSectionHeading(header, title);
+
+		const addBtn = header.createEl('button', { text: '+', cls: 'vo-actions-toolbar-add' });
+		addBtn.addEventListener('click', () => {
+			this.runAsyncTask(async () => {
+				await this.addAction();
+			});
+		});
+	}
+
 	private normalizeAction(action: ClaudianAction): ClaudianAction {
 		return {
 			enabled: true,
@@ -291,24 +335,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		const actions = (this.plugin.settings.claudianActions || []).map(action => this.normalizeAction(action));
 		this.plugin.settings.claudianActions = actions;
 
-		const header = sectionContent.createDiv({ cls: 'vo-actions-toolbar' });
-		header.createEl('h3', { text: '指令列表', cls: 'vo-actions-toolbar-title' });
-		const addBtn = header.createEl('button', { text: '+', cls: 'vo-actions-toolbar-add' });
-		addBtn.addEventListener('click', async () => {
-			this.plugin.settings.claudianActions.push({
-				id: `action-${Date.now()}`,
-				label: '新指令',
-				description: '',
-				icon: 'bot',
-				prompt: '',
-				requireInput: false,
-				enabled: true,
-				inputPlaceholder: ''
-			});
-			await this.plugin.saveSettings();
-			this.display();
-			this.refreshDashboardView();
-		});
+		this.createActionToolbar(sectionContent, '指令列表');
 
 		const list = sectionContent.createDiv({ cls: 'vo-actions-list' });
 
@@ -331,8 +358,10 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			new Setting(statusWrap)
 				.addToggle(toggle => toggle
 					.setValue(action.enabled !== false)
-					.onChange(async (value) => {
-						await this.saveAction(index, { ...action, enabled: value });
+					.onChange((value) => {
+						this.runAsyncTask(async () => {
+							await this.saveAction(index, { ...action, enabled: value });
+						});
 					}));
 
 			const editBtn = controls.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': '编辑指令' } });
@@ -345,11 +374,13 @@ export class VaultOsSettingTab extends PluginSettingTab {
 
 			const deleteBtn = controls.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': '删除指令' } });
 			setIcon(deleteBtn, 'trash-2');
-			deleteBtn.addEventListener('click', async () => {
-				this.plugin.settings.claudianActions.splice(index, 1);
-				await this.plugin.saveSettings();
-				this.display();
-				this.refreshDashboardView();
+			deleteBtn.addEventListener('click', () => {
+				this.runAsyncTask(async () => {
+					this.plugin.settings.claudianActions.splice(index, 1);
+					await this.plugin.saveSettings();
+					this.display();
+					this.refreshDashboardView();
+				});
 			});
 		});
 	}
@@ -358,24 +389,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		const actions = (this.plugin.settings.claudianActions || []).map(action => this.normalizeAction(action));
 		this.plugin.settings.claudianActions = actions;
 
-		const header = sectionContent.createDiv({ cls: 'vo-actions-toolbar' });
-		header.createEl('h3', { text: '指令列表', cls: 'vo-actions-toolbar-title' });
-		const addBtn = header.createEl('button', { text: '+', cls: 'vo-actions-toolbar-add' });
-		addBtn.addEventListener('click', async () => {
-			this.plugin.settings.claudianActions.push({
-				id: `action-${Date.now()}`,
-				label: '新指令',
-				description: '',
-				icon: 'bot',
-				prompt: '',
-				requireInput: false,
-				enabled: true,
-				inputPlaceholder: ''
-			});
-			await this.plugin.saveSettings();
-			this.display();
-			this.refreshDashboardView();
-		});
+		this.createActionToolbar(sectionContent, '指令列表');
 
 		const list = sectionContent.createDiv({ cls: 'vo-actions-compact-list' });
 		actions.forEach((action, index) => {
@@ -416,8 +430,10 @@ export class VaultOsSettingTab extends PluginSettingTab {
 				attr: { 'aria-label': action.enabled !== false ? '关闭指令' : '启用指令' }
 			});
 			setIcon(toggleBtn, action.enabled !== false ? 'toggle-right' : 'toggle-left');
-			toggleBtn.addEventListener('click', async () => {
-				await this.saveAction(index, { ...action, enabled: !(action.enabled !== false) });
+			toggleBtn.addEventListener('click', () => {
+				this.runAsyncTask(async () => {
+					await this.saveAction(index, { ...action, enabled: !(action.enabled !== false) });
+				});
 			});
 		});
 	}
@@ -430,7 +446,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		const inputActions = enabledActions.filter(action => action.requireInput);
 
 		const previewSection = sectionContent.createDiv({ cls: 'vo-actions-preview-section' });
-		previewSection.createEl('h3', { text: '面板预览', cls: 'vo-actions-toolbar-title' });
+		this.createSectionHeading(previewSection, '面板预览');
 
 		const iconCard = previewSection.createDiv({ cls: 'vo-actions-preview-card' });
 		iconCard.createDiv({ text: '纯按钮区', cls: 'vo-actions-preview-label' });

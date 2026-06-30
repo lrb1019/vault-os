@@ -80,7 +80,7 @@ export class VaultService {
 		}
 
 		const cache = this.app.metadataCache.getFileCache(file);
-		const frontmatter = cache?.frontmatter as Record<string, unknown> | undefined;
+		const frontmatter = cache?.frontmatter;
 		const created = this.parseFrontmatterDate(frontmatter?.created);
 		if (created !== null) {
 			return created;
