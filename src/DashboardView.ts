@@ -512,7 +512,7 @@ export class VaultOsView extends ItemView {
 	}
 
 	getDisplayText(): string {
-		return '智能控制中心';
+		return 'Vault OS';
 	}
 
 	getIcon(): string {
@@ -2802,7 +2802,12 @@ export class VaultOsView extends ItemView {
 		const inputsCard = consoleLayout.createDiv({ attr: { style: 'border: 1px solid var(--background-modifier-border); border-radius: 12px; padding: 12px; background: color-mix(in srgb, var(--background-secondary) 45%, transparent);' } });
 		const inputsDiv = inputsCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px;' } });
 
-		const actions = this.plugin.settings.claudianActions || [];
+		const actions = (this.plugin.settings.claudianActions || [])
+			.map(action => ({
+				enabled: true,
+				...action
+			}))
+			.filter(action => action.enabled !== false);
 
 		actions.forEach(action => {
 			if (!action.requireInput) {

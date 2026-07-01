@@ -331,6 +331,13 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		this.refreshDashboardView();
 	}
 
+	private async deleteAction(index: number): Promise<void> {
+		this.plugin.settings.claudianActions.splice(index, 1);
+		await this.plugin.saveSettings();
+		this.display();
+		this.refreshDashboardView();
+	}
+
 	private renderActionList(sectionContent: HTMLElement): void {
 		const actions = (this.plugin.settings.claudianActions || []).map(action => this.normalizeAction(action));
 		this.plugin.settings.claudianActions = actions;
@@ -376,10 +383,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			setIcon(deleteBtn, 'trash-2');
 			deleteBtn.addEventListener('click', () => {
 				this.runAsyncTask(async () => {
-					this.plugin.settings.claudianActions.splice(index, 1);
-					await this.plugin.saveSettings();
-					this.display();
-					this.refreshDashboardView();
+					await this.deleteAction(index);
 				});
 			});
 		});
@@ -417,12 +421,20 @@ export class VaultOsSettingTab extends PluginSettingTab {
 						await this.saveAction(index, nextAction);
 					},
 					async () => {
-						this.plugin.settings.claudianActions.splice(index, 1);
-						await this.plugin.saveSettings();
-						this.display();
-						this.refreshDashboardView();
+						await this.deleteAction(index);
 					}
 				).open();
+			});
+
+			const deleteBtn = right.createEl('button', {
+				cls: 'clickable-icon',
+				attr: { 'aria-label': '删除指令' }
+			});
+			setIcon(deleteBtn, 'trash-2');
+			deleteBtn.addEventListener('click', () => {
+				this.runAsyncTask(async () => {
+					await this.deleteAction(index);
+				});
 			});
 
 			const toggleBtn = right.createEl('button', {
