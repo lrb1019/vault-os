@@ -1,4 +1,5 @@
-﻿import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, parseYaml } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, parseYaml } from 'obsidian';
+import { Setting } from 'obsidian';
 import VaultOsPlugin from './main';
 import { ReadingService } from './services/ReadingService';
 import { DiaryService } from './services/DiaryService';
@@ -89,6 +90,69 @@ class SimpleListModal extends Modal {
 	}
 
 	onClose() {
+		this.contentEl.empty();
+	}
+}
+
+class NumberInputModal extends Modal {
+	private readonly titleText: string;
+	private readonly initialValue: number;
+	private readonly minValue: number;
+	private readonly maxValue: number;
+	private readonly onSubmitValue: (value: number) => void;
+
+	constructor(app: App, titleText: string, initialValue: number, minValue: number, maxValue: number, onSubmitValue: (value: number) => void) {
+		super(app);
+		this.titleText = titleText;
+		this.initialValue = initialValue;
+		this.minValue = minValue;
+		this.maxValue = maxValue;
+		this.onSubmitValue = onSubmitValue;
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: this.titleText });
+
+		let draftValue = this.initialValue;
+		const hint = `${this.minValue} - ${this.maxValue}`;
+
+		new Setting(contentEl)
+			.setName('数值')
+			.setDesc(`请输入 ${hint}`)
+			.addText(text => {
+				text
+					.setPlaceholder(hint)
+					.setValue(String(this.initialValue))
+					.onChange((value) => {
+						const parsed = Number.parseInt(value, 10);
+						if (!Number.isNaN(parsed)) {
+							draftValue = parsed;
+						}
+					});
+				text.inputEl.type = 'number';
+				text.inputEl.min = String(this.minValue);
+				text.inputEl.max = String(this.maxValue);
+				window.setTimeout(() => text.inputEl.select(), 0);
+			});
+
+		const footer = contentEl.createDiv({ attr: { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;' } });
+		const cancelBtn = footer.createEl('button', { text: '取消' });
+		const confirmBtn = footer.createEl('button', { text: '确定', cls: 'mod-cta' });
+
+		cancelBtn.addEventListener('click', () => this.close());
+		confirmBtn.addEventListener('click', () => {
+			if (draftValue < this.minValue || draftValue > this.maxValue) {
+				new Notice(`请输入 ${hint} 之间的数值`);
+				return;
+			}
+			this.onSubmitValue(draftValue);
+			this.close();
+		});
+	}
+
+	onClose(): void {
 		this.contentEl.empty();
 	}
 }
@@ -453,7 +517,7 @@ export class VaultOsView extends ItemView {
 	private statsChartType: 'bar' | 'calendar' | 'heatmap' = 'bar';
 	private periodicTab: 'day' | 'week' | 'month' | 'quarter' | 'year' = 'day';
 	private currentDateOffset = 0; // 0 表示当前周期，-1 前一周期，+1 后一周期
-	private diaryDateOffset = 0; // 0 表示当前周期，-1 前一周期，+1 后一周期 (for diary)
+	private selectedPeriodicDate = moment();
 	private lastScanTime = '尚未进行体检';
 	private isScanning = false;
 	private historyStats = { ingested: 12, fixedLinks: 47, cleanedEmpty: 9 };
@@ -517,6 +581,85 @@ export class VaultOsView extends ItemView {
 
 	getIcon(): string {
 		return 'waypoints';
+	}
+
+	private getPeriodicBaseDate(): moment.Moment {
+		const baseDate = this.selectedPeriodicDate.clone();
+		if (this.periodicTab === 'week') return baseDate.startOf('isoWeek');
+		if (this.periodicTab === 'month') return baseDate.startOf('month');
+		if (this.periodicTab === 'quarter') return baseDate.startOf('quarter');
+		if (this.periodicTab === 'year') return baseDate.startOf('year');
+		return baseDate.startOf('day');
+	}
+
+	private shiftPeriodicDate(direction: -1 | 1): void {
+		const stepUnit: moment.unitOfTime.DurationConstructor = this.periodicTab === 'day' ? 'months' : 'years';
+		this.selectedPeriodicDate = this.getPeriodicBaseDate().add(direction, stepUnit);
+	}
+
+	private getPeriodicDateLabel(baseDate: moment.Moment): string {
+		if (this.periodicTab === 'day') return baseDate.format('YYYY/M/D');
+		if (this.periodicTab === 'week') return baseDate.format('GGGG[W]WW');
+		if (this.periodicTab === 'month') return baseDate.format('YYYY/M');
+		if (this.periodicTab === 'quarter') return baseDate.format('YYYY[Q]Q');
+		return baseDate.format('YYYY');
+	}
+
+	private getPeriodicCardTitle(): string {
+		const tabNames: Record<'day' | 'week' | 'month' | 'quarter' | 'year', string> = {
+			day: '日记',
+			week: '周记',
+			month: '月记',
+			quarter: '季记',
+			year: '年记'
+		};
+		return `当前${tabNames[this.periodicTab]}`;
+	}
+
+	private openPeriodicPartPicker(part: 'year' | 'month' | 'day'): void {
+		const baseDate = this.getPeriodicBaseDate();
+		const config = part === 'year'
+			? { title: '跳转到年份', initialValue: baseDate.year(), minValue: 1970, maxValue: 2100 }
+			: part === 'month'
+				? { title: '跳转到月份', initialValue: baseDate.month() + 1, minValue: 1, maxValue: 12 }
+				: { title: '跳转到日期', initialValue: baseDate.date(), minValue: 1, maxValue: baseDate.daysInMonth() };
+
+		new NumberInputModal(this.app, config.title, config.initialValue, config.minValue, config.maxValue, (value) => {
+			const nextDate = this.getPeriodicBaseDate().clone();
+			if (part === 'year') nextDate.year(value);
+			else if (part === 'month') nextDate.month(value - 1);
+			else nextDate.date(value);
+			this.selectedPeriodicDate = nextDate;
+			this.render();
+		}).open();
+	}
+
+	private renderPeriodicDatePickerLabel(parent: HTMLElement, baseDate: moment.Moment): void {
+		const createPartButton = (text: string, part: 'year' | 'month' | 'day') => {
+			const button = parent.createEl('button', {
+				text,
+				attr: { style: 'background: transparent; border: none; box-shadow: none; cursor: pointer; padding: 0; font-weight: 500; font-size: 13px; color: var(--text-normal);' }
+			});
+			button.addEventListener('click', () => this.openPeriodicPartPicker(part));
+		};
+
+		if (this.periodicTab === 'day') {
+			createPartButton(String(baseDate.year()), 'year');
+			parent.createSpan({ text: '/' });
+			createPartButton(String(baseDate.month() + 1), 'month');
+			parent.createSpan({ text: '/' });
+			createPartButton(String(baseDate.date()), 'day');
+			return;
+		}
+
+		if (this.periodicTab === 'month') {
+			createPartButton(String(baseDate.year()), 'year');
+			parent.createSpan({ text: '/' });
+			createPartButton(String(baseDate.month() + 1), 'month');
+			return;
+		}
+
+		parent.createSpan({ text: this.getPeriodicDateLabel(baseDate), attr: { style: 'font-weight: 500; font-size: 13px; text-align: center;' } });
 	}
 
 	triggerClaudianPrompt(prompt: string): void {
@@ -2345,6 +2488,9 @@ export class VaultOsView extends ItemView {
 		filePath: string,
 		fileName: string
 	): Promise<void> {
+		this.selectedPeriodicDate = date.clone();
+		this.render();
+
 		if (isCreated) {
 			void this.app.workspace.openLinkText(filePath, '', false);
 		} else {
@@ -2380,7 +2526,6 @@ export class VaultOsView extends ItemView {
 			});
 			btn.addEventListener('click', () => {
 				this.periodicTab = t.id as 'day' | 'week' | 'month' | 'quarter' | 'year';
-				this.diaryDateOffset = 0;
 				this.render();
 			});
 		});
@@ -2389,23 +2534,18 @@ export class VaultOsView extends ItemView {
 		const prevBtn = datePicker.createEl('button', { cls: 'icon-btn', attr: { style: 'background: transparent; border: none; box-shadow: none; cursor: pointer; padding: 4px;' } });
 		setIcon(prevBtn, 'chevron-left');
 		prevBtn.addEventListener('click', () => {
-			this.diaryDateOffset--;
+			this.shiftPeriodicDate(-1);
 			this.render();
 		});
 
-		const now = moment().add(this.diaryDateOffset, (this.periodicTab + 's') as 'days' | 'weeks' | 'months' | 'quarters' | 'years');
-		let dateLabel = now.format('YYYY年');
-		if (this.periodicTab === 'day') dateLabel = now.format('YYYY/M/D');
-		else if (this.periodicTab === 'week') dateLabel = now.format('YYYY[W]ww');
-		else if (this.periodicTab === 'month') dateLabel = now.format('YYYY/M');
-		else if (this.periodicTab === 'quarter') dateLabel = now.format('YYYY[Q]Q');
-		
-		datePicker.createSpan({ text: dateLabel, attr: { style: 'font-weight: 500; font-size: 13px; text-align: center;' } });
+		const baseDate = this.getPeriodicBaseDate();
+		const dateLabelWrap = datePicker.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 2px;' } });
+		this.renderPeriodicDatePickerLabel(dateLabelWrap, baseDate);
 
 		const nextBtn = datePicker.createEl('button', { cls: 'icon-btn', attr: { style: 'background: transparent; border: none; box-shadow: none; cursor: pointer; padding: 4px;' } });
 		setIcon(nextBtn, 'chevron-right');
 		nextBtn.addEventListener('click', () => {
-			this.diaryDateOffset++;
+			this.shiftPeriodicDate(1);
 			this.render();
 		});
 
@@ -2420,7 +2560,6 @@ export class VaultOsView extends ItemView {
 				grid.createDiv({ text: wd, attr: { style: 'text-align: center; font-size: 11px; color: var(--text-muted); font-weight: 600; padding-bottom: 4px;' } });
 			});
 
-			const baseDate = moment().add(this.diaryDateOffset, 'months');
 			const daysInMonth = baseDate.daysInMonth();
 			
 			const firstDay = baseDate.clone().date(1);
@@ -2451,8 +2590,6 @@ export class VaultOsView extends ItemView {
 			const grid = gridContainer.createDiv({ 
 				attr: { style: 'display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; width: 100%;' } 
 			});
-			const baseDate = moment().add(this.diaryDateOffset, 'years');
-			
 			for (let w = 1; w <= 52; w++) {
 				const date = baseDate.clone().isoWeek(w).startOf('isoWeek');
 				const { filePath, fileName } = this.diaryService.resolvePeriodicNotePath(date, 'week');
@@ -2469,8 +2606,6 @@ export class VaultOsView extends ItemView {
 			}
 		} else if (this.periodicTab === 'month') {
 			const grid = gridContainer.createDiv({ cls: 'vo-periodic-grid', attr: { style: 'display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; width: 100%;' } });
-			const baseDate = moment().add(this.diaryDateOffset, 'years');
-			
 			for (let m = 0; m < 12; m++) {
 				const date = baseDate.clone().month(m).startOf('month');
 				const { filePath, fileName } = this.diaryService.resolvePeriodicNotePath(date, 'month');
@@ -2489,8 +2624,6 @@ export class VaultOsView extends ItemView {
 			}
 		} else if (this.periodicTab === 'quarter') {
 			const grid = gridContainer.createDiv({ cls: 'vo-periodic-grid', attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%;' } });
-			const baseDate = moment().add(this.diaryDateOffset, 'years');
-			
 			for (let q = 1; q <= 4; q++) {
 				const date = baseDate.clone().quarter(q).startOf('quarter');
 				const { filePath, fileName } = this.diaryService.resolvePeriodicNotePath(date, 'quarter');
@@ -2509,7 +2642,6 @@ export class VaultOsView extends ItemView {
 			}
 		} else { // year
 			const grid = gridContainer.createDiv({ cls: 'vo-periodic-grid', attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; width: 100%;' } });
-			const baseDate = moment().add(this.diaryDateOffset, 'years');
 			const centerYear = baseDate.year();
 			const startYear = centerYear - 5;
 			const years = Array.from({ length: 12 }).map((_, i) => startYear + i);
@@ -2542,9 +2674,9 @@ export class VaultOsView extends ItemView {
 		const currentName = tabNames[this.periodicTab] || '日记';
 
 		const header = diaryCard.createDiv({ cls: 'vo-card-header', attr: { style: 'display: flex; align-items: center; width: 100%; text-align: left;' } });
-		header.createEl('h3', { text: `今日${currentName}`, attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
+		header.createEl('h3', { text: this.getPeriodicCardTitle(), attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
 		
-		const baseDate = moment().add(this.diaryDateOffset, (this.periodicTab + 's') as 'days' | 'weeks' | 'months' | 'quarters' | 'years');
+		const baseDate = this.getPeriodicBaseDate();
 		const { filePath } = this.diaryService.resolvePeriodicNotePath(baseDate, this.periodicTab);
 		
 		const content = diaryCard.createDiv({ cls: 'vo-diary-content', attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; margin-top: 12px;' } });
@@ -2568,7 +2700,7 @@ export class VaultOsView extends ItemView {
 		}
 
 		const openBtn = content.createEl('button', { 
-			text: `打开今日${currentName}`, 
+			text: `打开当前${currentName}`, 
 			cls: 'vo-btn vo-btn-secondary',
 			attr: { style: 'width: 100%; margin-top: 15px;' }
 		});
@@ -2626,7 +2758,7 @@ export class VaultOsView extends ItemView {
 		const card = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column;' } });
 		const header = card.createDiv({ cls: 'vo-card-header' });
 		
-		const baseDate = moment().add(this.diaryDateOffset, (this.periodicTab + 's') as 'days' | 'weeks' | 'months' | 'quarters' | 'years');
+		const baseDate = this.getPeriodicBaseDate();
 		const targetLabel = this.periodicTab === 'day' ? '去年今日' : 
 							this.periodicTab === 'year' ? '去年' : 
 							`去年同${this.periodicTab === 'week' ? '周' : this.periodicTab === 'month' ? '月' : '季'}`;
