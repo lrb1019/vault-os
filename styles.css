@@ -2,7 +2,6 @@
 
 .vo-container {
 	width: 100%;
-	max-width: 950px;
 	height: 100%;
 	display: flex;
 	flex-direction: column;

@@ -66,6 +66,7 @@ export interface VaultOsSettings {
 	heatmapCellGap: number;
 	heatmapDoubleCellSize: number;
 	heatmapDoubleCellGap: number;
+	containerMaxWidth: number;
 }
 
 type SettingsTabId = 'general' | 'paths' | 'mcp' | 'actions';
@@ -109,7 +110,8 @@ export const DEFAULT_SETTINGS: VaultOsSettings = {
 	heatmapCellSize: 12,
 	heatmapCellGap: 3,
 	heatmapDoubleCellSize: 9,
-	heatmapDoubleCellGap: 2
+	heatmapDoubleCellGap: 2,
+	containerMaxWidth: 100
 };
 
 class ClaudianActionEditModal extends Modal {
@@ -532,6 +534,20 @@ export class VaultOsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 						this.refreshDashboardView();
 					}));
+
+			new Setting(sectionContent)
+				.setName('界面最大宽度 (%)')
+				.setDesc('控制面板在屏幕上的最大横向占比。100% 为全屏撑满，调小可防止超大屏幕下严重拉伸。')
+				.addSlider(slider => slider
+					.setLimits(50, 100, 1)
+					.setValue(this.plugin.settings.containerMaxWidth || 100)
+					.setDynamicTooltip()
+					.onChange(async (value) => {
+						this.plugin.settings.containerMaxWidth = value;
+						await this.plugin.saveSettings();
+						this.refreshDashboardView();
+					}));
+
 			return;
 
 		} else if (this.activeTab === 'paths') {

@@ -785,6 +785,9 @@ export class VaultOsView extends ItemView {
 
 		container.empty();
 		container.addClass('vo-container');
+		
+		const maxWidthPct = this.plugin.settings.containerMaxWidth || 100;
+		(container as HTMLElement).style.maxWidth = maxWidthPct < 100 ? `${maxWidthPct}%` : '100%';
 
 		// 1. 上方区域：系统状态栏 (Telemetry Header)
 		this.renderTopTelemetry(container);
