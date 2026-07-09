@@ -1662,7 +1662,6 @@ export class VaultOsView extends ItemView {
 		
 		// Card 1: Overview (概览)
 		const overviewCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; padding: 20px;' } });
-		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
 		
 		const innerGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 16px; flex-grow: 1; align-items: center;' } });
 		
@@ -1768,9 +1767,9 @@ export class VaultOsView extends ItemView {
 		centerLabel: string, 
 		centerVal: string
 	): void {
-		const wrapper = parent.createDiv({ attr: { style: 'display: flex; align-items: center; justify-content: space-around; padding: 10px 0; gap: 20px;' } });
+		const wrapper = parent.createDiv({ attr: { style: 'display: flex; align-items: center; justify-content: space-around; padding: 10px 0; gap: 20px; min-height: 0;' } });
 		
-		const chartDiv = wrapper.createDiv({ attr: { style: 'width: 140px; height: 140px; position: relative;' } });
+		const chartDiv = wrapper.createDiv({ attr: { style: 'width: 100%; max-width: 140px; aspect-ratio: 1; position: relative;' } });
 		const svg = chartDiv.createSvg('svg', { attr: { width: '100%', height: '100%', viewBox: '0 0 100 100' } });
 
 		const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -1874,7 +1873,6 @@ export class VaultOsView extends ItemView {
 
 		// 1. Overview Card
 		const overviewCard = parent.createDiv({ cls: 'vo-card vo-tech-card' });
-		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 12px 0; font-size: 14px; font-weight: 500;' } });
 		
 		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;' } });
 
@@ -1926,14 +1924,14 @@ export class VaultOsView extends ItemView {
 		this.drawDonutChart(detailCard, finalDetailData, '分类比例', '');
 
 		// Focus Records Card
-		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 220px;' } });
+		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; flex-grow: 1; min-height: 0;' } });
 		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;' } });
 		recordHeader.createEl('h3', { text: '专注记录', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
 		
 		const plusSpan = recordHeader.createSpan({ attr: { style: 'cursor: pointer; color: var(--text-muted);' } });
 		setIcon(plusSpan, 'plus');
 
-		const recordList = recordCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-y: hidden; display: flex; flex-direction: column; gap: 8px;' } });
+		const recordList = recordCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 120px;' } });
 		
 		if (focuses.length === 0) {
 			recordList.createDiv({ 
@@ -2046,7 +2044,6 @@ export class VaultOsView extends ItemView {
 			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'padding: 10px 16px;' } 
 		});
-		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
 		
 		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;' } });
 

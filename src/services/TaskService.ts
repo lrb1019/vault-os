@@ -158,13 +158,6 @@ export class TaskService {
 	 * Returns the instantaneous cached data for 0-latency UI rendering
 	 */
 	getCache(): TaskStats {
-		if (this.syncStatus.state === 'syncing') {
-			this.syncStatus = {
-				state: 'error',
-				lastSyncedAt: this.syncStatus.lastSyncedAt,
-				errorMessage: 'TickTick 同步未返回有效数据'
-			};
-		}
 		return this.cache;
 	}
 
@@ -241,6 +234,12 @@ export class TaskService {
 		}
 
 		// Fallback mock stats if everything offline/unconfigured
+		this.syncStatus = {
+			state: 'error',
+			lastSyncedAt: this.syncStatus.lastSyncedAt,
+			errorMessage: 'TickTick 同步未返回有效数据'
+		};
+		
 		this.cache = {
 			todayCount: 8,
 			completedCount: 5,
