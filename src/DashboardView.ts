@@ -1036,8 +1036,7 @@ export class VaultOsView extends ItemView {
 		const subTabs = [
 			{ id: 'overview', label: '总览' },
 			{ id: 'tasks', label: '任务' },
-			{ id: 'focus', label: '专注' },
-			{ id: 'habits', label: '习惯' }
+			{ id: 'habits', label: '打卡' }
 		];
 		
 		subTabs.forEach(t => {
@@ -2167,109 +2166,94 @@ export class VaultOsView extends ItemView {
 			});
 		}
 
-		const annualCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 16px;' } });
-		
-		const heatmapContainer = annualCard.createDiv({ attr: { style: 'margin: 0 auto; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px;' } });
-		
-		const svg = heatmapContainer.createSvg('svg', { attr: { width: '560', height: '100', viewBox: '0 0 560 100' } });
+		// 3. Focus side-by-side row: Overview (left) and Records (right) - 1:1 layout
+		const focuses = stats.focuses || [];
+		const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+		const todayEnd = todayStart + 86400000;
+		const yesterdayStart = todayStart - 86400000;
 
-		const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-		const startYearDate = new Date(now.getFullYear(), 0, 1);
-		
-		const monthRowY = 12;
-		for (let i = 0; i < 12; i++) {
-			const monthDate = new Date(now.getFullYear(), i, 1);
-			const diffTime = monthDate.getTime() - startYearDate.getTime();
-			const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
-			const weekIdx = Math.floor((diffDays + startYearDate.getDay()) / 7);
-			const x = 30 + weekIdx * 10;
-			
-			const textM = svg.createSvg('text', {
-				attr: {
-					x: String(x),
-					y: String(monthRowY),
-					fill: 'var(--text-faint)',
-					'font-size': '8px'
-				}
-			});
-			textM.textContent = months[i] || '';
-		}
-
-		const weekdaysLabels = ['日', '二', '四', '六'];
-		weekdaysLabels.forEach((dayLabel, idx) => {
-			const textW = svg.createSvg('text', {
-				attr: {
-					x: '5',
-					y: String(28 + idx * 20),
-					fill: 'var(--text-faint)',
-					'font-size': '8px'
-				}
-			});
-			textW.textContent = dayLabel;
+		const todayFocuses = focuses.filter(f => {
+			const sTime = f.startTime || f.start_time;
+			return sTime && new Date(sTime).getTime() >= todayStart && new Date(sTime).getTime() < todayEnd;
 		});
+		const todayFocusCount = todayFocuses.length;
+		const todayFocusDurationMin = todayFocuses.reduce((sum, f) => sum + (f.duration || 0), 0);
 
-		const dayCheckinCounts: Record<number, number> = {};
-		Object.keys(habitCheckins).forEach(habitId => {
-			const list = habitCheckins[habitId] || [];
-			list.forEach(c => {
-				if (c.status === 2) {
-					dayCheckinCounts[c.stamp] = (dayCheckinCounts[c.stamp] || 0) + 1;
-				}
-			});
+		const yesterdayFocuses = focuses.filter(f => {
+			const sTime = f.startTime || f.start_time;
+			return sTime && new Date(sTime).getTime() >= yesterdayStart && new Date(sTime).getTime() < todayStart;
 		});
+		const yesterdayFocusCount = yesterdayFocuses.length;
+		const yesterdayFocusDurationMin = yesterdayFocuses.reduce((sum, f) => sum + (f.duration || 0), 0);
 
-		const startDate = new Date(now.getFullYear(), 0, 1);
-		const startOffset = startDate.getDay();
-		startDate.setDate(startDate.getDate() - startOffset);
+		const totalFocusCount = focuses.length;
+		const totalFocusDurationMin = focuses.reduce((sum, f) => sum + (f.duration || 0), 0);
 
-		const cellSize = 8;
-		const cellSpacing = 2;
+		const focusGrid = parent.createDiv({ attr: { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px;' } });
 
-		for (let week = 0; week < 53; week++) {
-			for (let day = 0; day < 7; day++) {
-				const d = new Date(startDate.getTime());
-				d.setDate(d.getDate() + (week * 7 + day));
+		// Left Card: Focus Overview
+		const focusOverviewCard = focusGrid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding: 10px 16px; display: flex; flex-direction: column; justify-content: center; height: 160px; min-height: 160px;' } });
+		const focusOverviewGrid = focusOverviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; width: 100%;' } });
 
-				const isCurrentYear = d.getFullYear() === now.getFullYear();
-				const stamp = parseInt(`${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`);
-				const count = isCurrentYear ? (dayCheckinCounts[stamp] || 0) : 0;
+		const drawFocusMetric = (parentElem: HTMLElement, val: string, label: string, diffText: string) => {
+			const box = parentElem.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); padding: 4px 6px; border-radius: 6px; border: 1px solid var(--background-modifier-border);' } });
+			box.createDiv({ text: val, attr: { style: 'font-size: 14px; font-weight: bold; color: var(--interactive-accent); font-family: var(--font-monospace); line-height: 1.1;' } });
+			box.createDiv({ text: label, attr: { style: 'font-size: 10px; color: var(--text-muted); margin-bottom: 2px;' } });
+			box.createDiv({ text: diffText, attr: { style: 'font-size: 8px; color: var(--text-success); transform: scale(0.9);' } });
+		};
 
-				let color = 'var(--background-secondary-alt)';
-				let opacity = isCurrentYear ? '0.3' : '0.0';
+		const diffTomatoCount = todayFocusCount - yesterdayFocusCount;
+		const diffTomatoStr = `${Math.abs(diffTomatoCount)}个`;
+		const diffTomatoText = diffTomatoCount >= 0 ? `+${diffTomatoStr}` : `-${diffTomatoStr}`;
+
+		const diffDuration = todayFocusDurationMin - yesterdayFocusDurationMin;
+		const diffDurationStr = `${Math.floor(Math.abs(diffDuration) / 60)}h${Math.abs(diffDuration) % 60}m`;
+		const diffDurationText = diffDuration >= 0 ? `+${diffDurationStr}` : `-${diffDurationStr}`;
+
+		const todayDurationStr = `${Math.floor(todayFocusDurationMin / 60)}h${todayFocusDurationMin % 60}m`;
+		const totalDurationStr = `${Math.floor(totalFocusDurationMin / 60)}h${totalFocusDurationMin % 60}m`;
+
+		drawFocusMetric(focusOverviewGrid, String(todayFocusCount), '今日番茄', diffTomatoText);
+		drawFocusMetric(focusOverviewGrid, String(totalFocusCount), '总番茄', '');
+		drawFocusMetric(focusOverviewGrid, todayDurationStr, '今日时长', diffDurationText);
+		drawFocusMetric(focusOverviewGrid, totalDurationStr, '总时长', '');
+
+		// Right Card: Focus Records
+		const recordCard = focusGrid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 160px; min-height: 160px;' } });
+		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;' } });
+		recordHeader.createEl('h3', { text: '记录', attr: { style: 'margin: 0; font-size: 13px; font-weight: 500;' } });
+		
+		const plusSpan = recordHeader.createSpan({ attr: { style: 'cursor: pointer; color: var(--text-muted);' } });
+		setIcon(plusSpan, 'plus');
+
+		const recordList = recordCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0;' } });
+		
+		if (todayFocuses.length === 0) {
+			recordList.createDiv({ 
+				text: '今日暂无记录。', 
+				attr: { style: 'font-size: 12px; color: var(--text-muted); text-align: center; margin: auto 0; padding: 10px 0;' } 
+			});
+		} else {
+			todayFocuses.forEach(f => {
+				const item = recordList.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 6px;' } });
+				const left = item.createDiv({ attr: { style: 'display: flex; flex-direction: column;' } });
 				
-				if (count > 0 && isCurrentYear) {
-					opacity = '1.0';
-					if (count === 1) {
-						color = 'color-mix(in srgb, var(--interactive-accent) 25%, var(--background-secondary-alt))';
-					} else if (count === 2) {
-						color = 'color-mix(in srgb, var(--interactive-accent) 55%, var(--background-secondary-alt))';
-					} else if (count === 3) {
-						color = 'color-mix(in srgb, var(--interactive-accent) 80%, var(--background-secondary-alt))';
-					} else {
-						color = 'var(--interactive-accent)';
-					}
-				}
+				const dt = new Date(f.startTime || f.start_time || '');
+				const dateStr = `${dt.getMonth() + 1}月${dt.getDate()}日`;
+				left.createDiv({ text: dateStr, attr: { style: 'font-size: 11px; font-weight: bold; color: var(--text-normal);' } });
+				left.createDiv({ text: this.getFocusLabel(f), attr: { style: 'font-size: 10px; color: var(--interactive-accent); margin-top: 2px;' } });
 
-				const x = 30 + week * (cellSize + cellSpacing);
-				const y = 20 + day * (cellSize + cellSpacing);
+				const endDt = new Date(f.endTime || f.end_time || '');
+				const startStr = `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
+				const endStr = `${endDt.getHours().toString().padStart(2, '0')}:${endDt.getMinutes().toString().padStart(2, '0')}`;
+				
+				const timeWrap = left.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--text-muted); margin-top: 2px;' } });
+				setIcon(timeWrap.createSpan(), 'clock');
+				timeWrap.createSpan({ text: `${startStr} - ${endStr}` });
 
-				svg.createSvg('rect', {
-					attr: {
-						x: String(x),
-						y: String(y),
-						width: String(cellSize),
-						height: String(cellSize),
-						rx: '1.5',
-						fill: color,
-						opacity: opacity,
-						title: isCurrentYear ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}: 打卡习惯 ${count} 个` : ''
-					}
-				});
-			}
+				item.createDiv({ text: `${f.duration || 0}m`, attr: { style: 'font-size: 11px; font-family: var(--font-monospace); color: var(--text-normal); font-weight: bold;' } });
+			});
 		}
-
-		const footer = heatmapContainer.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); width: 100%; margin-top: 6px;' } });
-		footer.createSpan({ text: `${now.getFullYear()}年度习惯打卡热力图`, attr: { style: 'font-weight: bold; color: var(--text-normal); font-size: 11px;' } });
 	}
 
 	private drawFocusHeatmap(parent: HTMLElement, focuses: FocusItem[]): void {
