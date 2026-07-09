@@ -1902,11 +1902,11 @@ export class VaultOsView extends ItemView {
 		const grid = parent.createDiv({ attr: { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 16px;' } });
 
 		// Donut Detail Card
-		const detailCard = grid.createDiv({ cls: 'vo-card vo-tech-card' });
+		const detailCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'height: 240px; display: flex; flex-direction: column;' } });
 		detailCard.createEl('h3', { text: '专注详情', attr: { style: 'margin: 0 0 12px 0; font-size: 14px; font-weight: 500;' } });
 		
 		const tagCounts: Record<string, number> = {};
-		focuses.forEach(f => {
+		todayFocuses.forEach(f => {
 			const tag = this.getFocusLabel(f);
 			tagCounts[tag] = (tagCounts[tag] || 0) + (f.duration || 0);
 		});
@@ -1921,25 +1921,27 @@ export class VaultOsView extends ItemView {
 		const finalDetailData = detailData.length > 0 ? detailData : [
 			{ label: '暂无数据', value: 1, color: 'var(--background-secondary-alt)' }
 		];
-		this.drawDonutChart(detailCard, finalDetailData, '分类比例', '');
+		
+		const donutWrapper = detailCard.createDiv({ attr: { style: 'flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 0;' } });
+		this.drawDonutChart(donutWrapper, finalDetailData, '分类比例', '');
 
 		// Focus Records Card
-		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; flex-grow: 1; min-height: 0;' } });
+		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 240px;' } });
 		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;' } });
 		recordHeader.createEl('h3', { text: '专注记录', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
 		
 		const plusSpan = recordHeader.createSpan({ attr: { style: 'cursor: pointer; color: var(--text-muted);' } });
 		setIcon(plusSpan, 'plus');
 
-		const recordList = recordCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 120px;' } });
+		const recordList = recordCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; min-height: 0;' } });
 		
-		if (focuses.length === 0) {
+		if (todayFocuses.length === 0) {
 			recordList.createDiv({ 
 				text: '今日暂无专注记录。', 
 				attr: { style: 'font-size: 13px; color: var(--text-muted); text-align: center; margin: auto 0; padding: 20px 0;' } 
 			});
 		} else {
-			focuses.slice(0, 10).forEach(f => {
+			todayFocuses.forEach(f => {
 				const item = recordList.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 8px;' } });
 				const left = item.createDiv({ attr: { style: 'display: flex; flex-direction: column;' } });
 				
