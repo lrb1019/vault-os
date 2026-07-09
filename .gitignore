@@ -9,6 +9,7 @@
 node_modules
 .codebase-memory
 
+
 # BRAT checks the repository root for Obsidian plugin assets.
 # Keep the compiled main.js in the repo as well as in GitHub releases.
 
@@ -17,6 +18,23 @@ node_modules
 
 # obsidian
 data.json
+
+# Local project management files (Do not upload to GitHub)
+00 项目总览.md
+01 PROJECT_RULES.md
+02 后续想法.md
+03 改动日志.md
+04 接续说明.md
+05 审查流程.md
+06 GITHUB_SYNC.md
+07 审计与体检逻辑备忘录.md
+CODEBOOK.md
+GEMINI.md
+RELEASE_WORKFLOW.md
+Vault OS.md
+AGENTS.md
+CLAUDE.md
+*.zip
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
