@@ -501,6 +501,30 @@ export class VaultOsView extends ItemView {
 		}).reduce((sum, f) => sum + (f.duration || 0), 0);
 	}
 
+	private getFocusLabel(focus: FocusItem): string {
+		return focus.tag?.trim()
+			|| focus.tasks?.find(task => task.timerName?.trim())?.timerName?.trim()
+			|| '默认专注';
+	}
+
+	private getFocusHeatLevel(duration: number): number {
+		if (duration >= 120) return 4;
+		if (duration >= 60) return 3;
+		if (duration >= 30) return 2;
+		if (duration > 0) return 1;
+		return 0;
+	}
+
+	private formatFocusMinutes(totalMinutes: number): string {
+		if (totalMinutes < 60) {
+			return `${totalMinutes} 分钟`;
+		}
+
+		const hours = Math.floor(totalMinutes / 60);
+		const minutes = totalMinutes % 60;
+		return minutes > 0 ? `${hours} 小时 ${minutes} 分钟` : `${hours} 小时`;
+	}
+
 	private getHabitCheckinsCountOnDay(habitCheckins: Record<string, HabitCheckinItem[]>, date: Date): number {
 		const pad = (num: number) => num.toString().padStart(2, '0');
 		const stamp = parseInt(`${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}`);
@@ -776,7 +800,7 @@ export class VaultOsView extends ItemView {
 	private renderTopTelemetry(parent: Element): void {
 		const telemetry = parent.createDiv({ 
 			cls: 'vo-top-telemetry', 
-			attr: { style: 'border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent); padding-bottom: 16px; margin-bottom: 48px;' } 
+			attr: { style: 'border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent); padding-bottom: 12px; margin-bottom: 24px;' } 
 		});
 		
 		// Three-column layout
@@ -995,12 +1019,12 @@ export class VaultOsView extends ItemView {
 	private renderTickTickDashboard(parent: Element): void {
 		const wrapper = parent.createDiv({ 
 			cls: 'vo-ticktick-wrapper', 
-			attr: { style: 'animation: fadeIn 0.4s ease-out; display: flex; flex-direction: column; gap: 20px;' } 
+			attr: { style: 'animation: fadeIn 0.4s ease-out; display: flex; flex-direction: column; gap: 14px; min-height: 0;' } 
 		});
 
 		// 1. Unified header
 		const header = wrapper.createDiv({ 
-			attr: { style: 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 12px; margin-bottom: 8px;' } 
+			attr: { style: 'display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 10px; margin-bottom: 4px;' } 
 		});
 
 		// Left switcher: Stats sub-tabs (总览 | 任务 | 专注 | 习惯)
@@ -1073,7 +1097,7 @@ export class VaultOsView extends ItemView {
 		}
 
 		// 2. Render content
-		const container = wrapper.createDiv({ attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; gap: 20px;' } });
+		const container = wrapper.createDiv({ attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0;' } });
 		if (this.activeStatsSubTab === 'overview') {
 			this.renderStatsOverview(container);
 		} else if (this.activeStatsSubTab === 'tasks') {
@@ -1847,12 +1871,12 @@ export class VaultOsView extends ItemView {
 
 		// 1. Overview Card
 		const overviewCard = parent.createDiv({ cls: 'vo-card vo-tech-card' });
-		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
+		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 12px 0; font-size: 14px; font-weight: 500;' } });
 		
-		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;' } });
+		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;' } });
 
 		const drawFocusMetric = (parentElem: HTMLElement, val: string, label: string, diffText: string) => {
-			const box = parentElem.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); padding: 12px; border-radius: 8px; border: 1px solid var(--background-modifier-border);' } });
+			const box = parentElem.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--background-modifier-border);' } });
 			box.createDiv({ text: val, attr: { style: 'font-size: 22px; font-weight: bold; color: var(--interactive-accent); font-family: var(--font-monospace);' } });
 			box.createDiv({ text: label, attr: { style: 'font-size: 11px; color: var(--text-muted); margin-bottom: 6px;' } });
 			box.createDiv({ text: diffText, attr: { style: 'font-size: 10px; color: var(--text-success); display: flex; align-items: center; gap: 2px;' } });
@@ -1874,19 +1898,19 @@ export class VaultOsView extends ItemView {
 		drawFocusMetric(overviewGrid, totalDurationStr, '总专注时长', '');
 
 		// 2. Middle Row: Donut details & Focus Records list
-		const grid = parent.createDiv({ attr: { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 10px;' } });
+		const grid = parent.createDiv({ attr: { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 16px;' } });
 
 		// Donut Detail Card
 		const detailCard = grid.createDiv({ cls: 'vo-card vo-tech-card' });
-		detailCard.createEl('h3', { text: '专注详情', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
+		detailCard.createEl('h3', { text: '专注详情', attr: { style: 'margin: 0 0 12px 0; font-size: 14px; font-weight: 500;' } });
 		
 		const tagCounts: Record<string, number> = {};
 		focuses.forEach(f => {
-			const tag = f.tag || '默认专注';
+			const tag = this.getFocusLabel(f);
 			tagCounts[tag] = (tagCounts[tag] || 0) + (f.duration || 0);
 		});
 
-		const detailColors = ['#0072FF', '#2ECC71', '#FFB800', '#FF416C', '#8E54E9'];
+		const detailColors = ['#5c8bcf', '#50b37e', '#888888', '#e3a936', '#a269c7'];
 		const detailData = Object.keys(tagCounts).map((tag, idx) => ({
 			label: tag,
 			value: tagCounts[tag] || 0,
@@ -1899,14 +1923,14 @@ export class VaultOsView extends ItemView {
 		this.drawDonutChart(detailCard, finalDetailData, '分类比例', '');
 
 		// Focus Records Card
-		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 260px;' } });
-		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;' } });
+		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 220px;' } });
+		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;' } });
 		recordHeader.createEl('h3', { text: '专注记录', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
 		
 		const plusSpan = recordHeader.createSpan({ attr: { style: 'cursor: pointer; color: var(--text-muted);' } });
 		setIcon(plusSpan, 'plus');
 
-		const recordList = recordCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 12px;' } });
+		const recordList = recordCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-y: hidden; display: flex; flex-direction: column; gap: 8px;' } });
 		
 		if (focuses.length === 0) {
 			recordList.createDiv({ 
@@ -1921,6 +1945,7 @@ export class VaultOsView extends ItemView {
 				const dt = new Date(f.startTime || f.start_time || '');
 				const dateStr = `${dt.getMonth() + 1}月${dt.getDate()}日`;
 				left.createDiv({ text: dateStr, attr: { style: 'font-size: 12px; font-weight: bold; color: var(--text-normal);' } });
+				left.createDiv({ text: this.getFocusLabel(f), attr: { style: 'font-size: 11px; color: var(--interactive-accent); margin-top: 2px;' } });
 
 				const endDt = new Date(f.endTime || f.end_time || '');
 				const startStr = `${dt.getHours().toString().padStart(2, '0')}:${dt.getMinutes().toString().padStart(2, '0')}`;
@@ -1935,8 +1960,8 @@ export class VaultOsView extends ItemView {
 		}
 
 		// 3. Github style contribution heatmap
-		const heatmapCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px;' } });
-		const heatHeader = heatmapCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;' } });
+		const heatmapCard = parent.createDiv({ cls: 'vo-card vo-tech-card' });
+		const heatHeader = heatmapCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;' } });
 		heatHeader.createEl('h3', { text: '年度热力图', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
 		heatHeader.createDiv({ text: String(now.getFullYear()), attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 		this.drawFocusHeatmap(heatmapCard, focuses);
@@ -2239,106 +2264,91 @@ export class VaultOsView extends ItemView {
 	}
 
 	private drawFocusHeatmap(parent: HTMLElement, focuses: FocusItem[]): void {
-		const container = parent.createDiv({ attr: { style: 'width: 100%; overflow-x: auto; padding: 10px 0;' } });
-		const svg = container.createSvg('svg', { attr: { width: '560', height: '100', viewBox: '0 0 560 100' } });
+		const heatmapWrapper = parent.createDiv({ cls: 'vo-stats-heatmap-wrapper' });
+		const now = moment();
+		const targetYear = now.year();
+		const cellSize = this.plugin.settings.heatmapCellSize;
+		const cellGap = this.plugin.settings.heatmapCellGap;
+		const gridHeight = 7 * cellSize + 6 * cellGap;
+		const focusMap = new Map<string, number>();
 
-		const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
-		
-		const today = new Date();
-		const startYearDate = new Date(today.getFullYear(), 0, 1);
-		
-		const monthRowY = 12;
-		for (let i = 0; i < 12; i++) {
-			const monthDate = new Date(today.getFullYear(), i, 1);
-			const diffTime = monthDate.getTime() - startYearDate.getTime();
-			const diffDays = Math.floor(diffTime / (1000 * 3600 * 24));
-			const weekIdx = Math.floor((diffDays + startYearDate.getDay()) / 7);
-			const x = 30 + weekIdx * 10;
-			
-			const textM = svg.createSvg('text', {
-				attr: {
-					x: String(x),
-					y: String(monthRowY),
-					fill: 'var(--text-faint)',
-					'font-size': '8px'
-				}
-			});
-			textM.textContent = months[i] || '';
-		}
+		focuses.forEach(focus => {
+			const startTime = focus.startTime || focus.start_time;
+			if (!startTime) return;
 
-		const weekdays = ['日', '二', '四', '六'];
-		weekdays.forEach((dayLabel, idx) => {
-			const textW = svg.createSvg('text', {
-				attr: {
-					x: '5',
-					y: String(28 + idx * 20),
-					fill: 'var(--text-faint)',
-					'font-size': '8px'
-				}
-			});
-			textW.textContent = dayLabel;
+			const dateKey = moment(startTime).format('YYYY-MM-DD');
+			const current = focusMap.get(dateKey) || 0;
+			focusMap.set(dateKey, current + (focus.duration || 0));
 		});
 
-		const focusMap: Record<number, number> = {};
-		const pad = (num: number) => num.toString().padStart(2, '0');
-		
-		focuses.forEach(f => {
-			if (f.startTime || f.start_time) {
-				const d = new Date(f.startTime || f.start_time || '');
-				const stamp = parseInt(`${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`);
-				focusMap[stamp] = (focusMap[stamp] || 0) + (f.duration || 25);
-			}
+		const monthLabels = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+		const monthGrid = heatmapWrapper.createDiv({
+			attr: { style: `display: grid; grid-template-columns: repeat(53, ${cellSize}px); gap: ${cellGap}px; font-size: 9px; color: var(--text-muted); margin-bottom: 4px; padding-left: 22px;` }
 		});
 
-		const startDate = new Date(today.getFullYear(), 0, 1);
-		const startOffset = startDate.getDay();
-		startDate.setDate(startDate.getDate() - startOffset);
+		monthLabels.forEach((label, i) => {
+			const colStart = Math.round(i * 4.4) + 1;
+			monthGrid.createEl('span', {
+				text: label,
+				attr: { style: `grid-column-start: ${colStart}; white-space: nowrap;` }
+			});
+		});
 
-		const cellSize = 8;
-		const cellSpacing = 2;
+		const gridBody = heatmapWrapper.createDiv({ attr: { style: `display: flex; gap: 8px; height: ${gridHeight}px; margin-bottom: 8px;` } });
+		const dayLabels = gridBody.createDiv({
+			attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; font-size: 9px; color: var(--text-muted); width: 14px; padding: 2px 0;' }
+		});
+		dayLabels.createSpan({ text: '一' });
+		dayLabels.createSpan({ text: '三' });
+		dayLabels.createSpan({ text: '五' });
 
-		for (let week = 0; week < 53; week++) {
-			for (let day = 0; day < 7; day++) {
-				const d = new Date(startDate.getTime());
-				d.setDate(d.getDate() + (week * 7 + day));
+		const gridContainer = gridBody.createDiv({ attr: { style: `display: flex; gap: ${cellGap}px; align-items: stretch;` } });
+		const currentDate = window.moment(`${targetYear}-01-01`).startOf('isoWeek');
+		const endDate = window.moment(`${targetYear}-12-31`).endOf('isoWeek');
 
-				const isCurrentYear = d.getFullYear() === today.getFullYear();
-				const stamp = parseInt(`${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}`);
-				const duration = isCurrentYear ? (focusMap[stamp] || 0) : 0;
+		let activeDays = 0;
+		let totalMinutes = 0;
 
-				let color = 'var(--background-secondary-alt)';
-				let opacity = isCurrentYear ? '0.3' : '0.0';
-				
-				if (duration > 0 && isCurrentYear) {
-					opacity = '1.0';
-					if (duration <= 30) {
-						color = 'color-mix(in srgb, var(--interactive-accent) 25%, var(--background-secondary-alt))';
-					} else if (duration <= 60) {
-						color = 'color-mix(in srgb, var(--interactive-accent) 55%, var(--background-secondary-alt))';
-					} else if (duration <= 120) {
-						color = 'color-mix(in srgb, var(--interactive-accent) 80%, var(--background-secondary-alt))';
-					} else {
-						color = 'var(--interactive-accent)';
-					}
+		while (currentDate.isBefore(endDate)) {
+			const col = gridContainer.createDiv({ cls: 'vo-stats-heatmap-col', attr: { style: `width: ${cellSize}px; gap: ${cellGap}px;` } });
+			for (let d = 0; d < 7; d++) {
+				const dateStr = currentDate.format('YYYY-MM-DD');
+				const isCurrentYear = currentDate.year() === targetYear;
+				const duration = isCurrentYear ? (focusMap.get(dateStr) || 0) : 0;
+
+				if (isCurrentYear && duration > 0) {
+					activeDays++;
+					totalMinutes += duration;
 				}
 
-				const x = 30 + week * (cellSize + cellSpacing);
-				const y = 20 + day * (cellSize + cellSpacing);
-
-				svg.createSvg('rect', {
-					attr: {
-						x: String(x),
-						y: String(y),
-						width: String(cellSize),
-						height: String(cellSize),
-						rx: '1.5',
-						fill: color,
-						opacity: opacity,
-						title: isCurrentYear ? `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}: ${duration} 分钟` : ''
-					}
+				const level = this.getFocusHeatLevel(duration);
+				const cell = col.createDiv({
+					cls: `vo-stats-heatmap-cell ${isCurrentYear ? `level-${level}` : ''}`,
+					attr: { style: `width: ${cellSize}px; height: ${cellSize}px;` }
 				});
+
+				if (!isCurrentYear) {
+					cell.setCssStyles({ visibility: 'hidden' });
+				} else {
+					cell.createDiv({
+						text: `${dateStr} 专注 ${duration} 分钟`,
+						cls: 'vo-stats-heatmap-cell-tooltip'
+					});
+				}
+
+				currentDate.add(1, 'day');
 			}
 		}
+
+		const footer = heatmapWrapper.createDiv({ cls: 'vo-stats-heatmap-footer' });
+		footer.createSpan({ text: `本年度共专注 ${activeDays} 天，累计专注 ${this.formatFocusMinutes(totalMinutes)}` });
+
+		const legend = footer.createDiv({ cls: 'vo-stats-heatmap-legend' });
+		legend.createSpan({ text: '少' });
+		for (let i = 0; i <= 4; i++) {
+			legend.createDiv({ cls: `vo-stats-heatmap-legend-box level-${i}` });
+		}
+		legend.createSpan({ text: '多' });
 	}
 
 	private renderVaultDashboard(parent: Element): void {

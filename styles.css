@@ -7,9 +7,13 @@
 	display: flex;
 	flex-direction: column;
 	margin: 0 auto;
-	padding: 60px 60px 40px 60px;
+	padding: 28px 40px 20px;
 	box-sizing: border-box;
 	scrollbar-gutter: stable;
+}
+
+.vo-ticktick-wrapper {
+	min-height: 0;
 }
 
 /* 细线圆角框与底部轻微阴影 (参考 jarvis reader) */
@@ -394,11 +398,11 @@
 .vo-stats-heatmap-wrapper {
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
+	justify-content: flex-start;
 	flex-grow: 1;
-	height: 100%;
+	height: auto;
 	overflow-x: auto;
-	padding-bottom: 15px;
+	padding-bottom: 6px;
 }
 
 .vo-stats-heatmap-col {
@@ -443,7 +447,7 @@
 	align-items: center;
 	font-size: 11px;
 	color: var(--text-muted);
-	margin-top: 10px;
+	margin-top: 4px;
 }
 
 .vo-stats-heatmap-legend {
@@ -1154,4 +1158,3 @@ select.dropdown option {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
-

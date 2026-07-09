@@ -39,6 +39,16 @@ export interface HabitCheckinItem {
 	status: number;
 }
 
+export interface FocusTaskItem {
+	taskId?: string | null;
+	title?: string | null;
+	habitId?: string | null;
+	timerId?: string | null;
+	timerName?: string | null;
+	startTime?: string;
+	endTime?: string;
+}
+
 export interface FocusItem {
 	id?: string;
 	startTime?: string;
@@ -47,6 +57,7 @@ export interface FocusItem {
 	end_time?: string;
 	duration?: number;
 	tag?: string;
+	tasks?: FocusTaskItem[];
 }
 
 export interface ProjectItem {
@@ -111,6 +122,36 @@ export class TaskService {
 		this.plugin = plugin;
 		this.app = plugin.app;
 		this.mcpService = new McpService(plugin);
+	}
+
+	private normalizeFocusDurationMinutes(duration?: number): number {
+		if (!duration || duration <= 0) {
+			return 0;
+		}
+
+		// TickTick focus duration may arrive in milliseconds.
+		if (duration >= 100000) {
+			return Math.max(1, Math.round(duration / 60000));
+		}
+
+		// Some integrations return seconds instead of minutes.
+		if (duration >= 1000) {
+			return Math.max(1, Math.round(duration / 60));
+		}
+
+		return duration;
+	}
+
+	private normalizeFocusItem(focus: FocusItem): FocusItem {
+		const derivedTag = focus.tag
+			|| focus.tasks?.find(task => task.timerName?.trim())?.timerName?.trim()
+			|| undefined;
+
+		return {
+			...focus,
+			tag: derivedTag,
+			duration: this.normalizeFocusDurationMinutes(focus.duration)
+		};
 	}
 
 	/**
@@ -230,7 +271,7 @@ export class TaskService {
 					completedTasks: data.completedTasks || [],
 					habits: data.habits || [],
 					habitCheckins: data.habitCheckins || {},
-					focuses: data.focuses || [],
+					focuses: (data.focuses || []).map(focus => this.normalizeFocusItem(focus)),
 					projects: data.projects || []
 				};
 				this.syncStatus = {
@@ -418,7 +459,7 @@ export class TaskService {
 			const focusData = [
 				...focusData0,
 				...focusData1
-			];
+			].map(focus => this.normalizeFocusItem(focus));
 
 			// Process tasks into TaskStats cache object
 			const parsedTasks: TaskItem[] = allUndoneTasks.map(t => ({
