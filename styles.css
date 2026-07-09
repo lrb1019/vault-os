@@ -6,7 +6,7 @@
 	display: flex;
 	flex-direction: column;
 	margin: 0 auto;
-	padding: 28px 40px 20px;
+	padding: 16px 40px 12px;
 	box-sizing: border-box;
 	scrollbar-gutter: stable;
 }
@@ -25,7 +25,7 @@
 	border-radius: 12px;
 	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
 	background: var(--background-primary);
-	padding: 20px;
+	padding: 16px;
 	box-sizing: border-box;
 	overflow-x: auto;
 }
@@ -212,14 +212,13 @@
 	display: flex;
 	flex-direction: column;
 	align-items: center;
-	justify-content: flex-start;
-	padding-top: 8px;
-	height: 36px;
+	justify-content: center;
+	height: 28px;
 	cursor: pointer;
 	border-radius: 6px;
 	border: 1px dashed var(--background-modifier-border); /* 默认虚线框 */
 	background-color: var(--background-primary);
-	font-size: 13px;
+	font-size: 11px;
 	color: var(--text-normal);
 	position: relative;
 	transition: all 0.2s;
@@ -240,8 +239,8 @@
 	display: flex;
 	justify-content: space-between;
 	gap: 16px;
-	margin-bottom: 32px !important; /* 与展示区保持足够空隙 */
-	padding: 14px 20px !important;
+	margin-bottom: 8px !important; /* 与展示区保持足够空隙 */
+	padding: 8px 20px !important;
 }
 
 .vo-viewport-tab-btn {
@@ -252,7 +251,7 @@
 	gap: 8px;
 	font-size: 14px !important; /* 字体加大 */
 	font-weight: 500;
-	padding: 10px 0 !important;
+	padding: 6px 0 !important;
 	border-radius: 8px;
 	cursor: pointer;
 	background: transparent;
@@ -684,15 +683,15 @@ select.dropdown option {
 /* 日记模块周期切换按钮组与间距 */
 .vo-card-tabs {
 	display: flex;
-	gap: 8px;
+	gap: 4px;
 }
 
 .vo-card-tab-btn {
 	background-color: var(--background-secondary);
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 6px;
-	padding: 4px 12px;
-	font-size: 12px;
+	padding: 3px 6px;
+	font-size: 11px;
 	font-weight: 500;
 	cursor: pointer;
 	color: var(--text-muted);

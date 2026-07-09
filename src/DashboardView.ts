@@ -662,7 +662,7 @@ export class VaultOsView extends ItemView {
 		const createPartButton = (text: string, part: 'year' | 'month' | 'day') => {
 			const button = parent.createEl('button', {
 				text,
-				attr: { style: 'background: transparent; border: none; box-shadow: none; cursor: pointer; padding: 0; font-weight: 500; font-size: 13px; color: var(--text-normal);' }
+				attr: { style: 'background: transparent; border: none; box-shadow: none; cursor: pointer; padding: 0; font-weight: 500; font-size: 12px; color: var(--text-normal);' }
 			});
 			button.addEventListener('click', () => this.openPeriodicPartPicker(part));
 		};
@@ -803,7 +803,7 @@ export class VaultOsView extends ItemView {
 	private renderTopTelemetry(parent: Element): void {
 		const telemetry = parent.createDiv({ 
 			cls: 'vo-top-telemetry', 
-			attr: { style: 'border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent); padding-bottom: 12px; margin-bottom: 24px;' } 
+			attr: { style: 'border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent); padding-bottom: 8px; margin-bottom: 12px;' } 
 		});
 		
 		// Three-column layout
@@ -1160,7 +1160,7 @@ export class VaultOsView extends ItemView {
 			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'display: flex; flex-direction: column; padding: 16px; overflow: hidden; height: 100%; box-sizing: border-box;' } 
 		});
-		overviewCard.createEl('h3', { text: '概览', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
+		overviewCard.createSpan({ text: '概览 (OVERVIEW)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; display: block; margin-bottom: 6px;' } });
 		
 		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; flex-grow: 1; align-items: center;' } });
 		
@@ -1201,7 +1201,7 @@ export class VaultOsView extends ItemView {
 			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'display: flex; flex-direction: column; padding: 16px; overflow: hidden; height: 100%; box-sizing: border-box;' } 
 		});
-		completionRateCard.createEl('h3', { text: '最近完成率趋势', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
+		completionRateCard.createSpan({ text: '最近完成率趋势 (COMPLETION RATE)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; display: block; margin-bottom: 6px;' } });
 		
 		const completionRateData = last7Days.map(d => {
 			const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
@@ -1225,7 +1225,7 @@ export class VaultOsView extends ItemView {
 			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'display: flex; flex-direction: column; padding: 16px; overflow: hidden; height: 100%; box-sizing: border-box;' } 
 		});
-		completedTrendCard.createEl('h3', { text: '最近已完成趋势', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
+		completedTrendCard.createSpan({ text: '最近已完成趋势 (COMPLETED TREND)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; display: block; margin-bottom: 6px;' } });
 		
 		const completedTrendData = last7Days.map(d => {
 			return this.getTasksCompletedOnDay(completedTasks, d);
@@ -1238,7 +1238,7 @@ export class VaultOsView extends ItemView {
 			cls: 'vo-card vo-tech-card', 
 			attr: { style: 'display: flex; flex-direction: column; padding: 16px; overflow: hidden; height: 100%; box-sizing: border-box;' } 
 		});
-		habitsProgressCard.createEl('h3', { text: '本周打卡进展', attr: { style: 'margin: 0 0 8px 0; font-size: 13px; font-weight: 500;' } });
+		habitsProgressCard.createSpan({ text: '本周打卡进展 (HABITS)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; display: block; margin-bottom: 6px;' } });
 		this.drawHabitRings(habitsProgressCard, habits, habitCheckins);
 	}
 
@@ -1839,7 +1839,7 @@ export class VaultOsView extends ItemView {
 
 		const legendCol = wrapper.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px; align-self: stretch; flex-grow: 1; min-width: 0;' } });
 		if (cardTitle) {
-			legendCol.createEl('h3', { text: cardTitle, attr: { style: 'margin: 0 0 auto 0; font-size: 13px; font-weight: 500;' } });
+			legendCol.createSpan({ text: cardTitle, attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; display: block; margin-bottom: 6px;' } });
 		}
 		
 		const itemsWrapper = legendCol.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px; margin-top: auto;' } });
@@ -1936,7 +1936,7 @@ export class VaultOsView extends ItemView {
 		// Focus Records Card
 		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 160px;' } });
 		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;' } });
-		recordHeader.createEl('h3', { text: '记录', attr: { style: 'margin: 0; font-size: 13px; font-weight: 500;' } });
+		recordHeader.createSpan({ text: '记录 (RECORDS)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px;' } });
 		
 		const plusSpan = recordHeader.createSpan({ attr: { style: 'cursor: pointer; color: var(--text-muted);' } });
 		setIcon(plusSpan, 'plus');
@@ -2074,7 +2074,7 @@ export class VaultOsView extends ItemView {
 		});
 		
 		const listHeaderRow = listCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px solid var(--background-modifier-border); padding-bottom: 8px;' } });
-		listHeaderRow.createEl('h3', { text: '打卡明细与本周追踪', attr: { style: 'margin: 0; font-size: 13px; font-weight: 500;' } });
+		listHeaderRow.createSpan({ text: '打卡明细与本周追踪 (TRACKING)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px;' } });
 
 		const weekLabelsContainer = listHeaderRow.createDiv({ attr: { style: 'display: flex; gap: 8px; margin-right: 4px;' } });
 		const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
@@ -2221,7 +2221,7 @@ export class VaultOsView extends ItemView {
 		// Right Card: Focus Records
 		const recordCard = focusGrid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 160px; min-height: 160px;' } });
 		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;' } });
-		recordHeader.createEl('h3', { text: '记录', attr: { style: 'margin: 0; font-size: 13px; font-weight: 500;' } });
+		recordHeader.createSpan({ text: '记录 (RECORDS)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px;' } });
 		
 		const plusSpan = recordHeader.createSpan({ attr: { style: 'cursor: pointer; color: var(--text-muted);' } });
 		setIcon(plusSpan, 'plus');
@@ -2480,7 +2480,7 @@ export class VaultOsView extends ItemView {
 	private renderDiaryDashboard(contentContainer: Element): void {
 		const grid = contentContainer.createDiv({ 
 			cls: 'vo-dashboard-grid vo-diary-grid',
-			attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;' }
+			attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 20px; height: 100%; overflow: hidden;' }
 		});
 		
 		this.renderPeriodicNotesPanel(grid);
@@ -2515,8 +2515,8 @@ export class VaultOsView extends ItemView {
 	}
 
 	private renderPeriodicNotesPanel(parent: Element): void {
-		const card = parent.createDiv({ cls: 'vo-card vo-periodic-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column;' } });
-		const header = card.createDiv({ cls: 'vo-card-header', attr: { style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 16px;' } });
+		const card = parent.createDiv({ cls: 'vo-card vo-periodic-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
+		const header = card.createDiv({ cls: 'vo-card-header', attr: { style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;' } });
 
 		const subTabs = header.createDiv({ cls: 'vo-card-tabs' });
 		const tabs = [
@@ -2557,7 +2557,7 @@ export class VaultOsView extends ItemView {
 			this.render();
 		});
 
-		const gridContainer = card.createDiv({ cls: 'vo-periodic-grid-container', attr: { style: 'flex-grow: 1; max-height: none; overflow-y: auto; margin-top: 16px;' } });
+		const gridContainer = card.createDiv({ cls: 'vo-periodic-grid-container', attr: { style: 'flex-grow: 1; max-height: none; overflow-y: auto; margin-top: 8px;' } });
 
 		if (this.periodicTab === 'day') {
 			const grid = gridContainer.createDiv({ 
@@ -2674,7 +2674,7 @@ export class VaultOsView extends ItemView {
 	}
 
 	private renderCurrentPeriodicNote(parent: Element): void {
-		const diaryCard = parent.createDiv({ cls: 'vo-card vo-diary-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column;' } });
+		const diaryCard = parent.createDiv({ cls: 'vo-card vo-diary-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
 		
 		const tabNames: Record<string, string> = {
 			'day': '日记', 'week': '周记', 'month': '月记', 'quarter': '季记', 'year': '年记'
@@ -2682,7 +2682,7 @@ export class VaultOsView extends ItemView {
 		const currentName = tabNames[this.periodicTab] || '日记';
 
 		const header = diaryCard.createDiv({ cls: 'vo-card-header', attr: { style: 'display: flex; align-items: center; width: 100%; text-align: left;' } });
-		header.createEl('h3', { text: this.getPeriodicCardTitle(), attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
+		header.createSpan({ text: this.getPeriodicCardTitle(), attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 		
 		const baseDate = this.getPeriodicBaseDate();
 		const { filePath } = this.diaryService.resolvePeriodicNotePath(baseDate, this.periodicTab);
@@ -2733,11 +2733,11 @@ export class VaultOsView extends ItemView {
 	}
 
 	private async renderDiaryStatsCard(parent: Element): Promise<void> {
-		const card = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column;' } });
+		const card = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
 		const header = card.createDiv({ cls: 'vo-card-header' });
-		header.createEl('h3', { text: '日记数据概览' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
+		header.createSpan({ text: '日记数据概览 (DIARY STATS)' , attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 
-		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; padding: 8px 0; align-content: center;' } });
+		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 4px 0; align-content: center; overflow-y: auto;' } });
 		content.createDiv({ text: '分析中...', attr: { style: 'color: var(--text-muted); font-size: 13px; grid-column: span 2; text-align: center;' } });
 
 		try {
@@ -2745,9 +2745,9 @@ export class VaultOsView extends ItemView {
 			content.empty();
 
 			const createStatItem = (label: string, value: string | number, highlight = false) => {
-				const item = content.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); border: 1px solid color-mix(in srgb, var(--background-modifier-border) 60%, transparent); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02); padding: 14px 12px; border-radius: 10px; transition: transform 0.2s;' } });
-				item.createDiv({ text: String(value), attr: { style: `font-size: ${highlight ? '22px' : '18px'}; font-weight: 700; font-family: var(--font-monospace); color: ${highlight ? 'var(--text-success)' : 'var(--text-normal)'}; margin-bottom: 6px; text-align: center;` } });
-				item.createDiv({ text: label, attr: { style: 'font-size: 12px; color: var(--text-muted); font-weight: 500; text-align: center;' } });
+				const item = content.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); border: 1px solid color-mix(in srgb, var(--background-modifier-border) 60%, transparent); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02); padding: 8px 8px; border-radius: 8px; transition: transform 0.2s;' } });
+				item.createDiv({ text: String(value), attr: { style: `font-size: ${highlight ? '18px' : '15px'}; font-weight: 700; font-family: var(--font-monospace); color: ${highlight ? 'var(--text-success)' : 'var(--text-normal)'}; margin-bottom: 2px; text-align: center;` } });
+				item.createDiv({ text: label, attr: { style: 'font-size: 11px; color: var(--text-muted); font-weight: 500; text-align: center;' } });
 			};
 
 			createStatItem('累计日记', stats.totalDiaries);
@@ -2763,7 +2763,7 @@ export class VaultOsView extends ItemView {
 	}
 
 	private async renderLastYearPreviewCard(parent: Element): Promise<void> {
-		const card = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column;' } });
+		const card = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
 		const header = card.createDiv({ cls: 'vo-card-header' });
 		
 		const baseDate = this.getPeriodicBaseDate();
@@ -2771,7 +2771,7 @@ export class VaultOsView extends ItemView {
 							this.periodicTab === 'year' ? '去年' : 
 							`去年同${this.periodicTab === 'week' ? '周' : this.periodicTab === 'month' ? '月' : '季'}`;
 		
-		header.createEl('h3', { text: `${targetLabel}回望`, attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
+		header.createSpan({ text: `${targetLabel}回望 (MEMORY)`, attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 
 		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; padding: 8px 0;' } });
 		
@@ -2841,15 +2841,14 @@ export class VaultOsView extends ItemView {
 	 */
 	private renderLintDashboard(parent: Element): void {
 		parent.empty();
+		parent.setAttr('style', 'display: flex; flex-direction: column; height: 100%; overflow: hidden;');
 
-		const grid = parent.createDiv({ cls: 'vo-middle-grid', attr: { style: 'display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 16px;' } });
+		const grid = parent.createDiv({ cls: 'vo-middle-grid', attr: { style: 'display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 12px;' } });
 
-		const leftCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 16px; min-height: 320px;' } });
-		leftCard.createEl('h3', { text: '仓库健康度', attr: { style: 'margin: 0; text-align: left; align-self: flex-start; width: 100%;' } });
-		leftCard.createEl('p', {
-			text: `基于 Inbox、日记待入库、知识笔记死链/孤儿和全库空白笔记综合评估`,
-			attr: { style: 'margin: 6px 0 0 0; font-size: 11px; color: var(--text-muted); text-align: left; width: 100%;' }
-		});
+		const leftCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; min-height: 280px;' } });
+		const microHeaderLeft = leftCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px; text-align: left; align-self: flex-start; width: 100%; margin-bottom: 6px;' } });
+		microHeaderLeft.createSpan({ text: '仓库健康度 (HEALTH)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px;' } });
+		microHeaderLeft.createSpan({ text: '基于 Inbox、死链、孤儿和空白笔记综合评估', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.6;' } });
 
 		const ringContainer = leftCard.createDiv({ cls: 'vo-progress-ring-container', attr: { style: 'margin: 15px auto; position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center;' } });
 		const svg = ringContainer.createSvg('svg', { cls: 'vo-progress-ring', attr: { width: '120', height: '120', style: 'position: absolute; top: 0; left: 0; transform: rotate(-90deg);' } });
@@ -2878,8 +2877,32 @@ export class VaultOsView extends ItemView {
 		setIcon(runBtn, 'play');
 		runBtn.createSpan({ text: '开始体检' });
 
-		const rightCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding: 16px; display: flex; flex-direction: column; justify-content: flex-start; min-height: 320px; gap: 12px;' } });
-		rightCard.createEl('h3', { text: '诊断面板', attr: { style: 'margin: 0; text-align: left; align-self: flex-start; width: 100%;' } });
+		const rightCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding: 12px; display: flex; flex-direction: column; justify-content: flex-start; min-height: 280px; gap: 10px;' } });
+		
+		const rightCardHeader = rightCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin: 0;' } });
+		rightCardHeader.createSpan({ text: '诊断面板 (DIAGNOSTICS)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px;' } });
+		
+		const reportBtn = rightCardHeader.createEl('button', { cls: 'icon-btn', attr: { title: '打开最近一次体检报告', style: 'background: transparent; border: none; box-shadow: none; cursor: pointer; padding: 0; color: var(--text-muted); line-height: 1;' } });
+		setIcon(reportBtn, 'file-text');
+		reportBtn.addEventListener('click', () => {
+			const outputFolder = this.app.vault.getAbstractFileByPath(this.plugin.settings.outputFolder);
+			if (outputFolder instanceof TFolder) {
+				const reportFiles = outputFolder.children.filter((f): f is TFile => 
+					f instanceof TFile && f.name.endsWith('.md') && f.name.startsWith('知识库体检报告-')
+				);
+				if (reportFiles.length > 0) {
+					reportFiles.sort((a, b) => b.name.localeCompare(a.name));
+					const latestReport = reportFiles[0];
+					if (latestReport) {
+						void this.app.workspace.openLinkText(latestReport.path, '', false);
+					}
+				} else {
+					new Notice(`在 ${this.plugin.settings.outputFolder} 中未找到任何体检报告`);
+				}
+			} else {
+				new Notice(`未找到 ${this.plugin.settings.outputFolder} 文件夹`);
+			}
+		});
 		
 		// Log layout (compressed)
 		const topLogContainer = rightCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex-shrink: 0;' } });
@@ -2930,17 +2953,17 @@ export class VaultOsView extends ItemView {
 		emptyNoteItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.empty.files) new SimpleListModal(this.app, '空白笔记 (Empty Notes)', this.currentScanData.empty.files).open(); });
 
 		// Bottom Console: claudian Skill Panel
-		const consoleCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-bottom: 16px; padding: 16px;' } });
+		const consoleCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'flex-grow: 1; overflow-y: auto; padding: 10px 12px;' } });
+		consoleCard.createSpan({ text: '智能指令 (COMMANDS)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 6px; display: block;' } });
 
-		const consoleLayout = consoleCard.createDiv({ cls: 'vo-console-layout', attr: { style: 'display: flex; flex-direction: column; gap: 12px; margin-top: 10px;' } });
+		const consoleLayout = consoleCard.createDiv({ cls: 'vo-console-layout', attr: { style: 'display: flex; flex-direction: column; gap: 8px;' } });
 		
 		// Dynamic Claudian Actions from Settings
-		const presetsCard = consoleLayout.createDiv({ attr: { style: 'border: 1px solid var(--background-modifier-border); border-radius: 12px; padding: 12px; background: color-mix(in srgb, var(--background-secondary) 45%, transparent);' } });
-		const presetsDiv = presetsCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 8px;' } });
-		const presetsGrid = presetsDiv.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px;' } });
+		const presetsCard = consoleLayout.createDiv({ attr: { style: 'border: 1px dashed var(--background-modifier-border); border-radius: 8px; padding: 8px; background: var(--background-primary);' } });
+		const presetsGrid = presetsCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;' } });
 		
-		const inputsCard = consoleLayout.createDiv({ attr: { style: 'border: 1px solid var(--background-modifier-border); border-radius: 12px; padding: 12px; background: color-mix(in srgb, var(--background-secondary) 45%, transparent);' } });
-		const inputsDiv = inputsCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px;' } });
+		const inputsCard = consoleLayout.createDiv({ attr: { style: 'border: 1px dashed var(--background-modifier-border); border-radius: 8px; padding: 8px; background: var(--background-primary);' } });
+		const inputsDiv = inputsCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px;' } });
 
 		const actions = (this.plugin.settings.claudianActions || [])
 			.map(action => ({
@@ -2977,37 +3000,7 @@ export class VaultOsView extends ItemView {
 			}
 		});
 
-		// Bottom Monthly Stats & Report Generating Card
-		const reportCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding: 16px; display: flex; justify-content: space-between; align-items: center;' } });
-		
-		const statsWrap = reportCard.createDiv({ attr: { style: 'display: flex; gap: 20px; font-size: 12px; color: var(--text-muted); font-family: var(--font-monospace);' } });
-		statsWrap.createDiv({ text: `本月分类入库: ${this.historyStats.ingested} 篇` });
-		statsWrap.createDiv({ text: `本月修复死链: ${this.historyStats.fixedLinks} 处` });
-		statsWrap.createDiv({ text: `本月清理空白: ${this.historyStats.cleanedEmpty} 篇` });
-
-		const reportBtn = reportCard.createEl('button', { cls: 'vo-btn vo-btn-secondary', attr: { style: 'gap: 6px;' } });
-		setIcon(reportBtn, 'file-text');
-		reportBtn.createSpan({ text: '打开最近一次体检报告' });
-		reportBtn.addEventListener('click', () => {
-			const outputFolder = this.app.vault.getAbstractFileByPath(this.plugin.settings.outputFolder);
-			if (outputFolder instanceof TFolder) {
-				const reportFiles = outputFolder.children.filter((f): f is TFile => 
-					f instanceof TFile && f.name.endsWith('.md') && f.name.startsWith('知识库体检报告-')
-				);
-				if (reportFiles.length > 0) {
-					// Sort descending to get the latest date
-					reportFiles.sort((a, b) => b.name.localeCompare(a.name));
-					const latestReport = reportFiles[0];
-					if (latestReport) {
-						void this.app.workspace.openLinkText(latestReport.path, '', false);
-					}
-				} else {
-					new Notice(`在 ${this.plugin.settings.outputFolder} 中未找到任何体检报告`);
-				}
-			} else {
-				new Notice(`未找到 ${this.plugin.settings.outputFolder} 文件夹`);
-			}
-		});
+		// (Bottom Monthly Stats and Report Button removed and integrated above)
 
 		// Core calculations and sync updating logic
 		const runScan = () => {
@@ -3217,7 +3210,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	private renderTodayTasks(parent: Element): void {
 		const todayCard = parent.createDiv({ cls: 'vo-card vo-task-card vo-tech-card' });
 		const headerContainer = todayCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center;' } });
-		headerContainer.createEl('h3', { text: '今日待办' , attr: { style: 'margin: 0; text-align: left;' } });
+		headerContainer.createSpan({ text: '今日待办 (TODAY)' , attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left;' } });
 		
 		const headerRight = headerContainer.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
 		
@@ -3427,7 +3420,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 
 	private renderTodayHabits(parent: Element): void {
 		const habitCard = parent.createDiv({ cls: 'vo-card vo-habit-card vo-tech-card' });
-		habitCard.createEl('h3', { text: '今日习惯打卡' , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
+		habitCard.createSpan({ text: '今日习惯打卡 (HABITS)' , attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start; display: block; margin-bottom: 6px;' } });
 		
 		const habitList = habitCard.createDiv({ cls: 'vo-habit-list' });
 		const stats = this.taskService.getCache();
@@ -3543,7 +3536,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		
 		const baseCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding-top: 16px;' } });
 		const baseHeader = baseCard.createDiv({ cls: 'vo-card-header' });
-		baseHeader.createEl('h3', { text: `项目数据库 (${this.plugin.settings.projectBaseFilePath})` , attr: { style: 'margin: 0; text-align: left; align-self: flex-start;' } });
+		baseHeader.createSpan({ text: `项目数据库 (PROJECTS) - ${this.plugin.settings.projectBaseFilePath}` , attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 		
 		void this.getProjectsData().then(projects => {
 			const total = projects.length;
