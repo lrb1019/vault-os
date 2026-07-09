@@ -1061,6 +1061,8 @@ select.dropdown option {
 	width: 100%;
 	overflow-x: auto;
 	margin-top: 16px;
+	max-height: 250px;
+	overflow-y: auto;
 }
 
 .vo-projects-table {

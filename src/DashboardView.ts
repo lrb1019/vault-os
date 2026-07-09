@@ -826,7 +826,7 @@ export class VaultOsView extends ItemView {
 		const diffDays = this.vaultService.getVaultLifetimeDays();
 		
 		rightCol.createDiv({ 
-			text: `SYS.v1.2.0 // UPTIME.${diffDays}d`, 
+			text: `SYS.v${this.plugin.manifest.version} // UPTIME.${diffDays}d`, 
 			attr: { style: 'font-size: 11px; color: var(--text-muted); font-family: var(--font-monospace); font-weight: 600; letter-spacing: 1px;' } 
 		});
 	}
@@ -1771,9 +1771,9 @@ export class VaultOsView extends ItemView {
 		centerVal: string,
 		cardTitle: string = ''
 	): void {
-		const wrapper = parent.createDiv({ attr: { style: 'display: flex; align-items: center; justify-content: space-around; padding: 10px 0; gap: 20px; min-height: 0; height: 100%;' } });
+		const wrapper = parent.createDiv({ attr: { style: 'display: flex; flex-direction: row-reverse; align-items: center; justify-content: space-around; padding: 6px 0; gap: 16px; min-height: 0; height: 100%;' } });
 		
-		const chartDiv = wrapper.createDiv({ attr: { style: 'width: 100%; max-width: 140px; aspect-ratio: 1; position: relative;' } });
+		const chartDiv = wrapper.createDiv({ attr: { style: 'width: 100%; max-width: 110px; aspect-ratio: 1; position: relative; flex-shrink: 0;' } });
 		const svg = chartDiv.createSvg('svg', { attr: { width: '100%', height: '100%', viewBox: '0 0 100 100' } });
 
 		const total = data.reduce((sum, item) => sum + item.value, 0);
@@ -1838,13 +1838,15 @@ export class VaultOsView extends ItemView {
 		});
 		lblText.textContent = centerLabel;
 
-		const legendCol = wrapper.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 8px;' } });
+		const legendCol = wrapper.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px; align-self: stretch; flex-grow: 1; min-width: 0;' } });
 		if (cardTitle) {
-			legendCol.createEl('h3', { text: cardTitle, attr: { style: 'margin: 0 0 8px 0; font-size: 14px; font-weight: 500;' } });
+			legendCol.createEl('h3', { text: cardTitle, attr: { style: 'margin: 0 0 auto 0; font-size: 13px; font-weight: 500;' } });
 		}
+		
+		const itemsWrapper = legendCol.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px; margin-top: auto;' } });
 		data.forEach(item => {
-			const row = legendCol.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
-			row.createDiv({ attr: { style: `width: 8px; height: 8px; border-radius: 50%; background: ${item.color};` } });
+			const row = itemsWrapper.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;' } });
+			row.createDiv({ attr: { style: `width: 6px; height: 6px; border-radius: 50%; background: ${item.color}; flex-shrink: 0;` } });
 			row.createSpan({ 
 				text: `${item.value} | ${item.label}`, 
 				attr: { style: 'font-size: 11px; color: var(--text-muted);' } 
@@ -1879,9 +1881,9 @@ export class VaultOsView extends ItemView {
 		const totalFocusDurationMin = focuses.reduce((sum, f) => sum + (f.duration || 0), 0);
 
 		// 1. Overview Card
-		const overviewCard = parent.createDiv({ cls: 'vo-card vo-tech-card' });
+		const overviewCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding: 10px 20px; display: flex; align-items: center; min-height: 70px;' } });
 		
-		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;' } });
+		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; width: 100%;' } });
 
 		const drawFocusMetric = (parentElem: HTMLElement, val: string, label: string, diffText: string) => {
 			const box = parentElem.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); padding: 8px; border-radius: 8px; border: 1px solid var(--background-modifier-border);' } });
@@ -1930,12 +1932,12 @@ export class VaultOsView extends ItemView {
 		];
 		
 		const donutWrapper = detailCard.createDiv({ attr: { style: 'flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 0;' } });
-		this.drawDonutChart(donutWrapper, finalDetailData, '分类比例', '', '专注详情');
+		this.drawDonutChart(donutWrapper, finalDetailData, '分类比例', '', '详情');
 
 		// Focus Records Card
 		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 160px;' } });
 		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;' } });
-		recordHeader.createEl('h3', { text: '专注记录', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
+		recordHeader.createEl('h3', { text: '记录', attr: { style: 'margin: 0; font-size: 13px; font-weight: 500;' } });
 		
 		const plusSpan = recordHeader.createSpan({ attr: { style: 'cursor: pointer; color: var(--text-muted);' } });
 		setIcon(plusSpan, 'plus');
@@ -1970,14 +1972,8 @@ export class VaultOsView extends ItemView {
 		}
 
 		// 3. Github style contribution heatmap
-		const heatmapCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; align-items: center; justify-content: space-between;' } });
-		
-		const heatMapLeft = heatmapCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-x: auto; padding: 10px 0;' } });
-		this.drawFocusHeatmap(heatMapLeft, focuses);
-		
-		const heatHeader = heatmapCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: flex-end; justify-content: center; min-width: 100px; padding-left: 16px;' } });
-		heatHeader.createEl('h3', { text: '年度热力图', attr: { style: 'margin: 0 0 4px 0; font-size: 12px; font-weight: 500; text-align: right;' } });
-		heatHeader.createDiv({ text: String(now.getFullYear()), attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
+		const heatmapCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 16px;' } });
+		this.drawFocusHeatmap(heatmapCard, focuses);
 	}
 
 	private getHabitsStreak(habitCheckins: Record<string, HabitCheckinItem[]>, now: Date): number {
@@ -2054,13 +2050,13 @@ export class VaultOsView extends ItemView {
 
 		const overviewCard = parent.createDiv({ 
 			cls: 'vo-card vo-tech-card', 
-			attr: { style: 'padding: 10px 16px;' } 
+			attr: { style: 'padding: 8px 16px; display: flex; align-items: center; min-height: 60px;' } 
 		});
 		
-		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px;' } });
+		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; width: 100%;' } });
 
 		const drawHabitMetric = (parentElem: HTMLElement, val: string, label: string, desc: string) => {
-			const box = parentElem.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--background-modifier-border);' } });
+			const box = parentElem.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); padding: 4px 8px; border-radius: 8px; border: 1px solid var(--background-modifier-border);' } });
 			box.createDiv({ text: val, attr: { style: 'font-size: 16px; font-weight: bold; color: var(--interactive-accent); font-family: var(--font-monospace); line-height: 1.2;' } });
 			box.createDiv({ text: label, attr: { style: 'font-size: 11px; color: var(--text-muted); margin-bottom: 2px;' } });
 			box.createDiv({ text: desc, attr: { style: 'font-size: 10px; color: var(--text-faint);' } });
@@ -2171,14 +2167,10 @@ export class VaultOsView extends ItemView {
 			});
 		}
 
-		const annualCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px; display: flex; align-items: center; justify-content: space-between;' } });
+		const annualCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 12px 16px;' } });
 		
-		const heatmapContainer = annualCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-x: auto; padding: 10px 0;' } });
+		const heatmapContainer = annualCard.createDiv({ attr: { style: 'margin: 0 auto; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px;' } });
 		
-		const annualHeader = annualCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: flex-end; justify-content: center; min-width: 120px; padding-left: 16px;' } });
-		annualHeader.createEl('h3', { text: '年度习惯打卡热力图', attr: { style: 'margin: 0 0 4px 0; font-size: 12px; font-weight: 500; text-align: right;' } });
-		annualHeader.createDiv({ text: String(now.getFullYear()), attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
-
 		const svg = heatmapContainer.createSvg('svg', { attr: { width: '560', height: '100', viewBox: '0 0 560 100' } });
 
 		const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
@@ -2275,10 +2267,16 @@ export class VaultOsView extends ItemView {
 				});
 			}
 		}
+
+		const footer = heatmapContainer.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); width: 100%; margin-top: 6px;' } });
+		footer.createSpan({ text: `${now.getFullYear()}年度习惯打卡热力图`, attr: { style: 'font-weight: bold; color: var(--text-normal); font-size: 11px;' } });
 	}
 
 	private drawFocusHeatmap(parent: HTMLElement, focuses: FocusItem[]): void {
-		const heatmapWrapper = parent.createDiv({ cls: 'vo-stats-heatmap-wrapper' });
+		const heatmapWrapper = parent.createDiv({ 
+			cls: 'vo-stats-heatmap-wrapper', 
+			attr: { style: 'margin: 0 auto; display: flex; flex-direction: column; align-items: center; width: 100%; max-width: 560px;' } 
+		});
 		const now = moment();
 		const targetYear = now.year();
 		const cellSize = this.plugin.settings.heatmapCellSize;
@@ -2297,7 +2295,7 @@ export class VaultOsView extends ItemView {
 
 		const monthLabels = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 		const monthGrid = heatmapWrapper.createDiv({
-			attr: { style: `display: grid; grid-template-columns: repeat(53, ${cellSize}px); gap: ${cellGap}px; font-size: 9px; color: var(--text-muted); margin-bottom: 4px; padding-left: 22px;` }
+			attr: { style: `display: grid; grid-template-columns: repeat(53, ${cellSize}px); gap: ${cellGap}px; font-size: 9px; color: var(--text-muted); margin-bottom: 4px; padding-left: 22px; width: 100%;` }
 		});
 
 		monthLabels.forEach((label, i) => {
@@ -2308,7 +2306,7 @@ export class VaultOsView extends ItemView {
 			});
 		});
 
-		const gridBody = heatmapWrapper.createDiv({ attr: { style: `display: flex; gap: 8px; height: ${gridHeight}px; margin-bottom: 8px;` } });
+		const gridBody = heatmapWrapper.createDiv({ attr: { style: `display: flex; gap: 8px; height: ${gridHeight}px; margin-bottom: 8px; width: 100%;` } });
 		const dayLabels = gridBody.createDiv({
 			attr: { style: 'display: flex; flex-direction: column; justify-content: space-between; font-size: 9px; color: var(--text-muted); width: 14px; padding: 2px 0;' }
 		});
@@ -2354,8 +2352,10 @@ export class VaultOsView extends ItemView {
 			}
 		}
 
-		const footer = heatmapWrapper.createDiv({ cls: 'vo-stats-heatmap-footer' });
-		footer.createSpan({ text: `本年度共专注 ${activeDays} 天，累计专注 ${this.formatFocusMinutes(totalMinutes)}` });
+		const footer = heatmapWrapper.createDiv({ cls: 'vo-stats-heatmap-footer', attr: { style: 'display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-muted); width: 100%; margin-top: 4px;' } });
+		const footerLeft = footer.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 4px;' } });
+		footerLeft.createSpan({ text: `${targetYear}年`, attr: { style: 'font-weight: bold; color: var(--text-normal); font-size: 11px;' } });
+		footerLeft.createSpan({ text: `本年度共专注 ${activeDays} 天，累计专注 ${this.formatFocusMinutes(totalMinutes)}` });
 
 		const legend = footer.createDiv({ cls: 'vo-stats-heatmap-legend' });
 		legend.createSpan({ text: '少' });
