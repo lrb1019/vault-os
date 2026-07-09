@@ -1645,17 +1645,22 @@ export class VaultOsView extends ItemView {
 		const topBar = parent.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; background: var(--background-secondary); padding: 8px 16px; border-radius: 8px; border: 1px solid var(--background-modifier-border);' } });
 		
 		// Date Selector dropdown
-		const dateDrop = topBar.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-normal); font-weight: 500;' } });
-		const dateSelect = dateDrop.createEl('select', { cls: 'vo-select' });
-		dateSelect.createEl('option', { value: 'day', text: '按日' });
-		dateSelect.createEl('option', { value: 'week', text: '按周' });
-		dateSelect.createEl('option', { value: 'month', text: '按月' });
-		dateSelect.value = this.taskStatsPeriod;
-
-		dateSelect.addEventListener('change', (e) => {
-			this.taskStatsPeriod = (e.target as HTMLSelectElement).value as 'day' | 'week' | 'month';
-			this.render();
-		});
+		const dateDrop = topBar.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
+		
+		const createDateBtn = (val: 'day' | 'week' | 'month', text: string) => {
+			const isActive = this.taskStatsPeriod === val;
+			const btn = dateDrop.createEl('button', { 
+				text, 
+				attr: { style: `padding: 4px 12px; margin: 0; border-radius: 6px; border: 1px solid var(--background-modifier-border); background: ${isActive ? 'var(--interactive-accent)' : 'var(--background-secondary-alt)'}; color: ${isActive ? 'var(--text-on-accent)' : 'var(--text-normal)'}; font-size: 12px; cursor: pointer; box-shadow: none;` } 
+			});
+			btn.addEventListener('click', () => {
+				this.taskStatsPeriod = val;
+				this.render();
+			});
+		};
+		createDateBtn('day', '按日');
+		createDateBtn('week', '按周');
+		createDateBtn('month', '按月');
 
 		// 2. Middle Row: Overview, Completion Rate Distribution, Classifications
 		const grid = parent.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px;' } });
@@ -1686,7 +1691,6 @@ export class VaultOsView extends ItemView {
 
 		// Card 2: Completion Rate Status (完成率分布)
 		const distCard = grid.createDiv({ cls: 'vo-card vo-tech-card' });
-		distCard.createEl('h3', { text: '完成率分布', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
 		
 		let overdueDone = 0;
 		let onTimeDone = 0;
@@ -1720,11 +1724,10 @@ export class VaultOsView extends ItemView {
 			{ label: '未完成', value: incompleteCount, color: '#A5A5A5' }
 		];
 
-		this.drawDonutChart(distCard, donutData, '完成率', `${rateThisPeriod.toFixed(2)}%`);
+		this.drawDonutChart(distCard, donutData, '完成率', `${rateThisPeriod.toFixed(2)}%`, '完成率分布');
 
 		// Card 3: Completed tasks by Category (已完成分类统计)
 		const categoryCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px;' } });
-		categoryCard.createEl('h3', { text: '已完成分类统计', attr: { style: 'margin: 0 0 16px 0; font-size: 14px; font-weight: 500;' } });
 		
 		const projectCounts: Record<string, number> = {};
 		completedTasks.forEach(t => {
@@ -1758,16 +1761,17 @@ export class VaultOsView extends ItemView {
 		});
 
 		const totalCatCount = catData.reduce((sum, item) => sum + item.value, 0);
-		this.drawDonutChart(categoryCard, catData, '完成数量', `${totalCatCount}`);
+		this.drawDonutChart(categoryCard, catData, '完成数量', `${totalCatCount}`, '已完成分类统计');
 	}
 
 	private drawDonutChart(
 		parent: HTMLElement, 
 		data: { label: string, value: number, color: string }[], 
 		centerLabel: string, 
-		centerVal: string
+		centerVal: string,
+		cardTitle: string = ''
 	): void {
-		const wrapper = parent.createDiv({ attr: { style: 'display: flex; align-items: center; justify-content: space-around; padding: 10px 0; gap: 20px; min-height: 0;' } });
+		const wrapper = parent.createDiv({ attr: { style: 'display: flex; align-items: center; justify-content: space-around; padding: 10px 0; gap: 20px; min-height: 0; height: 100%;' } });
 		
 		const chartDiv = wrapper.createDiv({ attr: { style: 'width: 100%; max-width: 140px; aspect-ratio: 1; position: relative;' } });
 		const svg = chartDiv.createSvg('svg', { attr: { width: '100%', height: '100%', viewBox: '0 0 100 100' } });
@@ -1835,6 +1839,9 @@ export class VaultOsView extends ItemView {
 		lblText.textContent = centerLabel;
 
 		const legendCol = wrapper.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 8px;' } });
+		if (cardTitle) {
+			legendCol.createEl('h3', { text: cardTitle, attr: { style: 'margin: 0 0 8px 0; font-size: 14px; font-weight: 500;' } });
+		}
 		data.forEach(item => {
 			const row = legendCol.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
 			row.createDiv({ attr: { style: `width: 8px; height: 8px; border-radius: 50%; background: ${item.color};` } });
@@ -1877,14 +1884,15 @@ export class VaultOsView extends ItemView {
 		const overviewGrid = overviewCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;' } });
 
 		const drawFocusMetric = (parentElem: HTMLElement, val: string, label: string, diffText: string) => {
-			const box = parentElem.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); padding: 10px; border-radius: 8px; border: 1px solid var(--background-modifier-border);' } });
-			box.createDiv({ text: val, attr: { style: 'font-size: 22px; font-weight: bold; color: var(--interactive-accent); font-family: var(--font-monospace);' } });
+			const box = parentElem.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); padding: 8px; border-radius: 8px; border: 1px solid var(--background-modifier-border);' } });
+			box.createDiv({ text: val, attr: { style: 'font-size: 16px; font-weight: bold; color: var(--interactive-accent); font-family: var(--font-monospace);' } });
 			box.createDiv({ text: label, attr: { style: 'font-size: 11px; color: var(--text-muted); margin-bottom: 6px;' } });
 			box.createDiv({ text: diffText, attr: { style: 'font-size: 10px; color: var(--text-success); display: flex; align-items: center; gap: 2px;' } });
 		};
 
-		const diffTomato = todayFocusCount - yesterdayFocusCount;
-		const diffTomatoText = diffTomato >= 0 ? `比前一天多 ${diffTomato} 个 ⬆` : `比前一天少 ${Math.abs(diffTomato)} 个 ⬇`;
+		const diffTomatoCount = todayFocusCount - yesterdayFocusCount;
+		const diffTomatoStr = `${Math.abs(diffTomatoCount)} 个`;
+		const diffTomatoText = diffTomatoCount >= 0 ? `比前一天多 ${diffTomatoStr} ⬆` : `比前一天少 ${diffTomatoStr} ⬇`;
 
 		const diffDuration = todayFocusDurationMin - yesterdayFocusDurationMin;
 		const diffDurationStr = `${Math.floor(Math.abs(diffDuration) / 60)}h${Math.abs(diffDuration) % 60}m`;
@@ -1902,8 +1910,7 @@ export class VaultOsView extends ItemView {
 		const grid = parent.createDiv({ attr: { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: 16px;' } });
 
 		// Donut Detail Card
-		const detailCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'height: 240px; display: flex; flex-direction: column;' } });
-		detailCard.createEl('h3', { text: '专注详情', attr: { style: 'margin: 0 0 12px 0; font-size: 14px; font-weight: 500;' } });
+		const detailCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'height: 160px; display: flex; flex-direction: column;' } });
 		
 		const tagCounts: Record<string, number> = {};
 		todayFocuses.forEach(f => {
@@ -1923,10 +1930,10 @@ export class VaultOsView extends ItemView {
 		];
 		
 		const donutWrapper = detailCard.createDiv({ attr: { style: 'flex-grow: 1; display: flex; align-items: center; justify-content: center; min-height: 0;' } });
-		this.drawDonutChart(donutWrapper, finalDetailData, '分类比例', '');
+		this.drawDonutChart(donutWrapper, finalDetailData, '分类比例', '', '专注详情');
 
 		// Focus Records Card
-		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 240px;' } });
+		const recordCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; flex-direction: column; height: 160px;' } });
 		const recordHeader = recordCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;' } });
 		recordHeader.createEl('h3', { text: '专注记录', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
 		
@@ -1963,11 +1970,14 @@ export class VaultOsView extends ItemView {
 		}
 
 		// 3. Github style contribution heatmap
-		const heatmapCard = parent.createDiv({ cls: 'vo-card vo-tech-card' });
-		const heatHeader = heatmapCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;' } });
-		heatHeader.createEl('h3', { text: '年度热力图', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
+		const heatmapCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'display: flex; align-items: center; justify-content: space-between;' } });
+		
+		const heatMapLeft = heatmapCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-x: auto; padding: 10px 0;' } });
+		this.drawFocusHeatmap(heatMapLeft, focuses);
+		
+		const heatHeader = heatmapCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: flex-end; justify-content: center; min-width: 100px; padding-left: 16px;' } });
+		heatHeader.createEl('h3', { text: '年度热力图', attr: { style: 'margin: 0 0 4px 0; font-size: 12px; font-weight: 500; text-align: right;' } });
 		heatHeader.createDiv({ text: String(now.getFullYear()), attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
-		this.drawFocusHeatmap(heatmapCard, focuses);
 	}
 
 	private getHabitsStreak(habitCheckins: Record<string, HabitCheckinItem[]>, now: Date): number {
@@ -2051,7 +2061,7 @@ export class VaultOsView extends ItemView {
 
 		const drawHabitMetric = (parentElem: HTMLElement, val: string, label: string, desc: string) => {
 			const box = parentElem.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--background-modifier-border);' } });
-			box.createDiv({ text: val, attr: { style: 'font-size: 20px; font-weight: bold; color: var(--interactive-accent); font-family: var(--font-monospace); line-height: 1.2;' } });
+			box.createDiv({ text: val, attr: { style: 'font-size: 16px; font-weight: bold; color: var(--interactive-accent); font-family: var(--font-monospace); line-height: 1.2;' } });
 			box.createDiv({ text: label, attr: { style: 'font-size: 11px; color: var(--text-muted); margin-bottom: 2px;' } });
 			box.createDiv({ text: desc, attr: { style: 'font-size: 10px; color: var(--text-faint);' } });
 		};
@@ -2161,12 +2171,14 @@ export class VaultOsView extends ItemView {
 			});
 		}
 
-		const annualCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px;' } });
-		const annualHeader = annualCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;' } });
-		annualHeader.createEl('h3', { text: '年度习惯打卡热力图', attr: { style: 'margin: 0; font-size: 14px; font-weight: 500;' } });
+		const annualCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-top: 10px; display: flex; align-items: center; justify-content: space-between;' } });
+		
+		const heatmapContainer = annualCard.createDiv({ attr: { style: 'flex-grow: 1; overflow-x: auto; padding: 10px 0;' } });
+		
+		const annualHeader = annualCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: flex-end; justify-content: center; min-width: 120px; padding-left: 16px;' } });
+		annualHeader.createEl('h3', { text: '年度习惯打卡热力图', attr: { style: 'margin: 0 0 4px 0; font-size: 12px; font-weight: 500; text-align: right;' } });
 		annualHeader.createDiv({ text: String(now.getFullYear()), attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
-		const heatmapContainer = annualCard.createDiv({ attr: { style: 'width: 100%; overflow-x: auto; padding: 10px 0;' } });
 		const svg = heatmapContainer.createSvg('svg', { attr: { width: '560', height: '100', viewBox: '0 0 560 100' } });
 
 		const months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
