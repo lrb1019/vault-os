@@ -9,9 +9,8 @@
 node_modules
 .codebase-memory
 
-# Don't include the compiled main.js file in the repo.
-# They should be uploaded to GitHub releases instead.
-main.js
+# BRAT checks the repository root for Obsidian plugin assets.
+# Keep the compiled main.js in the repo as well as in GitHub releases.
 
 # Exclude sourcemaps
 *.map
