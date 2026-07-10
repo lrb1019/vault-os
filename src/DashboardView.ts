@@ -3546,9 +3546,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		
 		const baseCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding-top: 16px; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;' } });
 		const baseHeader = baseCard.createDiv({ cls: 'vo-card-header' });
-		baseHeader.createSpan({ text: `项目数据库 (PROJECTS) - ${this.plugin.settings.projectBaseFilePath}` , attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
+		const pathSpan = baseHeader.createSpan({ text: '项目数据库 (PROJECTS) - 读取中...', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 		
-		void this.getProjectsData().then(({ projects, columns }) => {
+		void this.getProjectsData().then(({ projects, columns, actualBaseFilePath }) => {
+			pathSpan.setText(`项目数据库 (PROJECTS) - ${actualBaseFilePath}`);
 			const total = projects.length;
 			const counts = { pending: 0, active: 0, onhold: 0, blocked: 0, completed: 0, cancelled: 0 };
 			
@@ -3696,14 +3697,29 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	});
 	}
 
-	private async getProjectsData(): Promise<{ projects: ProjectInfo[], columns: string[] }> {
+	private async getProjectsData(): Promise<{ projects: ProjectInfo[], columns: string[], actualBaseFilePath: string }> {
 		const projects: ProjectInfo[] = [];
 		let columns = ["file.name", "status", "file.ctime", "topics"];
+		let actualBaseFilePath = this.plugin.settings.projectBaseFilePath;
 		try {
-			const baseFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.projectBaseFilePath);
-			if (!(baseFile instanceof TFile)) {
+			let baseFile: TFile | null = null;
+			const initialFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.projectBaseFilePath);
+			if (initialFile instanceof TFile) {
+				baseFile = initialFile;
+			} else {
+				const baseFiles = this.app.vault.getFiles().filter(f => 
+					f.extension === 'base' && 
+					f.path.startsWith(this.plugin.settings.projectsFolder + '/')
+				);
+				if (baseFiles.length > 0) {
+					baseFile = baseFiles[0] || null;
+					actualBaseFilePath = baseFile ? baseFile.path : actualBaseFilePath;
+				}
+			}
+
+			if (!baseFile) {
 				console.error("Base file not found:", this.plugin.settings.projectBaseFilePath);
-				return { projects: [], columns };
+				return { projects: [], columns, actualBaseFilePath };
 			}
 			const baseContent = await this.app.vault.read(baseFile);
 			const baseDefinition = getProjectBaseDefinition(parseYaml(baseContent));
@@ -3860,11 +3876,12 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		if (projects.length === 0) {
 			return {
 				columns,
-				projects: []
+				projects: [],
+				actualBaseFilePath
 			};
 		}
 
-		return { projects, columns };
+		return { projects, columns, actualBaseFilePath };
 	}
 
 	/**
