@@ -38,3 +38,7 @@ CLAUDE.md
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
+
+# Local release scripts containing tokens
+publish.py
+
