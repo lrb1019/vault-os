@@ -718,7 +718,7 @@ export class VaultOsView extends ItemView {
 		
 		rightCol.createDiv({ 
 			text: `SYS.v${this.plugin.manifest.version} // UPTIME.${diffDays}d`, 
-			attr: { style: 'font-size: 11px; color: var(--text-muted); font-family: var(--font-monospace); font-weight: 600; letter-spacing: 1px;' } 
+			attr: { style: 'font-size: 10px; color: var(--text-muted); font-family: var(--font-monospace); font-weight: 400; letter-spacing: 0.5px; opacity: 0.8;' } 
 		});
 	}
 
@@ -2546,13 +2546,13 @@ export class VaultOsView extends ItemView {
 		const baseDate = this.getPeriodicBaseDate();
 		const { filePath } = this.diaryService.resolvePeriodicNotePath(baseDate, this.periodicTab);
 		
-		const content = diaryCard.createDiv({ cls: 'vo-diary-content', attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; margin-top: 12px;' } });
+		const content = diaryCard.createDiv({ cls: 'vo-diary-content', attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; margin-top: 12px; min-height: 0;' } });
 		
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		const isCreated = file instanceof TFile;
 
 		const borderStyle = isCreated ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
-		const innerDiv = content.createDiv({ attr: { style: `border: ${borderStyle}; border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column;` } });
+		const innerDiv = content.createDiv({ attr: { style: `border: ${borderStyle}; border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;` } });
 		
 		innerDiv.createEl('div', { text: filePath, cls: 'vo-diary-path', attr: { style: 'font-family: var(--font-monospace); font-size: 11px; margin-bottom: 10px; color: var(--text-muted);' } });
 		const summaryEl = innerDiv.createEl('p', { text: `读取中...`, cls: 'vo-diary-summary', attr: { style: 'font-size: 13px; line-height: 1.5; color: var(--text-normal); flex-grow: 1; overflow-y: auto;' } });
@@ -2632,9 +2632,9 @@ export class VaultOsView extends ItemView {
 		
 		header.createSpan({ text: `${targetLabel}回望 (MEMORY)`, attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 
-		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; padding: 8px 0;' } });
+		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; padding: 8px 0; min-height: 0;' } });
 		
-		const innerDiv = content.createDiv({ attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: center;' } });
+		const innerDiv = content.createDiv({ attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0;' } });
 		innerDiv.createDiv({ text: '查询中...', attr: { style: 'color: var(--text-muted); font-size: 13px; text-align: center;' } });
 
 		try {
@@ -2642,7 +2642,7 @@ export class VaultOsView extends ItemView {
 			innerDiv.empty();
 
 			if (info) {
-				innerDiv.setAttr('style', 'border: 1px solid var(--text-success); border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center;');
+				innerDiv.setAttr('style', 'border: 1px solid var(--text-success); border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0;');
 				innerDiv.createDiv({ 
 					text: info.path, 
 					attr: { style: 'font-family: var(--font-monospace); font-size: 11px; color: var(--text-muted); word-break: break-all; margin-bottom: 8px;' } 
