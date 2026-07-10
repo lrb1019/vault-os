@@ -1,7 +1,7 @@
 {
 	"id": "vault-os",
 	"name": "Vault OS",
-	"version": "1.4.2",
+	"version": "1.4.3",
 	"minAppVersion": "1.8.0",
 	"description": "A unified Obsidian operating surface for vault stats, diaries, lint, TickTick, projects, and custom AI actions.",
 	"author": "Bylrb",

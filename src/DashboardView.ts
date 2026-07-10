@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, parseYaml } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, } from 'obsidian';
 import { Setting } from 'obsidian';
 import VaultOsPlugin from './main';
 import { ReadingService } from './services/ReadingService';
@@ -342,17 +342,6 @@ class IngestModal extends Modal {
 			
 			const actionGroup = row.createDiv({ attr: { style: 'display: flex; gap: 6px; flex-shrink: 0;' } });
 			
-			// 1. Move to Projects
-			const projBtn = actionGroup.createEl('button', { text: '分流至项目', cls: 'vo-btn vo-btn-primary' });
-			projBtn.onclick = () => {
-				void (async () => {
-					const newPath = `${this.plugin.settings.projectsFolder}/${file.name}`;
-					await this.app.fileManager.renameFile(file, newPath);
-					new Notice(`成功将 ${file.basename} 分流至项目文件夹`);
-					this.close();
-				})();
-			};
-
 			// 2. Archive
 			const archiveBtn = actionGroup.createEl('button', { text: '归档', cls: 'vo-btn vo-btn-secondary' });
 			archiveBtn.onclick = () => {
@@ -376,117 +365,13 @@ class IngestModal extends Modal {
 	}
 }
 
-interface ProjectInfo {
-	title: string;
-	path: string;
-	status: 'pending' | 'active' | 'onhold' | 'blocked' | 'completed' | 'cancelled';
-	ctimeStr: string;
-	mtimeStr: string;
-	properties: Record<string, any>;
-}
-
-type ProjectFilterCondition =
-	| string
-	| {
-		and?: ProjectFilterCondition[];
-		or?: ProjectFilterCondition[];
-	};
-
-interface ProjectBaseDefinition {
-	filters?: any;
-	order?: string[];
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null;
-}
-
-function isProjectFilterCondition(value: unknown): value is ProjectFilterCondition {
-	if (typeof value === 'string') {
-		return true;
-	}
-	if (!isRecord(value)) {
-		return false;
-	}
-
-	const andValue = value.and;
-	if (andValue !== undefined) {
-		if (!Array.isArray(andValue) || !andValue.every(isProjectFilterCondition)) {
-			return false;
-		}
-	}
-
-	const orValue = value.or;
-	if (orValue !== undefined) {
-		if (!Array.isArray(orValue) || !orValue.every(isProjectFilterCondition)) {
-			return false;
-		}
-	}
-
-	return andValue !== undefined || orValue !== undefined;
-}
-
-function toStringArray(value: unknown): string[] {
-	if (typeof value === 'string') {
-		return [value];
-	}
-	if (!Array.isArray(value)) {
-		return [];
-	}
-	return value.filter((entry): entry is string => typeof entry === 'string');
-}
-
-function toComparableText(value: unknown): string {
-	if (typeof value === 'string') {
-		return value.toLowerCase();
-	}
-	if (typeof value === 'number' || typeof value === 'boolean') {
-		return String(value).toLowerCase();
-	}
-	return '';
-}
-
-function toOptionalText(value: unknown): string | undefined {
-	if (typeof value === 'string') {
-		return value;
-	}
-	if (typeof value === 'number' || typeof value === 'boolean') {
-		return String(value);
-	}
-	return undefined;
-}
-
-function getProjectBaseDefinition(value: unknown): ProjectBaseDefinition | null {
-	if (!isRecord(value)) {
-		return null;
-	}
-
-	let filters: any;
-	let order: string[] | undefined;
-
-	if (Array.isArray(value.views) && value.views.length > 0) {
-		const firstView = value.views[0];
-		if (isRecord(firstView)) {
-			filters = firstView.filters;
-			if (Array.isArray(firstView.order)) {
-				order = firstView.order.map(String);
-			}
-		}
-	} else {
-		filters = value.filters;
-	}
-
-	// Do NOT validate/discard filters here - pass raw YAML filters to evaluateCondition
-	// which handles all known formats and falls through unknown formats gracefully
-	return { filters, order };
-}
 
 export class VaultOsView extends ItemView {
 	plugin: VaultOsPlugin;
 	
 	// 看板激活状态 (5个主Tab)
-	private activeMainTab: 'vault' | 'diary' | 'lint' | 'ticktick' | 'projects' = 'vault';
-	private selectedProjectId: string = 'all';
+	private activeMainTab: 'vault' | 'diary' | 'lint' | 'ticktick' = 'vault';
+	
 	private activeStatsSubTab: 'overview' | 'tasks' | 'focus' | 'habits' = 'overview';
 	private taskStatsPeriod: 'day' | 'week' | 'month' = 'day';
 	private getTasksCompletedOnDay(completedTasks: CompletedTaskItem[], date: Date): number {
@@ -697,7 +582,7 @@ export class VaultOsView extends ItemView {
 		const finalPrompt = prompt
 			.replace(/\{\{daily_path\}\}/g, settings.dailyNoteFolder)
 			.replace(/\{\{inbox_path\}\}/g, settings.inboxFolder)
-			.replace(/\{\{projects_path\}\}/g, settings.projectsFolder)
+			
 			.replace(/\{\{atomics_path\}\}/g, settings.atomicsFolder)
 			.replace(/\{\{archive_path\}\}/g, settings.archiveFolder)
 			.replace(/\{\{output_path\}\}/g, settings.outputFolder);
@@ -886,33 +771,7 @@ export class VaultOsView extends ItemView {
 		const section = parent.createDiv({ cls: 'vo-bus-section' });
 		section.createDiv({ text: '// NAVIGATION BUS', cls: 'vo-bus-section-title' });
 
-		const projectsFolder = this.plugin.settings.projectsFolder;
-		const docList = [
-			{ name: '00 项目总览', path: `${projectsFolder}/Vault OS/00 项目总览.md` },
-			{ name: '01 规则指南', path: `${projectsFolder}/Vault OS/01 PROJECT_RULES.md` },
-			{ name: '02 后续想法', path: `${projectsFolder}/Vault OS/02 后续想法.md` },
-			{ name: '03 改动日志', path: `${projectsFolder}/Vault OS/03 改动日志.md` },
-			{ name: '04 接续说明', path: `${projectsFolder}/Vault OS/04 接续说明.md` },
-			{ name: '05 审查流程', path: `${projectsFolder}/Vault OS/05 审查流程.md` },
-			{ name: '06 快捷同步', path: `${projectsFolder}/Vault OS/06 GITHUB_SYNC.md` },
-		];
 
-		const listWrapper = section.createDiv({ cls: 'vo-recent-feed' });
-
-		docList.forEach(doc => {
-			const item = listWrapper.createDiv({ cls: 'vo-nav-link-item' });
-			item.createSpan({ text: doc.name });
-			
-			const dot = item.createDiv({ cls: 'vo-nav-dot' });
-			const file = this.app.vault.getAbstractFileByPath(doc.path);
-			if (file instanceof TFile) {
-				dot.addClass('is-active');
-			}
-
-			item.addEventListener('click', () => {
-				void this.app.workspace.openLinkText(doc.path, '', false);
-			});
-		});
 	}
 
 
@@ -972,7 +831,7 @@ export class VaultOsView extends ItemView {
 			{ id: 'diary', label: '02 / 日记', icon: 'calendar' },
 			{ id: 'lint', label: '03 / 巡检', icon: 'shield-alert' },
 			{ id: 'ticktick', label: '04 / TickTick', icon: 'check-square' },
-			{ id: 'projects', label: '05 / 项目', icon: 'kanban' }
+			
 		];
 
 		mainTabs.forEach(t => {
@@ -983,7 +842,7 @@ export class VaultOsView extends ItemView {
 			btn.createSpan({ text: ` ${t.label}` });
 			btn.addEventListener('click', () => {
 				const prevTab = this.activeMainTab;
-				this.activeMainTab = t.id as 'vault' | 'diary' | 'lint' | 'ticktick' | 'projects';
+				this.activeMainTab = t.id as 'vault' | 'diary' | 'lint' | 'ticktick';
 
 				// Update tab button active states without full re-render
 				tabWrapper.querySelectorAll('.vo-viewport-tab-btn').forEach((b, i) => {
@@ -1015,9 +874,6 @@ export class VaultOsView extends ItemView {
 			this.renderLintDashboard(contentWrapper);
 		} else if (this.activeMainTab === 'ticktick') {
 			this.renderTickTickDashboard(contentWrapper);
-		} else if (this.activeMainTab === 'projects') {
-			contentWrapper.addClass('vo-tab-content-fill');
-			this.renderProjectsDashboard(contentWrapper);
 		}
 	}
 
@@ -1135,8 +991,7 @@ export class VaultOsView extends ItemView {
 		const totalCompleted = stats.completedCount || completedTasks.length || 0;
 		const totalTasks = totalUndone + totalCompleted;
 		
-		const uniqueProjects = new Set(tasks.map(t => t.projectId).filter(Boolean));
-		const projectsCount = uniqueProjects.size;
+		
 		
 		const oldestTime = tasks.map(t => t.createdTime ? new Date(t.createdTime).getTime() : 0).filter(Boolean);
 		const oldestTimeVal = oldestTime.length > 0 ? Math.min(...oldestTime) : Date.now();
@@ -1149,7 +1004,7 @@ export class VaultOsView extends ItemView {
 		};
 		createTelItem(totalTasks, '任务');
 		createTelItem(totalCompleted, '已完成');
-		createTelItem(projectsCount, '清单');
+		
 		createTelItem(usageDays, '使用天数');
 
 
@@ -1751,11 +1606,7 @@ export class VaultOsView extends ItemView {
 			'inbox': '收集箱',
 			'收集箱': '收集箱'
 		};
-		if (stats.projects) {
-			stats.projects.forEach(p => {
-				projectLabels[p.id] = p.name;
-			});
-		}
+		
 
 		const catColors = ['#0072FF', '#2ECC71', '#FFB800', '#FF416C', '#8E54E9'];
 		const catData = Object.keys(projectCounts).map((pid, idx) => {
@@ -2424,7 +2275,7 @@ export class VaultOsView extends ItemView {
 			const total = s.totalMdFiles || 1;
 			const data = [
 				{ name: '日记 (Daily)', count: s.countDaily, pct: Math.round((s.countDaily / total) * 100), cls: 'vo-segment-daily' },
-				{ name: '项目 (Projects)', count: s.countProjects, pct: Math.round((s.countProjects / total) * 100), cls: 'vo-segment-atomics' },
+				
 				{ name: '其他 (Other)', count: s.countOther + s.countInbox + s.countAtomics + s.countOutput, pct: Math.round(((s.countOther + s.countInbox + s.countAtomics + s.countOutput) / total) * 100), cls: 'vo-segment-other' }
 			].filter(item => item.count > 0);
 
@@ -2459,7 +2310,7 @@ export class VaultOsView extends ItemView {
 		const total = stats.totalMdFiles || 1;
 		const data = [
 			{ name: '日记 (Daily)', count: stats.countDaily, pct: Math.round((stats.countDaily / total) * 100), cls: 'vo-segment-daily' },
-			{ name: '项目 (Projects)', count: stats.countProjects, pct: Math.round((stats.countProjects / total) * 100), cls: 'vo-segment-atomics' },
+			
 			{ name: '其他 (Other)', count: stats.countOther + stats.countInbox + stats.countAtomics + stats.countOutput, pct: Math.round(((stats.countOther + stats.countInbox + stats.countAtomics + stats.countOutput) / total) * 100), cls: 'vo-segment-other' }
 		].filter(item => item.count > 0);
 
@@ -3078,7 +2929,7 @@ export class VaultOsView extends ItemView {
 	}
 	async generateMonthlyReport(): Promise<void> {
 		const ymStr = moment().format('YYYY-MM');
-		const dirPath = `${this.plugin.settings.projectsFolder}/Vault OS/Reports`;
+		const dirPath = `Vault OS/Reports`;
 		const filePath = `${dirPath}/${ymStr} 巡检报告.md`;
 
 		try {
@@ -3220,31 +3071,8 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		const headerContainer = todayCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: center;' } });
 		headerContainer.createSpan({ text: '今日待办 (TODAY)' , attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left;' } });
 		
-		const headerRight = headerContainer.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 8px;' } });
 		
-		// Dropdown select
-		const select = headerRight.createEl('select', {
-			cls: 'dropdown',
-			attr: {
-				style: 'padding: 2px 6px; font-size: 12px; border-radius: 6px; border: 1px solid var(--background-modifier-border); background: var(--background-secondary); color: var(--text-normal); outline: none; cursor: pointer;'
-			}
-		});
-		
-		const allOption = select.createEl('option', { value: 'all', text: '全部清单' });
-		if (this.selectedProjectId === 'all') allOption.selected = true;
-
 		const stats = this.taskService.getCache();
-		const projects = stats.projects || [];
-		projects.forEach(p => {
-			const option = select.createEl('option', { value: p.id, text: p.name });
-			if (this.selectedProjectId === p.id) option.selected = true;
-		});
-
-		select.addEventListener('change', () => {
-			this.selectedProjectId = select.value;
-			this.render();
-		});
-		
 		const taskList = todayCard.createDiv({ cls: 'vo-task-list' });
 		const tasks = stats.tasks || [];
 
@@ -3263,9 +3091,6 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const isToday = dueTime >= todayStart && dueTime < todayEnd;
 			if (!isToday) return false;
 
-			if (this.selectedProjectId !== 'all') {
-				return t.projectId === this.selectedProjectId;
-			}
 			return true;
 		});
 
@@ -3273,9 +3098,6 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const isCompleted = t.status === 2 || t.checked;
 			if (!isCompleted) return false;
 
-			if (this.selectedProjectId !== 'all') {
-				return t.projectId === this.selectedProjectId;
-			}
 			return true;
 		});
 
@@ -3286,9 +3108,6 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const isToday = compTimeMs >= todayStart && compTimeMs < todayEnd;
 			if (!isToday) return false;
 
-			if (this.selectedProjectId !== 'all') {
-				return t.projectId === this.selectedProjectId;
-			}
 			return true;
 		});
 
@@ -3395,7 +3214,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			void (async () => {
 				if (input.value) {
 					const title = input.value;
-					const projectId = this.selectedProjectId !== 'all' ? this.selectedProjectId : undefined;
+					const projectId = undefined;
 					new Notice(`正在添加至 TickTick: ${title}`);
 					btn.disabled = true;
 					input.disabled = true;
@@ -3529,426 +3348,6 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				})();
 			}
 		});
-	}
-
-	/**
-	 * =========================================================================
-	 * 05 / 项目主频道渲染 (Projects Kanban Dashboard)
-	 * =========================================================================
-	 */
-	private renderProjectsDashboard(parent: Element): void {
-		const container = parent.createDiv({ cls: 'vo-tasks-wrapper', attr: { style: 'gap: 12px; display: flex; flex-direction: column; flex-grow: 1; min-height: 0;' } });
-
-		const statsCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-bottom: 0; padding: 14px 18px 16px; flex-shrink: 0;' } });
-		const statsGrid = statsCard.createDiv({ cls: 'vo-stats-mini-grid', attr: { style: 'margin-top: 0; margin-bottom: 0;' } });
-		
-		const baseCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding-top: 16px; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;' } });
-		const baseHeader = baseCard.createDiv({ cls: 'vo-card-header' });
-		const pathSpan = baseHeader.createSpan({ text: '项目数据库 (PROJECTS) - 读取中...', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
-		
-		void this.getProjectsData().then(({ projects, columns, actualBaseFilePath, errorMsg, scannedCount, parsedFilters, rawBaseContent }) => {
-			pathSpan.setText(`项目数据库 (PROJECTS) - ${actualBaseFilePath}`);
-			const total = projects.length;
-			const counts = { pending: 0, active: 0, onhold: 0, blocked: 0, completed: 0, cancelled: 0 };
-			
-			projects.forEach(proj => {
-				if (proj.status in counts) {
-					counts[proj.status]++;
-				}
-			});
-
-			const activePct = total > 0 ? Math.round((counts.active / total) * 100) : 0;
-			const completedPct = total > 0 ? Math.round((counts.completed / total) * 100) : 0;
-
-			const makeStatCard = (label: string, val: string) => {
-				const c = statsGrid.createDiv({ cls: 'vo-stats-mini-card' });
-				c.createDiv({ text: val, cls: 'vo-stats-mini-val' });
-				c.createDiv({ text: label, cls: 'vo-stats-mini-label' });
-			};
-
-			makeStatCard('总项目数', String(total));
-			makeStatCard('Active 活跃', `${counts.active} (${activePct}%)`);
-			makeStatCard('Pending 待办', String(counts.pending));
-			makeStatCard('Blocked 阻塞', String(counts.blocked));
-			makeStatCard('Completed 完成', `${counts.completed} (${completedPct}%)`);
-
-			// ====== Render Native Table ======
-			const tableContainer = baseCard.createDiv({ cls: 'vo-projects-table-container' });
-			const table = tableContainer.createEl('table', { cls: 'vo-projects-table' });
-			
-			// Table Header
-			const thead = table.createEl('thead');
-			const trHead = thead.createEl('tr');
-			
-			const getColumnLabel = (col: string) => {
-				if (col === 'file.name') return 'ⓘ 名称';
-				if (col === 'status') return '≡ STATUS';
-				if (col === 'file.ctime') return '🕒 创建时间';
-				if (col === 'file.mtime') return '🕒 修改时间';
-				if (col === 'file.backlinks') return 'ⓘ 文件反向链接';
-				return `≡ ${col.toUpperCase()}`;
-			};
-
-			columns.forEach(col => {
-				trHead.createEl('th', { text: getColumnLabel(col) });
-			});
-
-			// Sort by ctime desc
-			projects.sort((a, b) => b.ctimeStr.localeCompare(a.ctimeStr));
-
-			// Status config for mapping
-			const statusConfig: Record<string, { label: string, iconId: string, color: string }> = {
-				pending: { label: 'Pending', iconId: 'circle', color: 'var(--text-muted)' },
-				active: { label: 'Active', iconId: 'circle-dot', color: 'var(--text-success)' },
-				onhold: { label: 'On Hold', iconId: 'pause-circle', color: 'var(--text-warning)' },
-				blocked: { label: 'Blocked', iconId: 'alert-circle', color: 'var(--text-error)' },
-				completed: { label: 'Completed', iconId: 'check-circle', color: 'var(--text-accent)' },
-				cancelled: { label: 'Cancelled', iconId: 'x-circle', color: 'var(--text-faint)' }
-			};
-
-			const tbody = table.createEl('tbody');
-			if (projects.length === 0) {
-				const tr = tbody.createEl('tr');
-				const td = tr.createEl('td', {
-					attr: { colspan: columns.length, style: 'color: var(--text-muted); padding: 30px; font-size: 13px;' }
-				});
-				td.createDiv({ text: '未找到符合当前筛选条件的项目文件。', attr: { style: 'font-weight: bold; margin-bottom: 8px; text-align: center;' } });
-				const diagnostics = td.createDiv({ attr: { style: 'font-family: monospace; font-size: 11px; background: var(--background-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--background-modifier-border); display: flex; flex-direction: column; gap: 6px;' } });
-				diagnostics.createDiv({ text: `• 数据库文件: ${actualBaseFilePath}` });
-				diagnostics.createDiv({ text: `• 过滤器配置 (Filters): ${parsedFilters || '无'}` });
-				diagnostics.createDiv({ text: `• 扫描文件总数 (Scanned): ${scannedCount || 0} 个 Markdown 文件` });
-				if (errorMsg) {
-					diagnostics.createDiv({ text: `• 错误信息 (Error): ${errorMsg}`, attr: { style: 'color: var(--text-error);' } });
-				}
-				if (rawBaseContent) {
-					const rawLabel = diagnostics.createDiv({ text: '• Base 文件原始内容（前800字符）：', attr: { style: 'margin-top: 6px;' } });
-					document.createTextNode(''); // no-op
-					void rawLabel;
-					diagnostics.createEl('pre', { text: rawBaseContent, attr: { style: 'white-space: pre-wrap; word-break: break-all; margin: 4px 0 0 0; padding: 8px; background: var(--background-primary); border-radius: 4px; font-size: 10px; max-height: 200px; overflow-y: auto;' } });
-				}
-			} else {
-				projects.forEach(proj => {
-					const tr = tbody.createEl('tr');
-				
-				columns.forEach(col => {
-					if (col === 'file.name') {
-						const tdName = tr.createEl('td', { cls: 'vo-projects-table-name' });
-						const nameLink = tdName.createEl('a', { text: proj.title });
-						nameLink.addEventListener('click', (e) => {
-							e.preventDefault();
-							void this.app.workspace.openLinkText(proj.path, '', false);
-						});
-					} else if (col === 'status') {
-						const tdStatus = tr.createEl('td');
-						const config = statusConfig[proj.status] || statusConfig.pending || { label: 'Pending', iconId: 'circle', color: 'var(--text-muted)' };
-						const badge = tdStatus.createSpan({ cls: 'vo-status-badge' });
-						const iconSpan = badge.createSpan({ cls: 'vo-status-icon' });
-						setIcon(iconSpan, config.iconId);
-						iconSpan.style.color = config.color;
-						const labelSpan = badge.createSpan({ text: ` ${config.label}` });
-						labelSpan.style.color = config.color;
-					} else if (col === 'file.ctime') {
-						tr.createEl('td', { text: proj.ctimeStr, cls: 'vo-projects-table-time' });
-					} else if (col === 'file.mtime') {
-						tr.createEl('td', { text: proj.mtimeStr, cls: 'vo-projects-table-time' });
-					} else if (col === 'file.backlinks') {
-						const tdBacklinks = tr.createEl('td');
-						const backlinksList = proj.properties['file.backlinks'] || [];
-						if (Array.isArray(backlinksList) && backlinksList.length > 0) {
-							const container = tdBacklinks.createDiv({ cls: 'vo-projects-table-topics' });
-							backlinksList.forEach(path => {
-								const filename = path.split('/').pop()?.replace(/\.md$/, '') || path;
-								const linkEl = container.createEl('a', { text: filename, cls: 'vo-link-item' });
-								linkEl.addEventListener('click', (e) => {
-									e.preventDefault();
-									void this.app.workspace.openLinkText(path, proj.path, false);
-								});
-							});
-						}
-					} else {
-						// Generic property
-						const tdProp = tr.createEl('td');
-						const val = proj.properties[col];
-						if (val !== undefined && val !== null) {
-							if (Array.isArray(val)) {
-								const valContainer = tdProp.createDiv({ cls: 'vo-projects-table-topics' });
-								val.forEach(item => {
-									const textStr = String(item);
-									let displayText = textStr;
-									let linkTarget = textStr;
-									let isLink = false;
-				
-									const linkMatch = textStr.match(/^\[\[(.*?)\]\]$/);
-									if (linkMatch) {
-										isLink = true;
-										linkTarget = linkMatch[1] || '';
-										const parts = linkTarget.split('|');
-										linkTarget = parts[0] || '';
-										displayText = parts.length > 1 ? (parts[1] || '') : linkTarget;
-									}
-				
-									if (isLink) {
-										const linkEl = valContainer.createEl('a', { text: displayText, cls: 'vo-link-item' });
-										linkEl.addEventListener('click', (e) => {
-											e.preventDefault();
-											void this.app.workspace.openLinkText(linkTarget, proj.path, false);
-										});
-									} else {
-										valContainer.createSpan({ text: displayText, cls: 'vo-topic-badge' });
-									}
-								});
-							} else {
-								tdProp.createSpan({ text: String(val) });
-							}
-						}
-					}
-				});
-			});
-		}
-	});
-	}
-
-	private async getProjectsData(): Promise<{ 
-		projects: ProjectInfo[], 
-		columns: string[], 
-		actualBaseFilePath: string,
-		scannedCount: number,
-		parsedFilters: string,
-		errorMsg: string,
-		rawBaseContent: string
-	}> {
-		const projects: ProjectInfo[] = [];
-		let columns = ["file.name", "status", "file.ctime", "topics"];
-		let actualBaseFilePath = this.plugin.settings.projectBaseFilePath;
-		let scannedCount = 0;
-		let parsedFilters = '';
-		let errorMsg = '';
-		let rawBaseContent = '';
-		try {
-			let baseFile: TFile | null = null;
-			const initialFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.projectBaseFilePath);
-			if (initialFile instanceof TFile) {
-				baseFile = initialFile;
-			} else {
-				const baseFiles = this.app.vault.getFiles().filter(f => 
-					f.extension === 'base' && 
-					f.path.startsWith(this.plugin.settings.projectsFolder + '/')
-				);
-				if (baseFiles.length > 0) {
-					baseFile = baseFiles[0] || null;
-					actualBaseFilePath = baseFile ? baseFile.path : actualBaseFilePath;
-				}
-			}
-
-			if (!baseFile) {
-				errorMsg = "Base 数据库文件未找到，且配置文件夹内未侦测到任何 .base 文件。";
-				return { projects: [], columns, actualBaseFilePath, scannedCount, parsedFilters, errorMsg, rawBaseContent };
-			}
-			const baseContent = await this.app.vault.read(baseFile);
-			rawBaseContent = baseContent.substring(0, 800); // for diagnostics
-			const yamlParsed = parseYaml(baseContent);
-			const baseDefinition = getProjectBaseDefinition(yamlParsed);
-			if (baseDefinition) {
-				parsedFilters = JSON.stringify(baseDefinition.filters ?? '(无，默认按文件夹匹配)');
-				if (baseDefinition.order) {
-					columns = baseDefinition.order;
-				}
-			}
-			
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const resolveProperty = (prop: string, file: TFile, tags: string[], frontmatter: Record<string, any> | undefined): any => {
-				if (prop === 'file.name' || prop === 'file.basename') return file.basename;
-				if (prop === 'file.path') return file.path;
-				if (prop === 'file.folder') return file.parent?.path ?? '';
-				if (prop === 'file.ext' || prop === 'file.extension') return file.extension;
-				if (prop === 'file.size') return file.stat?.size ?? 0;
-				if (prop === 'file.ctime') return file.stat?.ctime ?? 0;
-				if (prop === 'file.mtime') return file.stat?.mtime ?? 0;
-				if (prop === 'file.tags' || prop === 'tags') return tags;
-				if (prop === 'file.backlinks') return (this.app.metadataCache as any).getBacklinksForFile?.(file)?.count?.() ?? 0;
-				return frontmatter?.[prop]; // any frontmatter key
-			};
-
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const evaluateCondition = (cond: any, file: TFile, tags: string[], frontmatter: Record<string, any> | undefined): boolean => {
-				// --- String expression ---
-				if (typeof cond === 'string') {
-					// Handle leading ! (but not !=)
-					const isNegated = cond.startsWith('!') && !cond.trimStart().startsWith('!=')
-						&& !cond.includes('!=');
-					const expr = isNegated ? cond.replace(/^!/, '').trim() : cond.trim();
-
-					// prop.contains("value") or prop.contains('value')
-					const containsMatch = expr.match(/^(.+?)\.contains\(["']([^"']*)["']\)/);
-					if (containsMatch) {
-						const prop = (containsMatch[1] ?? '').trim();
-						const target = containsMatch[2] ?? '';
-						const val = resolveProperty(prop, file, tags, frontmatter);
-						let match = false;
-						if (Array.isArray(val)) {
-							match = val.some(v => String(v).toLowerCase().includes(target.toLowerCase()));
-						} else if (val !== undefined && val !== null) {
-							match = String(val).toLowerCase().includes(target.toLowerCase());
-						}
-						return isNegated ? !match : match;
-					}
-
-					// prop != "value"
-					const neqMatch = expr.match(/^(.+?)\s*!=\s*["']?([^"']*)["']?$/);
-					if (neqMatch) {
-						const prop = (neqMatch[1] ?? '').trim();
-						const target = neqMatch[2] ?? '';
-						const val = resolveProperty(prop, file, tags, frontmatter);
-						let match: boolean;
-						if (Array.isArray(val)) {
-							match = !val.some(v => String(v) === target);
-						} else if (val !== undefined && val !== null) {
-							match = String(val) !== target;
-						} else {
-							match = true; // absent property is considered "not equal"
-						}
-						return isNegated ? !match : match;
-					}
-
-					// prop == "value"
-					const eqMatch = expr.match(/^(.+?)\s*==\s*["']?([^"']*)["']?$/);
-					if (eqMatch) {
-						const prop = (eqMatch[1] ?? '').trim();
-						const target = eqMatch[2] ?? '';
-						const val = resolveProperty(prop, file, tags, frontmatter);
-						let match: boolean;
-						if (prop === 'file.folder') {
-							// folder match: exact parent OR starts with path (recursive)
-							const folder = String(val);
-							match = folder === target || file.path.startsWith(target + '/');
-						} else if (Array.isArray(val)) {
-							match = val.some(v => String(v) === target);
-						} else if (val !== undefined && val !== null) {
-							match = String(val) === target;
-						} else {
-							match = false;
-						}
-						return isNegated ? !match : match;
-					}
-
-					// Bare property: truthy check
-					const val = resolveProperty(expr, file, tags, frontmatter);
-					const exists = val !== undefined && val !== null && val !== '' && val !== false
-						&& !(Array.isArray(val) && val.length === 0);
-					return isNegated ? !exists : exists;
-				}
-
-				// --- Object: { and: [...] } ---
-				if (cond && Array.isArray(cond.and)) {
-					if (cond.and.length === 0) return true;
-					return cond.and.every((child: any) => evaluateCondition(child, file, tags, frontmatter));
-				}
-
-				// --- Object: { or: [...] } ---
-				if (cond && Array.isArray(cond.or)) {
-					if (cond.or.length === 0) return false;
-					return cond.or.some((child: any) => evaluateCondition(child, file, tags, frontmatter));
-				}
-
-				// --- Object: { not: condition } ---
-				if (cond && cond.not !== undefined) {
-					return !evaluateCondition(cond.not, file, tags, frontmatter);
-				}
-
-				// Unknown format → do NOT match (prevents false positives on all files)
-				return false;
-			};
-
-			const allFiles = this.app.vault.getMarkdownFiles();
-			scannedCount = allFiles.length;
-			for (const child of allFiles) {
-				const cache = this.app.metadataCache.getFileCache(child);
-				const frontmatter = isRecord(cache?.frontmatter) ? cache.frontmatter : undefined;
-				const inlineTags = (cache?.tags || []).map(t => t.tag.replace(/^#/, ''));
-				const frontmatterTags = toStringArray(frontmatter?.tags);
-				const allTags = [...frontmatterTags, ...inlineTags];
-				
-				// If no filter defined in Base file, fall back to matching all files under projectsFolder
-				let isMatch: boolean;
-				if (baseDefinition?.filters !== undefined) {
-					try {
-						isMatch = evaluateCondition(baseDefinition.filters, child, allTags, frontmatter);
-					} catch {
-						isMatch = child.path.startsWith(this.plugin.settings.projectsFolder + '/');
-					}
-				} else {
-					isMatch = child.path.startsWith(this.plugin.settings.projectsFolder + '/');
-				}
-				
-				if (!isMatch) {
-					continue;
-				}
-
-				const statusRaw = toComparableText(frontmatter?.status);
-				let status: ProjectInfo['status'] = 'active';
-				if (statusRaw.includes('pending') || statusRaw.includes('⚪')) {
-					status = 'pending';
-				} else if (statusRaw.includes('active') || statusRaw.includes('🟢')) {
-					status = 'active';
-				} else if (statusRaw.includes('on hold') || statusRaw.includes('🟡')) {
-					status = 'onhold';
-				} else if (statusRaw.includes('blocked') || statusRaw.includes('🔴')) {
-					status = 'blocked';
-				} else if (statusRaw.includes('completed') || statusRaw.includes('🔵')) {
-					status = 'completed';
-				} else if (statusRaw.includes('cancelled') || statusRaw.includes('⚫') || statusRaw.includes('archived') || statusRaw.includes('归档')) {
-					status = 'cancelled';
-				}
-				
-				const mtimeStr = moment(child.stat.mtime).format('YYYY-MM-DD');
-				const ctimeStr = moment(child.stat.ctime).format('YYYY/MM/DD HH:mm:ss');
-
-				// Dynamic properties
-				const properties: Record<string, any> = {};
-				if (frontmatter) {
-					for (const [k, v] of Object.entries(frontmatter)) {
-						properties[k] = v;
-					}
-				}
-
-				const backlinks: string[] = [];
-				const resolvedLinks = this.app.metadataCache.resolvedLinks;
-				if (resolvedLinks) {
-					for (const [sourcePath, targets] of Object.entries(resolvedLinks)) {
-						if (targets && targets[child.path]) {
-							backlinks.push(sourcePath);
-						}
-					}
-				}
-				properties['file.backlinks'] = backlinks;
-
-				projects.push({
-					title: child.basename,
-					path: child.path,
-					status,
-					ctimeStr,
-					mtimeStr,
-					properties
-				});
-			}
-		} catch (error: any) {
-			console.error('Failed to scan projects:', error);
-			errorMsg = String(error.message || error);
-		}
-		
-		if (projects.length === 0) {
-			return {
-				columns,
-				projects: [],
-				actualBaseFilePath,
-				scannedCount,
-				parsedFilters,
-				errorMsg,
-				rawBaseContent
-			};
-		}
-
-		return { projects, columns, actualBaseFilePath, scannedCount, parsedFilters, errorMsg, rawBaseContent };
 	}
 
 	/**
