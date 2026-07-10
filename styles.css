@@ -1164,6 +1164,22 @@ select.dropdown option {
 	color: var(--text-normal);
 }
 
+.vo-link-item {
+	color: var(--link-color);
+	text-decoration: none;
+	cursor: pointer;
+	margin-right: 12px;
+	margin-bottom: 4px;
+	display: inline-block;
+	font-weight: 500;
+	transition: color 0.15s ease;
+}
+
+.vo-link-item:hover {
+	text-decoration: underline;
+	color: var(--link-color-hover, var(--link-color));
+}
+
 .vo-tab-content-fill {
 	overflow: hidden !important;
 }

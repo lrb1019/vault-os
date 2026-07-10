@@ -3586,6 +3586,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				if (col === 'status') return '≡ STATUS';
 				if (col === 'file.ctime') return '🕒 创建时间';
 				if (col === 'file.mtime') return '🕒 修改时间';
+				if (col === 'file.backlinks') return 'ⓘ 文件反向链接';
 				return `≡ ${col.toUpperCase()}`;
 			};
 
@@ -3607,8 +3608,15 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			};
 
 			const tbody = table.createEl('tbody');
-			projects.forEach(proj => {
+			if (projects.length === 0) {
 				const tr = tbody.createEl('tr');
+				tr.createEl('td', {
+					text: '未找到符合当前筛选条件的项目文件。',
+					attr: { colspan: columns.length, style: 'text-align: center; color: var(--text-muted); padding: 30px; font-size: 13px;' }
+				});
+			} else {
+				projects.forEach(proj => {
+					const tr = tbody.createEl('tr');
 				
 				columns.forEach(col => {
 					if (col === 'file.name') {
@@ -3631,6 +3639,20 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 						tr.createEl('td', { text: proj.ctimeStr, cls: 'vo-projects-table-time' });
 					} else if (col === 'file.mtime') {
 						tr.createEl('td', { text: proj.mtimeStr, cls: 'vo-projects-table-time' });
+					} else if (col === 'file.backlinks') {
+						const tdBacklinks = tr.createEl('td');
+						const backlinksList = proj.properties['file.backlinks'] || [];
+						if (Array.isArray(backlinksList) && backlinksList.length > 0) {
+							const container = tdBacklinks.createDiv({ cls: 'vo-projects-table-topics' });
+							backlinksList.forEach(path => {
+								const filename = path.split('/').pop()?.replace(/\.md$/, '') || path;
+								const linkEl = container.createEl('a', { text: filename, cls: 'vo-link-item' });
+								linkEl.addEventListener('click', (e) => {
+									e.preventDefault();
+									void this.app.workspace.openLinkText(path, proj.path, false);
+								});
+							});
+						}
 					} else {
 						// Generic property
 						const tdProp = tr.createEl('td');
@@ -3654,7 +3676,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 									}
 				
 									if (isLink) {
-										const linkEl = valContainer.createEl('a', { text: displayText, cls: 'vo-topic-badge vo-topic-badge-link' });
+										const linkEl = valContainer.createEl('a', { text: displayText, cls: 'vo-link-item' });
 										linkEl.addEventListener('click', (e) => {
 											e.preventDefault();
 											void this.app.workspace.openLinkText(linkTarget, proj.path, false);
@@ -3670,7 +3692,8 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					}
 				});
 			});
-		});
+		}
+	});
 	}
 
 	private async getProjectsData(): Promise<{ projects: ProjectInfo[], columns: string[] }> {
@@ -3688,31 +3711,71 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				columns = baseDefinition.order;
 			}
 			
-			const evaluateCondition = (cond: ProjectFilterCondition, file: TFile, tags: string[]): boolean => {
+			const evaluateCondition = (cond: ProjectFilterCondition, file: TFile, tags: string[], frontmatter: Record<string, any> | undefined): boolean => {
 				if (typeof cond === 'string') {
 					const isNegated = cond.startsWith('!');
 					const expr = isNegated ? cond.substring(1) : cond;
 					
 					let match = false;
-					if (expr.startsWith('file.tags.contains(')) {
-						const target = expr.match(/contains\("([^"]+)"\)/)?.[1];
-						if (target) {
-							match = tags.some(t => String(t).includes(target));
+					if (expr.includes('.contains(')) {
+						const parts = expr.split('.contains(');
+						const prop = parts[0]?.trim();
+						const targetMatch = parts[1]?.match(/"([^"]+)"/);
+						const target = targetMatch ? targetMatch[1] : '';
+						
+						if (prop && target) {
+							if (prop === 'file.tags' || prop === 'tags') {
+								match = tags.some(t => String(t).includes(target));
+							} else if (prop === 'file.basename' || prop === 'file.name') {
+								match = file.basename.includes(target);
+							} else if (prop === 'file.path') {
+								match = file.path.includes(target);
+							} else if (frontmatter) {
+								const val = frontmatter[prop];
+								if (Array.isArray(val)) {
+									match = val.some(v => String(v).includes(target));
+								} else if (val !== undefined && val !== null) {
+									match = String(val).includes(target);
+								}
+							}
 						}
-					} else if (expr.startsWith('file.basename.contains(')) {
-						const target = expr.match(/contains\("([^"]+)"\)/)?.[1];
-						if (target) {
-							match = file.basename.includes(target);
+					} else if (expr.includes('==')) {
+						const parts = expr.split('==');
+						const prop = parts[0]?.trim();
+						const target = parts[1]?.trim().replace(/^"|"$/g, '');
+						
+						if (prop && target !== undefined) {
+							if (prop === 'file.folder') {
+								match = file.parent?.path === target || file.path.startsWith(target + '/');
+							} else if (prop === 'file.basename' || prop === 'file.name') {
+								match = file.basename === target;
+							} else if (frontmatter) {
+								const val = frontmatter[prop];
+								if (val !== undefined && val !== null) {
+									match = String(val) === target;
+								}
+							}
 						}
-					} else if (expr.startsWith('file.path.contains(')) {
-						const target = expr.match(/contains\("([^"]+)"\)/)?.[1];
-						if (target) {
-							match = file.path.includes(target);
-						}
-					} else if (expr.startsWith('file.folder')) {
-						const target = expr.split('==')[1]?.trim().replace(/^"|"$/g, '');
-						if (target) {
-							match = file.parent?.path === target;
+					} else if (expr.includes('!=')) {
+						const parts = expr.split('!=');
+						const prop = parts[0]?.trim();
+						const target = parts[1]?.trim().replace(/^"|"$/g, '');
+						
+						if (prop && target !== undefined) {
+							if (prop === 'file.folder') {
+								match = !(file.parent?.path === target || file.path.startsWith(target + '/'));
+							} else if (prop === 'file.basename' || prop === 'file.name') {
+								match = file.basename !== target;
+							} else if (frontmatter) {
+								const val = frontmatter[prop];
+								if (val !== undefined && val !== null) {
+									match = String(val) !== target;
+								} else {
+									match = true;
+								}
+							} else {
+								match = true;
+							}
 						}
 					}
 					
@@ -3720,10 +3783,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				}
 
 				if (cond.and && Array.isArray(cond.and)) {
-					return cond.and.every((childCondition) => evaluateCondition(childCondition, file, tags));
+					return cond.and.every((childCondition) => evaluateCondition(childCondition, file, tags, frontmatter));
 				}
 				if (cond.or && Array.isArray(cond.or)) {
-					return cond.or.some((childCondition) => evaluateCondition(childCondition, file, tags));
+					return cond.or.some((childCondition) => evaluateCondition(childCondition, file, tags, frontmatter));
 				}
 
 				return true;
@@ -3737,7 +3800,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				const frontmatterTags = toStringArray(frontmatter?.tags);
 				const allTags = [...frontmatterTags, ...inlineTags];
 				
-				const isMatch = baseDefinition?.filters ? evaluateCondition(baseDefinition.filters, child, allTags) : false;
+				const isMatch = baseDefinition?.filters ? evaluateCondition(baseDefinition.filters, child, allTags, frontmatter) : false;
 				
 				if (!isMatch) {
 					continue;
@@ -3770,6 +3833,17 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					}
 				}
 
+				const backlinks: string[] = [];
+				const resolvedLinks = this.app.metadataCache.resolvedLinks;
+				if (resolvedLinks) {
+					for (const [sourcePath, targets] of Object.entries(resolvedLinks)) {
+						if (targets && targets[child.path]) {
+							backlinks.push(sourcePath);
+						}
+					}
+				}
+				properties['file.backlinks'] = backlinks;
+
 				projects.push({
 					title: child.basename,
 					path: child.path,
@@ -3786,13 +3860,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		if (projects.length === 0) {
 			return {
 				columns,
-				projects: [
-					{ title: '智能系统 Dashboard 开发', path: '', status: 'active', ctimeStr: '2026/06/22 10:00:00', mtimeStr: '2026-06-22', properties: { topics: ['AI'], progress: 85 } },
-					{ title: '知识库死链自动检测脚本', path: '', status: 'active', ctimeStr: '2026/06/21 11:30:00', mtimeStr: '2026-06-21', properties: { topics: ['Scripting'], progress: 40 } },
-					{ title: 'AI 阅读器插件迁移', path: '', status: 'pending', ctimeStr: '2026/06/15 09:15:00', mtimeStr: '2026-06-15', properties: { topics: ['Obsidian'], progress: 10 } },
-					{ title: '2025 个人财务自动化分析', path: '', status: 'completed', ctimeStr: '2026/05/18 14:00:00', mtimeStr: '2026-05-18', properties: { topics: ['Finance'], progress: 100 } },
-					{ title: '旧模板库归档', path: '', status: 'cancelled', ctimeStr: '2026/04/10 16:45:00', mtimeStr: '2026-04-10', properties: { topics: ['Maintenance'], progress: 0 } }
-				]
+				projects: []
 			};
 		}
 
