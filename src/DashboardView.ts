@@ -3742,7 +3742,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const yamlParsed = parseYaml(baseContent);
 			const baseDefinition = getProjectBaseDefinition(yamlParsed);
 			if (baseDefinition) {
-				parsedFilters = JSON.stringify(baseDefinition.filters || {});
+				parsedFilters = JSON.stringify(baseDefinition.filters || '(无，默认按文件夹匹配)');
 				if (baseDefinition.order) {
 					columns = baseDefinition.order;
 				}
@@ -3838,7 +3838,13 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				const frontmatterTags = toStringArray(frontmatter?.tags);
 				const allTags = [...frontmatterTags, ...inlineTags];
 				
-				const isMatch = baseDefinition?.filters ? evaluateCondition(baseDefinition.filters, child, allTags, frontmatter) : false;
+				// If no filter defined in Base file, fall back to matching all files under projectsFolder
+				let isMatch: boolean;
+				if (baseDefinition?.filters) {
+					isMatch = evaluateCondition(baseDefinition.filters, child, allTags, frontmatter);
+				} else {
+					isMatch = child.path.startsWith(this.plugin.settings.projectsFolder + '/');
+				}
 				
 				if (!isMatch) {
 					continue;
