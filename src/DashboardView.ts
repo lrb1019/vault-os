@@ -3546,7 +3546,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		const baseHeader = baseCard.createDiv({ cls: 'vo-card-header' });
 		const pathSpan = baseHeader.createSpan({ text: '项目数据库 (PROJECTS) - 读取中...', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 		
-		void this.getProjectsData().then(({ projects, columns, actualBaseFilePath, errorMsg, scannedCount, parsedFilters }) => {
+		void this.getProjectsData().then(({ projects, columns, actualBaseFilePath, errorMsg, scannedCount, parsedFilters, rawBaseContent }) => {
 			pathSpan.setText(`项目数据库 (PROJECTS) - ${actualBaseFilePath}`);
 			const total = projects.length;
 			const counts = { pending: 0, active: 0, onhold: 0, blocked: 0, completed: 0, cancelled: 0 };
@@ -3613,12 +3613,18 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					attr: { colspan: columns.length, style: 'color: var(--text-muted); padding: 30px; font-size: 13px;' }
 				});
 				td.createDiv({ text: '未找到符合当前筛选条件的项目文件。', attr: { style: 'font-weight: bold; margin-bottom: 8px; text-align: center;' } });
-				const diagnostics = td.createDiv({ attr: { style: 'font-family: monospace; font-size: 11px; background: var(--background-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--background-modifier-border); display: flex; flex-direction: column; gap: 4px;' } });
+				const diagnostics = td.createDiv({ attr: { style: 'font-family: monospace; font-size: 11px; background: var(--background-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--background-modifier-border); display: flex; flex-direction: column; gap: 6px;' } });
 				diagnostics.createDiv({ text: `• 数据库文件: ${actualBaseFilePath}` });
 				diagnostics.createDiv({ text: `• 过滤器配置 (Filters): ${parsedFilters || '无'}` });
 				diagnostics.createDiv({ text: `• 扫描文件总数 (Scanned): ${scannedCount || 0} 个 Markdown 文件` });
 				if (errorMsg) {
 					diagnostics.createDiv({ text: `• 错误信息 (Error): ${errorMsg}`, attr: { style: 'color: var(--text-error);' } });
+				}
+				if (rawBaseContent) {
+					const rawLabel = diagnostics.createDiv({ text: '• Base 文件原始内容（前800字符）：', attr: { style: 'margin-top: 6px;' } });
+					document.createTextNode(''); // no-op
+					void rawLabel;
+					diagnostics.createEl('pre', { text: rawBaseContent, attr: { style: 'white-space: pre-wrap; word-break: break-all; margin: 4px 0 0 0; padding: 8px; background: var(--background-primary); border-radius: 4px; font-size: 10px; max-height: 200px; overflow-y: auto;' } });
 				}
 			} else {
 				projects.forEach(proj => {
@@ -3708,7 +3714,8 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		actualBaseFilePath: string,
 		scannedCount: number,
 		parsedFilters: string,
-		errorMsg: string
+		errorMsg: string,
+		rawBaseContent: string
 	}> {
 		const projects: ProjectInfo[] = [];
 		let columns = ["file.name", "status", "file.ctime", "topics"];
@@ -3716,6 +3723,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		let scannedCount = 0;
 		let parsedFilters = '';
 		let errorMsg = '';
+		let rawBaseContent = '';
 		try {
 			let baseFile: TFile | null = null;
 			const initialFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.projectBaseFilePath);
@@ -3734,98 +3742,121 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 
 			if (!baseFile) {
 				errorMsg = "Base 数据库文件未找到，且配置文件夹内未侦测到任何 .base 文件。";
-				return { projects: [], columns, actualBaseFilePath, scannedCount, parsedFilters, errorMsg };
+				return { projects: [], columns, actualBaseFilePath, scannedCount, parsedFilters, errorMsg, rawBaseContent };
 			}
 			const baseContent = await this.app.vault.read(baseFile);
+			rawBaseContent = baseContent.substring(0, 800); // for diagnostics
 			const yamlParsed = parseYaml(baseContent);
 			const baseDefinition = getProjectBaseDefinition(yamlParsed);
 			if (baseDefinition) {
-				parsedFilters = JSON.stringify(baseDefinition.filters || '(无，默认按文件夹匹配)');
+				parsedFilters = JSON.stringify(baseDefinition.filters ?? '(无，默认按文件夹匹配)');
 				if (baseDefinition.order) {
 					columns = baseDefinition.order;
 				}
 			}
 			
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const resolveProperty = (prop: string, file: TFile, tags: string[], frontmatter: Record<string, any> | undefined): any => {
+				if (prop === 'file.name' || prop === 'file.basename') return file.basename;
+				if (prop === 'file.path') return file.path;
+				if (prop === 'file.folder') return file.parent?.path ?? '';
+				if (prop === 'file.ext' || prop === 'file.extension') return file.extension;
+				if (prop === 'file.size') return file.stat?.size ?? 0;
+				if (prop === 'file.ctime') return file.stat?.ctime ?? 0;
+				if (prop === 'file.mtime') return file.stat?.mtime ?? 0;
+				if (prop === 'file.tags' || prop === 'tags') return tags;
+				if (prop === 'file.backlinks') return (this.app.metadataCache as any).getBacklinksForFile?.(file)?.count?.() ?? 0;
+				return frontmatter?.[prop]; // any frontmatter key
+			};
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			const evaluateCondition = (cond: any, file: TFile, tags: string[], frontmatter: Record<string, any> | undefined): boolean => {
+				// --- String expression ---
 				if (typeof cond === 'string') {
-					const isNegated = cond.startsWith('!');
-					const expr = isNegated ? cond.substring(1) : cond;
-					
-					let match = false;
-					if (expr.includes('.contains(')) {
-						const parts = expr.split('.contains(');
-						const prop = parts[0]?.trim();
-						const targetMatch = parts[1]?.match(/"([^"]+)"/);
-						const target = targetMatch ? targetMatch[1] : '';
-						
-						if (prop && target) {
-							if (prop === 'file.tags' || prop === 'tags') {
-								match = tags.some(t => String(t).includes(target));
-							} else if (prop === 'file.basename' || prop === 'file.name') {
-								match = file.basename.includes(target);
-							} else if (prop === 'file.path') {
-								match = file.path.includes(target);
-							} else if (frontmatter) {
-								const val = frontmatter[prop];
-								if (Array.isArray(val)) {
-									match = val.some(v => String(v).includes(target));
-								} else if (val !== undefined && val !== null) {
-									match = String(val).includes(target);
-								}
-							}
+					// Handle leading ! (but not !=)
+					const isNegated = cond.startsWith('!') && !cond.trimStart().startsWith('!=')
+						&& !cond.includes('!=');
+					const expr = isNegated ? cond.replace(/^!/, '').trim() : cond.trim();
+
+					// prop.contains("value") or prop.contains('value')
+					const containsMatch = expr.match(/^(.+?)\.contains\(["']([^"']*)["']\)/);
+					if (containsMatch) {
+						const prop = (containsMatch[1] ?? '').trim();
+						const target = containsMatch[2] ?? '';
+						const val = resolveProperty(prop, file, tags, frontmatter);
+						let match = false;
+						if (Array.isArray(val)) {
+							match = val.some(v => String(v).toLowerCase().includes(target.toLowerCase()));
+						} else if (val !== undefined && val !== null) {
+							match = String(val).toLowerCase().includes(target.toLowerCase());
 						}
-					} else if (expr.includes('==')) {
-						const parts = expr.split('==');
-						const prop = parts[0]?.trim();
-						const target = parts[1]?.trim().replace(/^"|"$/g, '');
-						
-						if (prop && target !== undefined) {
-							if (prop === 'file.folder') {
-								match = file.parent?.path === target || file.path.startsWith(target + '/');
-							} else if (prop === 'file.basename' || prop === 'file.name') {
-								match = file.basename === target;
-							} else if (frontmatter) {
-								const val = frontmatter[prop];
-								if (val !== undefined && val !== null) {
-									match = String(val) === target;
-								}
-							}
-						}
-					} else if (expr.includes('!=')) {
-						const parts = expr.split('!=');
-						const prop = parts[0]?.trim();
-						const target = parts[1]?.trim().replace(/^"|"$/g, '');
-						
-						if (prop && target !== undefined) {
-							if (prop === 'file.folder') {
-								match = !(file.parent?.path === target || file.path.startsWith(target + '/'));
-							} else if (prop === 'file.basename' || prop === 'file.name') {
-								match = file.basename !== target;
-							} else if (frontmatter) {
-								const val = frontmatter[prop];
-								if (val !== undefined && val !== null) {
-									match = String(val) !== target;
-								} else {
-									match = true;
-								}
-							} else {
-								match = true;
-							}
-						}
+						return isNegated ? !match : match;
 					}
-					
-					return isNegated ? !match : match;
+
+					// prop != "value"
+					const neqMatch = expr.match(/^(.+?)\s*!=\s*["']?([^"']*)["']?$/);
+					if (neqMatch) {
+						const prop = (neqMatch[1] ?? '').trim();
+						const target = neqMatch[2] ?? '';
+						const val = resolveProperty(prop, file, tags, frontmatter);
+						let match: boolean;
+						if (Array.isArray(val)) {
+							match = !val.some(v => String(v) === target);
+						} else if (val !== undefined && val !== null) {
+							match = String(val) !== target;
+						} else {
+							match = true; // absent property is considered "not equal"
+						}
+						return isNegated ? !match : match;
+					}
+
+					// prop == "value"
+					const eqMatch = expr.match(/^(.+?)\s*==\s*["']?([^"']*)["']?$/);
+					if (eqMatch) {
+						const prop = (eqMatch[1] ?? '').trim();
+						const target = eqMatch[2] ?? '';
+						const val = resolveProperty(prop, file, tags, frontmatter);
+						let match: boolean;
+						if (prop === 'file.folder') {
+							// folder match: exact parent OR starts with path (recursive)
+							const folder = String(val);
+							match = folder === target || file.path.startsWith(target + '/');
+						} else if (Array.isArray(val)) {
+							match = val.some(v => String(v) === target);
+						} else if (val !== undefined && val !== null) {
+							match = String(val) === target;
+						} else {
+							match = false;
+						}
+						return isNegated ? !match : match;
+					}
+
+					// Bare property: truthy check
+					const val = resolveProperty(expr, file, tags, frontmatter);
+					const exists = val !== undefined && val !== null && val !== '' && val !== false
+						&& !(Array.isArray(val) && val.length === 0);
+					return isNegated ? !exists : exists;
 				}
 
-				if (cond.and && Array.isArray(cond.and)) {
-					return cond.and.every((childCondition: any) => evaluateCondition(childCondition, file, tags, frontmatter));
-				}
-				if (cond.or && Array.isArray(cond.or)) {
-					return cond.or.some((childCondition: any) => evaluateCondition(childCondition, file, tags, frontmatter));
+				// --- Object: { and: [...] } ---
+				if (cond && Array.isArray(cond.and)) {
+					if (cond.and.length === 0) return true;
+					return cond.and.every((child: any) => evaluateCondition(child, file, tags, frontmatter));
 				}
 
-				return true;
+				// --- Object: { or: [...] } ---
+				if (cond && Array.isArray(cond.or)) {
+					if (cond.or.length === 0) return false;
+					return cond.or.some((child: any) => evaluateCondition(child, file, tags, frontmatter));
+				}
+
+				// --- Object: { not: condition } ---
+				if (cond && cond.not !== undefined) {
+					return !evaluateCondition(cond.not, file, tags, frontmatter);
+				}
+
+				// Unknown format → do NOT match (prevents false positives on all files)
+				return false;
 			};
 
 			const allFiles = this.app.vault.getMarkdownFiles();
@@ -3912,11 +3943,12 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				actualBaseFilePath,
 				scannedCount,
 				parsedFilters,
-				errorMsg
+				errorMsg,
+				rawBaseContent
 			};
 		}
 
-		return { projects, columns, actualBaseFilePath, scannedCount, parsedFilters, errorMsg };
+		return { projects, columns, actualBaseFilePath, scannedCount, parsedFilters, errorMsg, rawBaseContent };
 	}
 
 	/**
