@@ -3548,7 +3548,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		const baseHeader = baseCard.createDiv({ cls: 'vo-card-header' });
 		const pathSpan = baseHeader.createSpan({ text: '项目数据库 (PROJECTS) - 读取中...', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 		
-		void this.getProjectsData().then(({ projects, columns, actualBaseFilePath }) => {
+		void this.getProjectsData().then(({ projects, columns, actualBaseFilePath, errorMsg, scannedCount, parsedFilters }) => {
 			pathSpan.setText(`项目数据库 (PROJECTS) - ${actualBaseFilePath}`);
 			const total = projects.length;
 			const counts = { pending: 0, active: 0, onhold: 0, blocked: 0, completed: 0, cancelled: 0 };
@@ -3611,10 +3611,17 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const tbody = table.createEl('tbody');
 			if (projects.length === 0) {
 				const tr = tbody.createEl('tr');
-				tr.createEl('td', {
-					text: '未找到符合当前筛选条件的项目文件。',
-					attr: { colspan: columns.length, style: 'text-align: center; color: var(--text-muted); padding: 30px; font-size: 13px;' }
+				const td = tr.createEl('td', {
+					attr: { colspan: columns.length, style: 'color: var(--text-muted); padding: 30px; font-size: 13px;' }
 				});
+				td.createDiv({ text: '未找到符合当前筛选条件的项目文件。', attr: { style: 'font-weight: bold; margin-bottom: 8px; text-align: center;' } });
+				const diagnostics = td.createDiv({ attr: { style: 'font-family: monospace; font-size: 11px; background: var(--background-secondary); padding: 12px; border-radius: 6px; border: 1px solid var(--background-modifier-border); display: flex; flex-direction: column; gap: 4px;' } });
+				diagnostics.createDiv({ text: `• 数据库文件: ${actualBaseFilePath}` });
+				diagnostics.createDiv({ text: `• 过滤器配置 (Filters): ${parsedFilters || '无'}` });
+				diagnostics.createDiv({ text: `• 扫描文件总数 (Scanned): ${scannedCount || 0} 个 Markdown 文件` });
+				if (errorMsg) {
+					diagnostics.createDiv({ text: `• 错误信息 (Error): ${errorMsg}`, attr: { style: 'color: var(--text-error);' } });
+				}
 			} else {
 				projects.forEach(proj => {
 					const tr = tbody.createEl('tr');
@@ -3697,10 +3704,20 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	});
 	}
 
-	private async getProjectsData(): Promise<{ projects: ProjectInfo[], columns: string[], actualBaseFilePath: string }> {
+	private async getProjectsData(): Promise<{ 
+		projects: ProjectInfo[], 
+		columns: string[], 
+		actualBaseFilePath: string,
+		scannedCount: number,
+		parsedFilters: string,
+		errorMsg: string
+	}> {
 		const projects: ProjectInfo[] = [];
 		let columns = ["file.name", "status", "file.ctime", "topics"];
 		let actualBaseFilePath = this.plugin.settings.projectBaseFilePath;
+		let scannedCount = 0;
+		let parsedFilters = '';
+		let errorMsg = '';
 		try {
 			let baseFile: TFile | null = null;
 			const initialFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.projectBaseFilePath);
@@ -3718,13 +3735,17 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			}
 
 			if (!baseFile) {
-				console.error("Base file not found:", this.plugin.settings.projectBaseFilePath);
-				return { projects: [], columns, actualBaseFilePath };
+				errorMsg = "Base 数据库文件未找到，且配置文件夹内未侦测到任何 .base 文件。";
+				return { projects: [], columns, actualBaseFilePath, scannedCount, parsedFilters, errorMsg };
 			}
 			const baseContent = await this.app.vault.read(baseFile);
-			const baseDefinition = getProjectBaseDefinition(parseYaml(baseContent));
-			if (baseDefinition?.order) {
-				columns = baseDefinition.order;
+			const yamlParsed = parseYaml(baseContent);
+			const baseDefinition = getProjectBaseDefinition(yamlParsed);
+			if (baseDefinition) {
+				parsedFilters = JSON.stringify(baseDefinition.filters || {});
+				if (baseDefinition.order) {
+					columns = baseDefinition.order;
+				}
 			}
 			
 			const evaluateCondition = (cond: ProjectFilterCondition, file: TFile, tags: string[], frontmatter: Record<string, any> | undefined): boolean => {
@@ -3809,6 +3830,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			};
 
 			const allFiles = this.app.vault.getMarkdownFiles();
+			scannedCount = allFiles.length;
 			for (const child of allFiles) {
 				const cache = this.app.metadataCache.getFileCache(child);
 				const frontmatter = isRecord(cache?.frontmatter) ? cache.frontmatter : undefined;
@@ -3869,19 +3891,23 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					properties
 				});
 			}
-		} catch (error) {
+		} catch (error: any) {
 			console.error('Failed to scan projects:', error);
+			errorMsg = String(error.message || error);
 		}
 		
 		if (projects.length === 0) {
 			return {
 				columns,
 				projects: [],
-				actualBaseFilePath
+				actualBaseFilePath,
+				scannedCount,
+				parsedFilters,
+				errorMsg
 			};
 		}
 
-		return { projects, columns, actualBaseFilePath };
+		return { projects, columns, actualBaseFilePath, scannedCount, parsedFilters, errorMsg };
 	}
 
 	/**
