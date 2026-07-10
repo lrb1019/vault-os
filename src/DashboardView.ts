@@ -3539,7 +3539,7 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	private renderProjectsDashboard(parent: Element): void {
 		const container = parent.createDiv({ cls: 'vo-tasks-wrapper', attr: { style: 'gap: 12px; display: flex; flex-direction: column; flex-grow: 1; height: 100%;' } });
 
-		const statsCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-bottom: 0; padding: 14px 18px 16px;' } });
+		const statsCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-bottom: 0; padding: 10px 14px; overflow: hidden; height: auto; min-height: 0;' } });
 		const statsGrid = statsCard.createDiv({ cls: 'vo-stats-mini-grid', attr: { style: 'margin-top: 0; margin-bottom: 0; grid-template-columns: repeat(5, 1fr);' } });
 		
 		const baseCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding-top: 16px; flex-grow: 1; display: flex; flex-direction: column;' } });
@@ -3560,9 +3560,20 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const completedPct = total > 0 ? Math.round((counts.completed / total) * 100) : 0;
 
 			const makeStatCard = (label: string, val: string) => {
-				const c = statsGrid.createDiv({ cls: 'vo-stats-mini-card' });
-				c.createDiv({ text: val, cls: 'vo-stats-mini-val' });
-				c.createDiv({ text: label, cls: 'vo-stats-mini-label' });
+				const c = statsGrid.createDiv({ 
+					cls: 'vo-stats-mini-card', 
+					attr: { style: 'padding: 8px 4px; gap: 2px;' } 
+				});
+				c.createDiv({ 
+					text: val, 
+					cls: 'vo-stats-mini-val', 
+					attr: { style: 'font-size: 15px;' } 
+				});
+				c.createDiv({ 
+					text: label, 
+					cls: 'vo-stats-mini-label', 
+					attr: { style: 'font-size: 10px; font-weight: 500;' } 
+				});
 			};
 
 			makeStatCard('总项目数', String(total));
