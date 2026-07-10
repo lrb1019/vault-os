@@ -1073,6 +1073,10 @@ select.dropdown option {
 }
 
 .vo-projects-table th {
+	position: sticky;
+	top: 0;
+	background-color: var(--background-primary);
+	z-index: 10;
 	padding: 10px 12px;
 	font-weight: 600;
 	color: var(--text-muted);
