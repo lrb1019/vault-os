@@ -1030,7 +1030,7 @@ export class VaultOsView extends ItemView {
 	private renderTickTickDashboard(parent: Element): void {
 		const wrapper = parent.createDiv({ 
 			cls: 'vo-ticktick-wrapper', 
-			attr: { style: 'animation: fadeIn 0.4s ease-out; display: flex; flex-direction: column; gap: 14px; min-height: 0; flex-grow: 1; height: 100%;' } 
+			attr: { style: 'animation: fadeIn 0.4s ease-out; display: flex; flex-direction: column; gap: 14px; min-height: 0;' } 
 		});
 
 		// 1. Unified header
