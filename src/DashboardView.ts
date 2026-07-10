@@ -393,7 +393,7 @@ type ProjectFilterCondition =
 	};
 
 interface ProjectBaseDefinition {
-	filters?: ProjectFilterCondition;
+	filters?: any;
 	order?: string[];
 }
 
@@ -476,10 +476,8 @@ function getProjectBaseDefinition(value: unknown): ProjectBaseDefinition | null 
 		filters = value.filters;
 	}
 
-	if (filters !== undefined && !isProjectFilterCondition(filters)) {
-		filters = undefined;
-	}
-
+	// Do NOT validate/discard filters here - pass raw YAML filters to evaluateCondition
+	// which handles all known formats and falls through unknown formats gracefully
 	return { filters, order };
 }
 
@@ -3748,7 +3746,8 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				}
 			}
 			
-			const evaluateCondition = (cond: ProjectFilterCondition, file: TFile, tags: string[], frontmatter: Record<string, any> | undefined): boolean => {
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const evaluateCondition = (cond: any, file: TFile, tags: string[], frontmatter: Record<string, any> | undefined): boolean => {
 				if (typeof cond === 'string') {
 					const isNegated = cond.startsWith('!');
 					const expr = isNegated ? cond.substring(1) : cond;
@@ -3820,10 +3819,10 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				}
 
 				if (cond.and && Array.isArray(cond.and)) {
-					return cond.and.every((childCondition) => evaluateCondition(childCondition, file, tags, frontmatter));
+					return cond.and.every((childCondition: any) => evaluateCondition(childCondition, file, tags, frontmatter));
 				}
 				if (cond.or && Array.isArray(cond.or)) {
-					return cond.or.some((childCondition) => evaluateCondition(childCondition, file, tags, frontmatter));
+					return cond.or.some((childCondition: any) => evaluateCondition(childCondition, file, tags, frontmatter));
 				}
 
 				return true;
@@ -3840,8 +3839,12 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 				
 				// If no filter defined in Base file, fall back to matching all files under projectsFolder
 				let isMatch: boolean;
-				if (baseDefinition?.filters) {
-					isMatch = evaluateCondition(baseDefinition.filters, child, allTags, frontmatter);
+				if (baseDefinition?.filters !== undefined) {
+					try {
+						isMatch = evaluateCondition(baseDefinition.filters, child, allTags, frontmatter);
+					} catch {
+						isMatch = child.path.startsWith(this.plugin.settings.projectsFolder + '/');
+					}
 				} else {
 					isMatch = child.path.startsWith(this.plugin.settings.projectsFolder + '/');
 				}
