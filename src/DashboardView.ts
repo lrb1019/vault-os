@@ -1008,6 +1008,7 @@ export class VaultOsView extends ItemView {
 	}
 
 	private renderTabContent(contentWrapper: Element): void {
+		contentWrapper.removeClass('vo-tab-content-fill');
 		if (this.activeMainTab === 'vault') {
 			this.renderVaultDashboard(contentWrapper);
 		} else if (this.activeMainTab === 'diary') {
@@ -1017,6 +1018,7 @@ export class VaultOsView extends ItemView {
 		} else if (this.activeMainTab === 'ticktick') {
 			this.renderTickTickDashboard(contentWrapper);
 		} else if (this.activeMainTab === 'projects') {
+			contentWrapper.addClass('vo-tab-content-fill');
 			this.renderProjectsDashboard(contentWrapper);
 		}
 	}
@@ -3537,12 +3539,12 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	 * =========================================================================
 	 */
 	private renderProjectsDashboard(parent: Element): void {
-		const container = parent.createDiv({ cls: 'vo-tasks-wrapper', attr: { style: 'gap: 12px; display: flex; flex-direction: column; flex-grow: 1; height: 100%;' } });
+		const container = parent.createDiv({ cls: 'vo-tasks-wrapper', attr: { style: 'gap: 12px; display: flex; flex-direction: column; flex-grow: 1; min-height: 0;' } });
 
-		const statsCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-bottom: 0; padding: 10px 14px; overflow: hidden; height: auto; min-height: 0;' } });
-		const statsGrid = statsCard.createDiv({ cls: 'vo-stats-mini-grid', attr: { style: 'margin-top: 0; margin-bottom: 0; grid-template-columns: repeat(5, 1fr);' } });
+		const statsCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-bottom: 0; padding: 14px 18px 16px;' } });
+		const statsGrid = statsCard.createDiv({ cls: 'vo-stats-mini-grid', attr: { style: 'margin-top: 0; margin-bottom: 0;' } });
 		
-		const baseCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding-top: 16px; flex-grow: 1; display: flex; flex-direction: column;' } });
+		const baseCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding-top: 16px; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;' } });
 		const baseHeader = baseCard.createDiv({ cls: 'vo-card-header' });
 		baseHeader.createSpan({ text: `项目数据库 (PROJECTS) - ${this.plugin.settings.projectBaseFilePath}` , attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 		
@@ -3560,20 +3562,9 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			const completedPct = total > 0 ? Math.round((counts.completed / total) * 100) : 0;
 
 			const makeStatCard = (label: string, val: string) => {
-				const c = statsGrid.createDiv({ 
-					cls: 'vo-stats-mini-card', 
-					attr: { style: 'padding: 8px 4px; gap: 2px;' } 
-				});
-				c.createDiv({ 
-					text: val, 
-					cls: 'vo-stats-mini-val', 
-					attr: { style: 'font-size: 15px;' } 
-				});
-				c.createDiv({ 
-					text: label, 
-					cls: 'vo-stats-mini-label', 
-					attr: { style: 'font-size: 10px; font-weight: 500;' } 
-				});
+				const c = statsGrid.createDiv({ cls: 'vo-stats-mini-card' });
+				c.createDiv({ text: val, cls: 'vo-stats-mini-val' });
+				c.createDiv({ text: label, cls: 'vo-stats-mini-label' });
 			};
 
 			makeStatCard('总项目数', String(total));

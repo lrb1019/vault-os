@@ -1159,3 +1159,7 @@ select.dropdown option {
 	background-color: var(--background-modifier-hover);
 	color: var(--text-normal);
 }
+
+.vo-tab-content-fill {
+	overflow: hidden !important;
+}
