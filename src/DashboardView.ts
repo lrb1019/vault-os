@@ -380,12 +380,9 @@ interface ProjectInfo {
 	title: string;
 	path: string;
 	status: 'pending' | 'active' | 'onhold' | 'blocked' | 'completed' | 'cancelled';
-	deadline?: string;
-	goal?: string;
-	topics: string[];
 	ctimeStr: string;
-	progress: number;
 	mtimeStr: string;
+	properties: Record<string, any>;
 }
 
 type ProjectFilterCondition =
@@ -397,6 +394,7 @@ type ProjectFilterCondition =
 
 interface ProjectBaseDefinition {
 	filters?: ProjectFilterCondition;
+	order?: string[];
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -463,16 +461,26 @@ function getProjectBaseDefinition(value: unknown): ProjectBaseDefinition | null 
 		return null;
 	}
 
-	const filters = value.filters;
-	if (filters === undefined) {
-		return {};
+	let filters: any;
+	let order: string[] | undefined;
+
+	if (Array.isArray(value.views) && value.views.length > 0) {
+		const firstView = value.views[0];
+		if (isRecord(firstView)) {
+			filters = firstView.filters;
+			if (Array.isArray(firstView.order)) {
+				order = firstView.order.map(String);
+			}
+		}
+	} else {
+		filters = value.filters;
 	}
 
-	if (!isProjectFilterCondition(filters)) {
-		return null;
+	if (filters !== undefined && !isProjectFilterCondition(filters)) {
+		filters = undefined;
 	}
 
-	return { filters };
+	return { filters, order };
 }
 
 export class VaultOsView extends ItemView {
@@ -1022,7 +1030,7 @@ export class VaultOsView extends ItemView {
 	private renderTickTickDashboard(parent: Element): void {
 		const wrapper = parent.createDiv({ 
 			cls: 'vo-ticktick-wrapper', 
-			attr: { style: 'animation: fadeIn 0.4s ease-out; display: flex; flex-direction: column; gap: 14px; min-height: 0;' } 
+			attr: { style: 'animation: fadeIn 0.4s ease-out; display: flex; flex-direction: column; gap: 14px; min-height: 0; flex-grow: 1; height: 100%;' } 
 		});
 
 		// 1. Unified header
@@ -3529,16 +3537,16 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 	 * =========================================================================
 	 */
 	private renderProjectsDashboard(parent: Element): void {
-		const container = parent.createDiv({ cls: 'vo-tasks-wrapper', attr: { style: 'gap: 12px;' } });
+		const container = parent.createDiv({ cls: 'vo-tasks-wrapper', attr: { style: 'gap: 12px; display: flex; flex-direction: column; flex-grow: 1; height: 100%;' } });
 
 		const statsCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'margin-bottom: 0; padding: 14px 18px 16px;' } });
 		const statsGrid = statsCard.createDiv({ cls: 'vo-stats-mini-grid', attr: { style: 'margin-top: 0; margin-bottom: 0;' } });
 		
-		const baseCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding-top: 16px;' } });
+		const baseCard = container.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding-top: 16px; flex-grow: 1; display: flex; flex-direction: column;' } });
 		const baseHeader = baseCard.createDiv({ cls: 'vo-card-header' });
 		baseHeader.createSpan({ text: `项目数据库 (PROJECTS) - ${this.plugin.settings.projectBaseFilePath}` , attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 		
-		void this.getProjectsData().then(projects => {
+		void this.getProjectsData().then(({ projects, columns }) => {
 			const total = projects.length;
 			const counts = { pending: 0, active: 0, onhold: 0, blocked: 0, completed: 0, cancelled: 0 };
 			
@@ -3570,10 +3578,18 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			// Table Header
 			const thead = table.createEl('thead');
 			const trHead = thead.createEl('tr');
-			trHead.createEl('th', { text: 'ⓘ 名称' });
-			trHead.createEl('th', { text: '≡ status' });
-			trHead.createEl('th', { text: '🕒 创建时间' });
-			trHead.createEl('th', { text: '≡ topics' });
+			
+			const getColumnLabel = (col: string) => {
+				if (col === 'file.name') return 'ⓘ 名称';
+				if (col === 'status') return '≡ STATUS';
+				if (col === 'file.ctime') return '🕒 创建时间';
+				if (col === 'file.mtime') return '🕒 修改时间';
+				return `≡ ${col.toUpperCase()}`;
+			};
+
+			columns.forEach(col => {
+				trHead.createEl('th', { text: getColumnLabel(col) });
+			});
 
 			// Sort by ctime desc
 			projects.sort((a, b) => b.ctimeStr.localeCompare(a.ctimeStr));
@@ -3592,67 +3608,83 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 			projects.forEach(proj => {
 				const tr = tbody.createEl('tr');
 				
-				// Col 1: Name
-				const tdName = tr.createEl('td', { cls: 'vo-projects-table-name' });
-				const nameLink = tdName.createEl('a', { text: proj.title });
-				nameLink.addEventListener('click', (e) => {
-					e.preventDefault();
-					void this.app.workspace.openLinkText(proj.path, '', false);
-				});
-
-				// Col 2: Status
-				const tdStatus = tr.createEl('td');
-				const config = statusConfig[proj.status] || statusConfig.pending || { label: 'Pending', iconId: 'circle', color: 'var(--text-muted)' };
-				const badge = tdStatus.createSpan({ cls: 'vo-status-badge' });
-				const iconSpan = badge.createSpan({ cls: 'vo-status-icon' });
-				setIcon(iconSpan, config.iconId);
-				iconSpan.style.color = config.color;
-				const labelSpan = badge.createSpan({ text: ` ${config.label}` });
-				labelSpan.style.color = config.color;
-
-				// Col 3: Ctime
-				tr.createEl('td', { text: proj.ctimeStr, cls: 'vo-projects-table-time' });
-
-				// Col 4: Topics
-				const tdTopics = tr.createEl('td', { cls: 'vo-projects-table-topics' });
-				proj.topics.forEach(topic => {
-					let displayText = topic;
-					let linkTarget = topic;
-					let isLink = false;
-
-					const linkMatch = topic.match(/^\[\[(.*?)\]\]$/);
-					if (linkMatch) {
-						isLink = true;
-						linkTarget = linkMatch[1] || '';
-						const parts = linkTarget.split('|');
-						linkTarget = parts[0] || '';
-						displayText = parts.length > 1 ? (parts[1] || '') : linkTarget;
-					}
-
-					if (isLink) {
-						const linkEl = tdTopics.createEl('a', { text: displayText, cls: 'vo-topic-badge vo-topic-badge-link' });
-						linkEl.addEventListener('click', (e) => {
+				columns.forEach(col => {
+					if (col === 'file.name') {
+						const tdName = tr.createEl('td', { cls: 'vo-projects-table-name' });
+						const nameLink = tdName.createEl('a', { text: proj.title });
+						nameLink.addEventListener('click', (e) => {
 							e.preventDefault();
-							void this.app.workspace.openLinkText(linkTarget, proj.path, false);
+							void this.app.workspace.openLinkText(proj.path, '', false);
 						});
+					} else if (col === 'status') {
+						const tdStatus = tr.createEl('td');
+						const config = statusConfig[proj.status] || statusConfig.pending || { label: 'Pending', iconId: 'circle', color: 'var(--text-muted)' };
+						const badge = tdStatus.createSpan({ cls: 'vo-status-badge' });
+						const iconSpan = badge.createSpan({ cls: 'vo-status-icon' });
+						setIcon(iconSpan, config.iconId);
+						iconSpan.style.color = config.color;
+						const labelSpan = badge.createSpan({ text: ` ${config.label}` });
+						labelSpan.style.color = config.color;
+					} else if (col === 'file.ctime') {
+						tr.createEl('td', { text: proj.ctimeStr, cls: 'vo-projects-table-time' });
+					} else if (col === 'file.mtime') {
+						tr.createEl('td', { text: proj.mtimeStr, cls: 'vo-projects-table-time' });
 					} else {
-						tdTopics.createSpan({ text: displayText, cls: 'vo-topic-badge' });
+						// Generic property
+						const tdProp = tr.createEl('td');
+						const val = proj.properties[col];
+						if (val !== undefined && val !== null) {
+							if (Array.isArray(val)) {
+								const valContainer = tdProp.createDiv({ cls: 'vo-projects-table-topics' });
+								val.forEach(item => {
+									const textStr = String(item);
+									let displayText = textStr;
+									let linkTarget = textStr;
+									let isLink = false;
+				
+									const linkMatch = textStr.match(/^\[\[(.*?)\]\]$/);
+									if (linkMatch) {
+										isLink = true;
+										linkTarget = linkMatch[1] || '';
+										const parts = linkTarget.split('|');
+										linkTarget = parts[0] || '';
+										displayText = parts.length > 1 ? (parts[1] || '') : linkTarget;
+									}
+				
+									if (isLink) {
+										const linkEl = valContainer.createEl('a', { text: displayText, cls: 'vo-topic-badge vo-topic-badge-link' });
+										linkEl.addEventListener('click', (e) => {
+											e.preventDefault();
+											void this.app.workspace.openLinkText(linkTarget, proj.path, false);
+										});
+									} else {
+										valContainer.createSpan({ text: displayText, cls: 'vo-topic-badge' });
+									}
+								});
+							} else {
+								tdProp.createSpan({ text: String(val) });
+							}
+						}
 					}
 				});
 			});
 		});
 	}
 
-	private async getProjectsData(): Promise<ProjectInfo[]> {
+	private async getProjectsData(): Promise<{ projects: ProjectInfo[], columns: string[] }> {
 		const projects: ProjectInfo[] = [];
+		let columns = ["file.name", "status", "file.ctime", "topics"];
 		try {
 			const baseFile = this.app.vault.getAbstractFileByPath(this.plugin.settings.projectBaseFilePath);
 			if (!(baseFile instanceof TFile)) {
 				console.error("Base file not found:", this.plugin.settings.projectBaseFilePath);
-				return [];
+				return { projects: [], columns };
 			}
 			const baseContent = await this.app.vault.read(baseFile);
 			const baseDefinition = getProjectBaseDefinition(parseYaml(baseContent));
+			if (baseDefinition?.order) {
+				columns = baseDefinition.order;
+			}
 			
 			const evaluateCondition = (cond: ProjectFilterCondition, file: TFile, tags: string[]): boolean => {
 				if (typeof cond === 'string') {
@@ -3674,6 +3706,11 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 						const target = expr.match(/contains\("([^"]+)"\)/)?.[1];
 						if (target) {
 							match = file.path.includes(target);
+						}
+					} else if (expr.startsWith('file.folder')) {
+						const target = expr.split('==')[1]?.trim().replace(/^"|"$/g, '');
+						if (target) {
+							match = file.parent?.path === target;
 						}
 					}
 					
@@ -3720,30 +3757,24 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 					status = 'cancelled';
 				}
 				
-				const deadline = toOptionalText(frontmatter?.deadline);
-				const topics = toStringArray(frontmatter?.topics);
-
-				let goal = undefined;
-				const fileContent = await this.app.vault.cachedRead(child);
-				const goalMatch = fileContent.match(/>\s*\[!GOAL\]\s*核心目标\s*\n>\s*(.+)/);
-				if (goalMatch && goalMatch[1]) {
-					goal = goalMatch[1].trim();
-				}
-
-				const progress = Number(frontmatter?.progress || 0);
 				const mtimeStr = moment(child.stat.mtime).format('YYYY-MM-DD');
 				const ctimeStr = moment(child.stat.ctime).format('YYYY/MM/DD HH:mm:ss');
+
+				// Dynamic properties
+				const properties: Record<string, any> = {};
+				if (frontmatter) {
+					for (const [k, v] of Object.entries(frontmatter)) {
+						properties[k] = v;
+					}
+				}
 
 				projects.push({
 					title: child.basename,
 					path: child.path,
 					status,
-					deadline,
-					goal,
-					topics,
 					ctimeStr,
-					progress,
-					mtimeStr
+					mtimeStr,
+					properties
 				});
 			}
 		} catch (error) {
@@ -3751,16 +3782,19 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		}
 		
 		if (projects.length === 0) {
-			return [
-				{ title: '智能系统 Dashboard 开发', path: '', status: 'active', topics: ['AI'], ctimeStr: '2026/06/22 10:00:00', progress: 85, mtimeStr: '2026-06-22' },
-				{ title: '知识库死链自动检测脚本', path: '', status: 'active', topics: ['Scripting'], ctimeStr: '2026/06/21 11:30:00', progress: 40, mtimeStr: '2026-06-21' },
-				{ title: 'AI 阅读器插件迁移', path: '', status: 'pending', topics: ['Obsidian'], ctimeStr: '2026/06/15 09:15:00', progress: 10, mtimeStr: '2026-06-15' },
-				{ title: '2025 个人财务自动化分析', path: '', status: 'completed', topics: ['Finance'], ctimeStr: '2026/05/18 14:00:00', progress: 100, mtimeStr: '2026-05-18' },
-				{ title: '旧模板库归档', path: '', status: 'cancelled', topics: ['Maintenance'], ctimeStr: '2026/04/10 16:45:00', progress: 0, mtimeStr: '2026-04-10' }
-			];
+			return {
+				columns,
+				projects: [
+					{ title: '智能系统 Dashboard 开发', path: '', status: 'active', ctimeStr: '2026/06/22 10:00:00', mtimeStr: '2026-06-22', properties: { topics: ['AI'], progress: 85 } },
+					{ title: '知识库死链自动检测脚本', path: '', status: 'active', ctimeStr: '2026/06/21 11:30:00', mtimeStr: '2026-06-21', properties: { topics: ['Scripting'], progress: 40 } },
+					{ title: 'AI 阅读器插件迁移', path: '', status: 'pending', ctimeStr: '2026/06/15 09:15:00', mtimeStr: '2026-06-15', properties: { topics: ['Obsidian'], progress: 10 } },
+					{ title: '2025 个人财务自动化分析', path: '', status: 'completed', ctimeStr: '2026/05/18 14:00:00', mtimeStr: '2026-05-18', properties: { topics: ['Finance'], progress: 100 } },
+					{ title: '旧模板库归档', path: '', status: 'cancelled', ctimeStr: '2026/04/10 16:45:00', mtimeStr: '2026-04-10', properties: { topics: ['Maintenance'], progress: 0 } }
+				]
+			};
 		}
 
-		return projects;
+		return { projects, columns };
 	}
 
 	/**
