@@ -1,6 +1,7 @@
 import { App, TFile } from 'obsidian';
 import { McpService } from './McpService';
 import VaultOsPlugin from '../main';
+import { createRemoteSyncStatus, type CacheWriteResult, type TickTickSyncStatus } from '../domain/ticktick-sync-status';
 
 export interface TaskItem {
 	id: string;
@@ -77,11 +78,7 @@ export interface TaskStats {
 	projects?: ProjectItem[];
 }
 
-export interface TickTickSyncStatus {
-	state: 'idle' | 'syncing' | 'success' | 'error';
-	lastSyncedAt: number | null;
-	errorMessage: string | null;
-}
+export type { TickTickSyncStatus } from '../domain/ticktick-sync-status';
 
 interface CachedTaskData {
 	todayCount?: number;
@@ -113,7 +110,9 @@ export class TaskService {
 	private syncStatus: TickTickSyncStatus = {
 		state: 'idle',
 		lastSyncedAt: null,
-		errorMessage: null
+		errorMessage: null,
+		remoteState: 'unknown',
+		cacheState: 'idle'
 	};
 
 	private isInitialized = false;
@@ -191,7 +190,9 @@ export class TaskService {
 			this.syncStatus = {
 				state: 'error',
 				lastSyncedAt: this.syncStatus.lastSyncedAt,
-				errorMessage: !ticktickConfig.enabled ? 'TickTick 连接已关闭' : '未配置 TickTick 接口地址'
+				errorMessage: !ticktickConfig.enabled ? 'TickTick 连接已关闭' : '未配置 TickTick 接口地址',
+				remoteState: 'error',
+				cacheState: this.syncStatus.cacheState
 			};
 			this.cache = {
 				todayCount: 0,
@@ -208,7 +209,9 @@ export class TaskService {
 		this.syncStatus = {
 			state: 'syncing',
 			lastSyncedAt: this.syncStatus.lastSyncedAt,
-			errorMessage: null
+			errorMessage: null,
+			remoteState: 'unknown',
+			cacheState: this.syncStatus.cacheState
 		};
 
 		try {
@@ -216,12 +219,8 @@ export class TaskService {
 			const mcpStats = await this.fetchFromTickTickMcp();
 			if (mcpStats) {
 				this.cache = mcpStats;
-				await this.saveToDisk(mcpStats);
-				this.syncStatus = {
-					state: 'success',
-					lastSyncedAt: Date.now(),
-					errorMessage: null
-				};
+				const cacheWrite = await this.saveToDisk(mcpStats);
+				this.syncStatus = createRemoteSyncStatus(Date.now(), cacheWrite);
 				return this.cache;
 			}
 		} catch (error) {
@@ -229,7 +228,9 @@ export class TaskService {
 			this.syncStatus = {
 				state: 'error',
 				lastSyncedAt: this.syncStatus.lastSyncedAt,
-				errorMessage: error instanceof Error ? error.message : String(error)
+				errorMessage: 'TickTick 远端同步失败，请检查连接配置后重试。',
+				remoteState: 'error',
+				cacheState: this.syncStatus.cacheState
 			};
 		}
 
@@ -237,7 +238,9 @@ export class TaskService {
 		this.syncStatus = {
 			state: 'error',
 			lastSyncedAt: this.syncStatus.lastSyncedAt,
-			errorMessage: 'TickTick 同步未返回有效数据'
+			errorMessage: 'TickTick 同步未返回有效数据',
+			remoteState: 'error',
+			cacheState: this.syncStatus.cacheState
 		};
 		
 		this.cache = {
@@ -273,18 +276,26 @@ export class TaskService {
 					focuses: (data.focuses || []).map(focus => this.normalizeFocusItem(focus)),
 					projects: data.projects || []
 				};
-				this.syncStatus = {
-					state: 'success',
-					lastSyncedAt: cacheFile.stat.mtime,
-					errorMessage: null
+					this.syncStatus = {
+						state: 'success',
+						lastSyncedAt: cacheFile.stat.mtime,
+						errorMessage: null,
+						remoteState: 'unknown',
+						cacheState: 'loaded'
 				};
 			}
-		} catch (e) {
-			console.warn('No local task cache found or error reading it', e);
+		} catch {
+			this.syncStatus = {
+				state: 'error',
+				lastSyncedAt: this.syncStatus.lastSyncedAt,
+				errorMessage: '本地 TickTick 缓存无法读取，已跳过缓存加载。',
+				remoteState: 'unknown',
+				cacheState: 'read-error'
+			};
 		}
 	}
 
-	private async saveToDisk(stats: TaskStats): Promise<void> {
+	private async saveToDisk(stats: TaskStats): Promise<CacheWriteResult> {
 		try {
 			const cachePath = this.plugin.settings.ticktickCachePath;
 			let cacheFile = this.app.vault.getAbstractFileByPath(cachePath);
@@ -304,8 +315,9 @@ export class TaskService {
 				}
 				await this.app.vault.create(cachePath, jsonStr);
 			}
-		} catch (e) {
-			console.error('Failed to save task cache to disk', e);
+			return { ok: true };
+		} catch {
+			return { ok: false };
 		}
 	}
 
@@ -490,9 +502,7 @@ export class TaskService {
 				projects: projects
 			};
 
-			this.cache = cacheData;
-			await this.saveToDisk(this.cache);
-			return this.cache;
+				return cacheData;
 		} catch (e) {
 			console.warn('TickTick MCP Server communication failed or is offline.', e);
 		}
@@ -558,7 +568,8 @@ export class TaskService {
 				}
 			}
 			
-			await this.saveToDisk(this.cache);
+				const cacheWrite = await this.saveToDisk(this.cache);
+				if (!cacheWrite.ok) this.syncStatus = createRemoteSyncStatus(Date.now(), cacheWrite);
 			// Full sync in background
 			void this.syncWithTickTick();
 			return true;
@@ -586,21 +597,23 @@ export class TaskService {
 				return false;
 			}
 			
-			// Optimistically update local cache
-			if (this.cache.habitCheckins) {
-				if (!this.cache.habitCheckins[habitId]) {
-					this.cache.habitCheckins[habitId] = [];
+				// Optimistically update local cache.
+				const habitCheckins = this.cache.habitCheckins ??= {};
+				if (!habitCheckins[habitId]) {
+					habitCheckins[habitId] = [];
 				}
-				const existingIndex = this.cache.habitCheckins[habitId].findIndex(c => c.stamp === stamp);
-				if (existingIndex !== -1) {
-					const checkin = this.cache.habitCheckins[habitId][existingIndex];
+				const existingIndex = habitCheckins[habitId].findIndex(c => c.stamp === stamp);
+					if (existingIndex !== -1) {
+						const checkin = habitCheckins[habitId][existingIndex];
 					if (checkin) {
 						checkin.status = isCompleted ? 2 : 0;
 					}
 				} else {
-					this.cache.habitCheckins[habitId].push({ stamp, status: isCompleted ? 2 : 0 });
-				}
-			}
+						habitCheckins[habitId].push({ stamp, status: isCompleted ? 2 : 0 });
+					}
+
+				const cacheWrite = await this.saveToDisk(this.cache);
+				if (!cacheWrite.ok) this.syncStatus = createRemoteSyncStatus(Date.now(), cacheWrite);
 			
 			// Trigger background sync with a 2-second delay to prevent overwriting optimistic cache due to API lag
 			window.setTimeout(() => {

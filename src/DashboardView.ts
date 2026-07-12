@@ -4,20 +4,12 @@ import VaultOsPlugin from './main';
 import { ReadingService } from './services/ReadingService';
 import { DiaryService } from './services/DiaryService';
 import { TaskService, CompletedTaskItem, HabitCheckinItem, FocusItem, HabitItem } from './services/TaskService';
+import { VaultFileOperationService } from './services/VaultFileOperationService';
+import { VaultHealthReportService } from './services/VaultHealthReportService';
+import { ClaudianActionService } from './services/ClaudianActionService';
 import { VaultService, VaultOverviewStats } from './services/VaultService';
-
-interface ObsidianAppWithPlugins {
-	plugins: {
-		manifests: Record<string, unknown>;
-		enabledPlugins: Set<string>;
-		getPlugin(id: string): unknown;
-	};
-}
-
-interface ClaudianPlugin {
-	activateView(): Promise<void>;
-}
-
+import { buildMonthlyHealthReport, getMonthlyHealthReportFileName } from './domain/health-report';
+import { shouldShowActionOnHome } from './domain/action-visibility';
 
 interface ScanResultCategory {
 	count: number;
@@ -94,6 +86,188 @@ class SimpleListModal extends Modal {
 	}
 }
 
+class EmptyNoteCleanupModal extends Modal {
+	private candidates: TFile[] = [];
+	private readonly selectedPaths = new Set<string>();
+
+	constructor(
+		app: App,
+		private readonly vaultService: VaultService,
+		private readonly fileOperations: VaultFileOperationService,
+		private readonly onCompleted: (cleanedCount: number) => void
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		this.contentEl.empty();
+		this.contentEl.createEl('h2', { text: '回收空白笔记' });
+		this.contentEl.createEl('p', {
+			text: '正在扫描候选文件。扫描完成前不会修改任何内容。',
+			cls: 'setting-item-description'
+		});
+		void this.loadCandidates();
+	}
+
+	private async loadCandidates(): Promise<void> {
+		this.candidates = await this.vaultService.getEmptyNoteFiles();
+		this.selectedPaths.clear();
+		for (const candidate of this.candidates) {
+			this.selectedPaths.add(candidate.path);
+		}
+		this.renderPreview();
+	}
+
+	private renderPreview(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: '回收空白笔记' });
+
+		if (this.candidates.length === 0) {
+			contentEl.createEl('p', { text: '没有发现可回收的空白笔记。' });
+			const closeButton = contentEl.createEl('button', { text: '关闭' });
+			closeButton.addEventListener('click', () => this.close());
+			return;
+		}
+
+		contentEl.createEl('p', {
+			text: `发现 ${this.candidates.length} 个候选文件。请确认范围；已选文件将移动到 Obsidian 回收站。`,
+			cls: 'setting-item-description'
+		});
+
+		const selectionControls = contentEl.createDiv({ attr: { style: 'display: flex; gap: 8px; margin: 12px 0;' } });
+		const selectAllButton = selectionControls.createEl('button', { text: '全选' });
+		const clearSelectionButton = selectionControls.createEl('button', { text: '取消全选' });
+		const list = contentEl.createDiv({ attr: { style: 'max-height: 300px; overflow-y: auto; border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 8px;' } });
+
+		const footer = contentEl.createDiv({ attr: { style: 'margin-top: 16px;' } });
+		let acknowledged = false;
+		const acknowledgement = footer.createEl('label', { attr: { style: 'display: flex; align-items: center; gap: 8px; margin-bottom: 12px;' } });
+		const acknowledgementCheckbox = acknowledgement.createEl('input', { type: 'checkbox' });
+		acknowledgement.createSpan({ text: '我确认将所选文件移动到 Obsidian 回收站。' });
+		const actions = footer.createDiv({ attr: { style: 'display: flex; justify-content: flex-end; gap: 8px;' } });
+		const cancelButton = actions.createEl('button', { text: '取消' });
+		const confirmButton = actions.createEl('button', { text: '确认回收已选文件', cls: 'mod-warning' });
+
+		const updateConfirmState = () => {
+			confirmButton.disabled = !acknowledged || this.selectedPaths.size === 0;
+			confirmButton.setText(`确认回收 ${this.selectedPaths.size} 个文件`);
+		};
+
+		const renderCandidates = () => {
+			list.empty();
+			for (const candidate of this.candidates) {
+				const row = list.createEl('label', { attr: { style: 'display: flex; align-items: center; gap: 8px; padding: 6px 0; cursor: pointer;' } });
+				const checkbox = row.createEl('input', { type: 'checkbox' });
+				checkbox.checked = this.selectedPaths.has(candidate.path);
+				row.createSpan({ text: candidate.path });
+				checkbox.addEventListener('change', () => {
+					if (checkbox.checked) this.selectedPaths.add(candidate.path);
+					else this.selectedPaths.delete(candidate.path);
+					updateConfirmState();
+				});
+			}
+		};
+
+		selectAllButton.addEventListener('click', () => {
+			for (const candidate of this.candidates) this.selectedPaths.add(candidate.path);
+			renderCandidates();
+			updateConfirmState();
+		});
+		clearSelectionButton.addEventListener('click', () => {
+			this.selectedPaths.clear();
+			renderCandidates();
+			updateConfirmState();
+		});
+		acknowledgementCheckbox.addEventListener('change', () => {
+			acknowledged = acknowledgementCheckbox.checked;
+			updateConfirmState();
+		});
+		cancelButton.addEventListener('click', () => this.close());
+		confirmButton.addEventListener('click', () => void this.executeSelection(confirmButton, cancelButton));
+
+		renderCandidates();
+		updateConfirmState();
+	}
+
+	private async executeSelection(confirmButton: HTMLButtonElement, cancelButton: HTMLButtonElement): Promise<void> {
+		confirmButton.disabled = true;
+		cancelButton.disabled = true;
+		const result = await this.fileOperations.trashConfirmedFiles(this.candidates, [...this.selectedPaths]);
+		this.renderResult(result);
+		this.onCompleted(result.succeededCount);
+	}
+
+	private renderResult(result: Awaited<ReturnType<VaultFileOperationService['trashConfirmedFiles']>>): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: '空白笔记回收结果' });
+		contentEl.createEl('p', {
+			text: `已请求 ${result.requestedCount} 个文件：成功 ${result.succeededCount} 个，失败 ${result.failedCount} 个。`
+		});
+
+		if (result.failedCount > 0) {
+			const failures = contentEl.createEl('ul');
+			for (const item of result.items.filter(item => item.status === 'failed')) {
+				failures.createEl('li', { text: `${item.path}: ${item.errorMessage || '未知错误'}` });
+			}
+		}
+
+		const closeButton = contentEl.createEl('button', { text: '关闭' });
+		closeButton.addEventListener('click', () => this.close());
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+	}
+}
+
+class ArchiveNoteModal extends Modal {
+	constructor(
+		app: App,
+		private readonly candidate: TFile,
+		private readonly archiveFolder: string,
+		private readonly fileOperations: VaultFileOperationService,
+		private readonly onCompleted: () => void
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		const { contentEl } = this;
+		contentEl.empty();
+		contentEl.createEl('h2', { text: '确认归档笔记' });
+		contentEl.createEl('p', { text: `源文件：${this.candidate.path}` });
+		contentEl.createEl('p', { text: `目标目录：${this.archiveFolder || '未配置'}` });
+		contentEl.createEl('p', {
+			text: '归档会移动此文件。若目标存在同名文件，操作将停止且不会覆盖。',
+			cls: 'setting-item-description'
+		});
+
+		const actions = contentEl.createDiv({ attr: { style: 'display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px;' } });
+		const cancelButton = actions.createEl('button', { text: '取消' });
+		const confirmButton = actions.createEl('button', { text: '确认归档', cls: 'mod-warning' });
+		cancelButton.addEventListener('click', () => this.close());
+		confirmButton.addEventListener('click', () => void this.archive(confirmButton, cancelButton));
+	}
+
+	private async archive(confirmButton: HTMLButtonElement, cancelButton: HTMLButtonElement): Promise<void> {
+		confirmButton.disabled = true;
+		cancelButton.disabled = true;
+		const result = await this.fileOperations.archiveConfirmedFile(this.candidate, this.archiveFolder);
+		this.contentEl.empty();
+		this.contentEl.createEl('h2', { text: result.status === 'success' ? '归档完成' : '归档失败' });
+		this.contentEl.createEl('p', { text: result.status === 'success' ? `已移动到：${result.targetPath}` : result.errorMessage || '归档失败' });
+		const closeButton = this.contentEl.createEl('button', { text: '关闭' });
+		closeButton.addEventListener('click', () => this.close());
+		if (result.status === 'success') this.onCompleted();
+	}
+
+	onClose(): void {
+		this.contentEl.empty();
+	}
+}
+
 class NumberInputModal extends Modal {
 	private readonly titleText: string;
 	private readonly initialValue: number;
@@ -159,11 +333,13 @@ class NumberInputModal extends Modal {
 
 class LintModal extends Modal {
 	private vaultService: VaultService;
+	private fileOperations: VaultFileOperationService;
 	private dashboardView: VaultOsView;
 	
-	constructor(app: App, vaultService: VaultService, dashboardView: VaultOsView) {
+	constructor(app: App, vaultService: VaultService, fileOperations: VaultFileOperationService, dashboardView: VaultOsView) {
 		super(app);
 		this.vaultService = vaultService;
+		this.fileOperations = fileOperations;
 		this.dashboardView = dashboardView;
 	}
 
@@ -239,42 +415,14 @@ class LintModal extends Modal {
 						statusText.setText('体检报告生成成功！已推荐优化策略。');
 						startBtn.setCssStyles({ display: 'none' });
 						
-						const actionBtn = buttons.createEl('button', { text: '一键自动修复', cls: 'vo-btn vo-btn-primary' });
-						actionBtn.addEventListener('click', () => {
-							actionBtn.disabled = true;
-							closeBtn.disabled = true;
-							progressArea.createDiv({ text: '正在进行本地空笔记清理与文件回收...' });
-							progressArea.scrollTop = progressArea.scrollHeight;
-							
-							void (async () => {
-								try {
-									const candidates = await this.vaultService.getEmptyNoteFiles();
-									let cleanedCount = 0;
-									for (const file of candidates) {
-										progressArea.createDiv({ text: `正在清理空笔记: ${file.name}` });
-										progressArea.scrollTop = progressArea.scrollHeight;
-										await this.app.fileManager.trashFile(file);
-										cleanedCount++;
-									}
-									
-									progressArea.createDiv({ text: `========================================`, attr: { style: 'color: var(--text-success);' } });
-									progressArea.createDiv({ text: `修复完成！共清理 ${cleanedCount} 篇空白笔记。`, attr: { style: 'color: var(--text-success); font-weight: bold;' } });
-									progressArea.scrollTop = progressArea.scrollHeight;
-									
-									// Update view stats
+							const actionBtn = buttons.createEl('button', { text: '查看空白笔记候选', cls: 'vo-btn vo-btn-primary' });
+							actionBtn.addEventListener('click', () => {
+								this.close();
+								new EmptyNoteCleanupModal(this.app, this.vaultService, this.fileOperations, (cleanedCount) => {
 									this.dashboardView.updateCleanedEmpty(cleanedCount);
-									
-									new Notice(`成功清理 ${cleanedCount} 篇空白笔记！`);
-								} catch (err) {
-									const errMsg = err instanceof Error ? err.message : String(err);
-									progressArea.createDiv({ text: `清理失败: ${errMsg}`, attr: { style: 'color: var(--text-error);' } });
-									progressArea.scrollTop = progressArea.scrollHeight;
-								} finally {
-									closeBtn.disabled = false;
-									closeBtn.setText('完成');
-								}
-							})();
-						});
+									if (cleanedCount > 0) new Notice(`已回收 ${cleanedCount} 篇空白笔记`);
+								}).open();
+							});
 						
 						closeBtn.disabled = false;
 						closeBtn.setText('完成');
@@ -294,10 +442,12 @@ class LintModal extends Modal {
 
 class IngestModal extends Modal {
 	private plugin: VaultOsPlugin;
+	private readonly fileOperations: VaultFileOperationService;
 
 	constructor(plugin: VaultOsPlugin) {
 		super(plugin.app);
 		this.plugin = plugin;
+		this.fileOperations = new VaultFileOperationService(plugin.app);
 	}
 
 	onOpen() {
@@ -342,19 +492,13 @@ class IngestModal extends Modal {
 			
 			const actionGroup = row.createDiv({ attr: { style: 'display: flex; gap: 6px; flex-shrink: 0;' } });
 			
-			// 2. Archive
+			// Archiving is high-impact and must remain an explicit, confirmed operation.
 			const archiveBtn = actionGroup.createEl('button', { text: '归档', cls: 'vo-btn vo-btn-secondary' });
 			archiveBtn.onclick = () => {
-				void (async () => {
-					const archiveDir = this.app.vault.getAbstractFileByPath(this.plugin.settings.archiveFolder);
-					if (!archiveDir) {
-						await this.app.vault.createFolder(this.plugin.settings.archiveFolder);
-					}
-					const newPath = `${this.plugin.settings.archiveFolder}/${file.name}`;
-					await this.app.fileManager.renameFile(file, newPath);
-					new Notice(`成功将 ${file.basename} 归档`);
-					this.close();
-				})();
+				this.close();
+				new ArchiveNoteModal(this.app, file, this.plugin.settings.archiveFolder, this.fileOperations, () => {
+					new Notice(`已归档 ${file.basename}`);
+				}).open();
 			};
 		});
 	}
@@ -369,8 +513,8 @@ class IngestModal extends Modal {
 export class VaultOsView extends ItemView {
 	plugin: VaultOsPlugin;
 	
-	// 看板激活状态 (5个主Tab)
-	private activeMainTab: 'vault' | 'diary' | 'lint' | 'ticktick' = 'vault';
+	// Primary workflow: start work, review periods, maintain the vault.
+	private activeMainTab: 'home' | 'diary' | 'lint' = 'home';
 	
 	private activeStatsSubTab: 'overview' | 'tasks' | 'focus' | 'habits' = 'overview';
 	private taskStatsPeriod: 'day' | 'week' | 'month' = 'day';
@@ -447,7 +591,7 @@ export class VaultOsView extends ItemView {
 		this.clearCacheTimer = window.setTimeout(() => {
 			this.cachedVaultOverviewStats = null;
 			this.cachedDateCounts = null;
-			if (this.activeMainTab === 'vault') {
+			if (this.activeMainTab === 'home') {
 				this.render();
 			}
 		}, 300);
@@ -458,6 +602,9 @@ export class VaultOsView extends ItemView {
 	private diaryService: DiaryService;
 	private taskService: TaskService;
 	private vaultService: VaultService;
+	private fileOperations: VaultFileOperationService;
+	private healthReports: VaultHealthReportService;
+	private claudianActions: ClaudianActionService;
 
 	constructor(leaf: WorkspaceLeaf, plugin: VaultOsPlugin) {
 		super(leaf);
@@ -467,6 +614,9 @@ export class VaultOsView extends ItemView {
 		this.diaryService = new DiaryService(this.plugin);
 		this.taskService = new TaskService(this.plugin);
 		this.vaultService = new VaultService(this.plugin);
+		this.fileOperations = new VaultFileOperationService(this.app);
+		this.healthReports = new VaultHealthReportService(this.app);
+		this.claudianActions = new ClaudianActionService(this.app);
 	}
 
 	private calculateLintHealthScore(scanData: ScanData): number {
@@ -577,47 +727,18 @@ export class VaultOsView extends ItemView {
 		parent.createSpan({ text: this.getPeriodicDateLabel(baseDate), attr: { style: 'font-weight: 500; font-size: 13px; text-align: center;' } });
 	}
 
-	triggerClaudianPrompt(prompt: string): void {
+	triggerClaudianPrompt(prompt: string, input?: string): void {
 		const settings = this.plugin.settings;
-		const finalPrompt = prompt
-			.replace(/\{\{daily_path\}\}/g, settings.dailyNoteFolder)
-			.replace(/\{\{inbox_path\}\}/g, settings.inboxFolder)
-			
-			.replace(/\{\{atomics_path\}\}/g, settings.atomicsFolder)
-			.replace(/\{\{archive_path\}\}/g, settings.archiveFolder)
-			.replace(/\{\{output_path\}\}/g, settings.outputFolder);
-
-		const appWithPlugins = this.app as unknown as ObsidianAppWithPlugins;
-		const claudianPlugin = appWithPlugins.plugins?.getPlugin("realclaudian") as ClaudianPlugin | null;
-		if (!claudianPlugin) {
-			new Notice("未检测到 claudian 插件，请先安装并启用该插件。");
-			return;
-		}
-
-		if (claudianPlugin && typeof claudianPlugin.activateView === 'function') {
-			void claudianPlugin.activateView();
-		}
-
-		window.setTimeout(() => {
-			const textarea = activeDocument.querySelector<HTMLTextAreaElement>('.claudian-input-wrapper textarea.claudian-input');
-			if (!textarea) {
-				new Notice("无法定位 claudian 输入框，请确保其窗口已打开。");
-				return;
-			}
-
-			textarea.value = finalPrompt;
-			textarea.dispatchEvent(new Event('input', { bubbles: true }));
-
-			const enterEvent = new KeyboardEvent('keydown', {
-				key: 'Enter',
-				code: 'Enter',
-				keyCode: 13,
-				which: 13,
-				bubbles: true,
-				cancelable: true
-			});
-			textarea.dispatchEvent(enterEvent);
-		}, 300);
+		void this.claudianActions.execute(prompt, {
+			dailyPath: this.diaryService.getPeriodicRootFolder(),
+			inboxPath: settings.inboxFolder,
+			atomicsPath: settings.atomicsFolder,
+			archivePath: settings.archiveFolder,
+			outputPath: settings.outputFolder,
+			input
+		}).then(result => {
+			if (result.status !== 'success') new Notice(result.message);
+		});
 	}
 
 	private formatTickTickSyncTime(timestamp: number | null): string {
@@ -644,8 +765,8 @@ export class VaultOsView extends ItemView {
 				return;
 			}
 			const status = this.taskService.getSyncStatus();
-			if (status.state === 'error') {
-				new Notice(`同步失败: ${status.errorMessage || '未知错误'}`);
+			if (status.state === 'error' || status.cacheState === 'write-error') {
+				new Notice(status.errorMessage || 'TickTick 同步失败，请检查配置后重试。');
 			}
 		}).finally(() => {
 			this.render();
@@ -661,9 +782,6 @@ export class VaultOsView extends ItemView {
 
 		this.render();
 		
-		if (this.activeMainTab === 'ticktick') {
-			this.triggerTickTickSync(false);
-		}
 	}
 
 	async onClose(): Promise<void> {
@@ -709,7 +827,7 @@ export class VaultOsView extends ItemView {
 		const centerCol = headerRow.createDiv({ attr: { style: 'display: flex; justify-content: center; align-items: center; flex: 2;' } });
 		centerCol.createEl('h1', { 
 			text: this.plugin.settings.dashboardTitle || 'Vault OS', 
-			attr: { style: 'font-size: 22px; font-weight: 600 !important; margin: 0; color: var(--text-normal); letter-spacing: 5px; font-family: \'Cinzel\', serif;' } 
+			attr: { style: 'font-size: 22px; font-weight: 600 !important; margin: 0; color: var(--text-normal); letter-spacing: 0.14em; font-family: var(--font-interface);' }
 		});
 		
 		// 3. Right column: Metadata (uptime, version)
@@ -827,12 +945,10 @@ export class VaultOsView extends ItemView {
 		const tabWrapper = parent.createDiv({ cls: 'vo-viewport-tabs' });
 		
 		const mainTabs = [
-			{ id: 'vault', label: '01 / 仓库', icon: 'activity' },
-			{ id: 'diary', label: '02 / 日记', icon: 'calendar' },
-			{ id: 'lint', label: '03 / 巡检', icon: 'shield-alert' },
-			{ id: 'ticktick', label: '04 / TickTick', icon: 'check-square' },
-			
-		];
+			{ id: 'home', label: '首页', icon: 'home' },
+			{ id: 'diary', label: '周期复盘', icon: 'calendar' },
+			{ id: 'lint', label: '知识库体检', icon: 'shield-alert' }
+		] as const;
 
 		mainTabs.forEach(t => {
 			const btn = tabWrapper.createEl('button', { 
@@ -841,8 +957,7 @@ export class VaultOsView extends ItemView {
 			setIcon(btn, t.icon);
 			btn.createSpan({ text: ` ${t.label}` });
 			btn.addEventListener('click', () => {
-				const prevTab = this.activeMainTab;
-				this.activeMainTab = t.id as 'vault' | 'diary' | 'lint' | 'ticktick';
+				this.activeMainTab = t.id;
 
 				// Update tab button active states without full re-render
 				tabWrapper.querySelectorAll('.vo-viewport-tab-btn').forEach((b, i) => {
@@ -854,9 +969,6 @@ export class VaultOsView extends ItemView {
 				contentWrapper.empty();
 				this.renderTabContent(contentWrapper);
 
-				if (this.activeMainTab === 'ticktick' && prevTab !== 'ticktick') {
-					this.triggerTickTickSync(false);
-				}
 			});
 		});
 
@@ -866,15 +978,126 @@ export class VaultOsView extends ItemView {
 
 	private renderTabContent(contentWrapper: Element): void {
 		contentWrapper.removeClass('vo-tab-content-fill');
-		if (this.activeMainTab === 'vault') {
-			this.renderVaultDashboard(contentWrapper);
+		if (this.activeMainTab === 'home') {
+			this.renderHomeDashboard(contentWrapper);
 		} else if (this.activeMainTab === 'diary') {
 			this.renderDiaryDashboard(contentWrapper);
-		} else if (this.activeMainTab === 'lint') {
+		} else {
 			this.renderLintDashboard(contentWrapper);
-		} else if (this.activeMainTab === 'ticktick') {
-			this.renderTickTickDashboard(contentWrapper);
 		}
+	}
+
+	private renderHomeDashboard(parent: Element): void {
+		const container = parent.createDiv({ cls: 'vo-home-dashboard' });
+		const today = moment();
+		const header = container.createDiv({ cls: 'vo-home-hero' });
+		const headerCopy = header.createDiv({ cls: 'vo-home-hero-copy' });
+		headerCopy.createDiv({ text: 'VAULT OS / DAILY CONSOLE', cls: 'vo-home-eyebrow' });
+		headerCopy.createEl('h2', { text: '今天从哪里开始？', cls: 'vo-home-title' });
+		headerCopy.createDiv({ text: '记录、复盘、体检和个人智能指令集中在这里。', cls: 'vo-home-subtitle' });
+		const dateBadge = header.createDiv({ cls: 'vo-home-date-badge' });
+		dateBadge.createDiv({ text: today.format('ddd').toUpperCase(), cls: 'vo-home-date-weekday' });
+		dateBadge.createDiv({ text: today.format('DD'), cls: 'vo-home-date-day' });
+		dateBadge.createDiv({ text: today.format('YYYY.MM'), cls: 'vo-home-date-month' });
+
+		const grid = container.createDiv({ cls: 'vo-home-overview-grid' });
+		const periodCard = grid.createDiv({ cls: 'vo-home-card vo-home-card-period' });
+		const periodTopline = periodCard.createDiv({ cls: 'vo-home-card-topline' });
+		periodTopline.createDiv({ text: '当前周期', cls: 'vo-home-card-label' });
+		const periodIcon = periodTopline.createDiv({ cls: 'vo-home-card-icon' });
+		setIcon(periodIcon, 'notebook-pen');
+		const dailyTarget = this.diaryService.resolvePeriodicNotePath(today, 'day');
+		const dailyFile = this.app.vault.getAbstractFileByPath(dailyTarget.filePath);
+		periodCard.createDiv({ text: dailyFile instanceof TFile ? '今日日记已就绪' : '今日日记尚未创建', cls: 'vo-home-card-title' });
+		periodCard.createDiv({ text: dailyTarget.fileName, cls: 'vo-home-card-detail' });
+		const dailyButton = periodCard.createEl('button', { text: dailyFile instanceof TFile ? '打开今日日记' : '创建今日日记', cls: 'vo-btn vo-btn-primary vo-home-card-action' });
+			dailyButton.addEventListener('click', () => {
+				void (async () => {
+					try {
+						let path = dailyFile instanceof TFile ? dailyFile.path : '';
+						if (!path) {
+							const result = await this.diaryService.createTodayDiary();
+							if (result.status === 'failed' || !result.path) throw new Error(result.errorMessage || '创建今日日记失败');
+							path = result.path;
+							if (result.warningMessage) new Notice(result.warningMessage);
+						}
+						void this.app.workspace.openLinkText(path, '', false);
+					this.render();
+				} catch {
+					new Notice('无法创建今日日记，请检查周期笔记设置。');
+				}
+			})();
+		});
+
+		const healthCard = grid.createDiv({ cls: 'vo-home-card' });
+		const healthTopline = healthCard.createDiv({ cls: 'vo-home-card-topline' });
+		healthTopline.createDiv({ text: '知识库体检', cls: 'vo-home-card-label' });
+		const healthIcon = healthTopline.createDiv({ cls: 'vo-home-card-icon vo-home-card-icon-health' });
+		setIcon(healthIcon, 'shield-check');
+		const healthMetrics = healthCard.createDiv({ cls: 'vo-home-metrics' });
+		const inboxMetric = this.createHomeMetric(healthMetrics, 'Inbox');
+		const deadLinkMetric = this.createHomeMetric(healthMetrics, '死链');
+		const emptyMetric = this.createHomeMetric(healthMetrics, '空白');
+		const healthButton = healthCard.createEl('button', { text: '打开体检', cls: 'vo-btn vo-btn-secondary vo-home-card-action' });
+		healthButton.addEventListener('click', () => {
+			this.activeMainTab = 'lint';
+			this.render();
+		});
+		void Promise.all([
+			this.vaultService.getInboxBacklog(),
+			this.vaultService.getDeadLinkCount(),
+			this.vaultService.getEmptyNotesCount()
+		]).then(([inbox, deadLinks, empty]) => {
+			inboxMetric.setText(String(inbox.count));
+			deadLinkMetric.setText(String(deadLinks.count));
+			emptyMetric.setText(String(empty.count));
+		}).catch(() => {
+			inboxMetric.setText('—');
+			deadLinkMetric.setText('—');
+			emptyMetric.setText('—');
+		});
+
+		const tickTickCard = grid.createDiv({ cls: 'vo-home-card' });
+		const tickTickTopline = tickTickCard.createDiv({ cls: 'vo-home-card-topline' });
+		tickTickTopline.createDiv({ text: '时间回顾', cls: 'vo-home-card-label' });
+		const tickTickIcon = tickTickTopline.createDiv({ cls: 'vo-home-card-icon vo-home-card-icon-time' });
+		setIcon(tickTickIcon, 'timer-reset');
+		const taskStats = this.taskService.getCache();
+		const taskMetrics = tickTickCard.createDiv({ cls: 'vo-home-metrics' });
+		this.createHomeMetric(taskMetrics, '待办').setText(String(taskStats.todayCount));
+		this.createHomeMetric(taskMetrics, '完成').setText(String(taskStats.completedCount));
+		this.createHomeMetric(taskMetrics, '逾期').setText(String(taskStats.overdueCount));
+		const syncButton = tickTickCard.createEl('button', { text: '同步 TickTick 摘要', cls: 'vo-btn vo-btn-secondary vo-home-card-action' });
+		syncButton.disabled = this.taskService.getSyncStatus().state === 'syncing';
+		syncButton.addEventListener('click', () => this.triggerTickTickSync());
+
+		const actionCard = container.createDiv({ cls: 'vo-home-actions' });
+		const actionHeader = actionCard.createDiv({ cls: 'vo-home-actions-header' });
+		actionHeader.createDiv({ text: '个人智能指令', cls: 'vo-home-section-title' });
+		const actions = (this.plugin.settings.claudianActions || []).filter(shouldShowActionOnHome);
+		actionHeader.createDiv({ text: `主页直达 ${actions.length} 项`, cls: 'vo-home-section-note' });
+		const actionGrid = actionCard.createDiv({ cls: 'vo-home-action-grid' });
+		for (const action of actions) {
+			const button = actionGrid.createEl('button', { cls: 'vo-home-action-button' });
+			const actionIcon = button.createSpan({ cls: 'vo-home-action-icon' });
+			setIcon(actionIcon, action.icon || 'sparkles');
+			const actionText = button.createSpan({ cls: 'vo-home-action-copy' });
+			actionText.createSpan({ text: action.label, cls: 'vo-home-action-label' });
+			actionText.createSpan({ text: action.description || '立即发送到 Claudian', cls: 'vo-home-action-description' });
+			button.addEventListener('click', () => {
+				this.triggerClaudianPrompt(action.prompt);
+			});
+		}
+		if (actions.length === 0) {
+			actionGrid.createSpan({ text: '没有可在首页直接执行的指令。请在设置中启用“在首页显示”，或到体检页执行需要输入参数的指令。', cls: 'vo-home-empty-state' });
+		}
+	}
+
+	private createHomeMetric(parent: HTMLElement, label: string): HTMLElement {
+		const metric = parent.createDiv({ cls: 'vo-home-metric' });
+		const value = metric.createDiv({ text: '—', cls: 'vo-home-metric-value' });
+		metric.createDiv({ text: label, cls: 'vo-home-metric-label' });
+		return value;
 	}
 
 	/**
@@ -920,7 +1143,7 @@ export class VaultOsView extends ItemView {
 		const syncStatus = this.taskService.getSyncStatus();
 		const syncPalette = syncStatus.state === 'syncing'
 			? { dot: '#d97706', bg: 'rgba(217, 119, 6, 0.10)', text: '同步中' }
-			: syncStatus.state === 'error'
+			: syncStatus.state === 'error' || syncStatus.cacheState === 'write-error'
 				? { dot: '#dc2626', bg: 'rgba(220, 38, 38, 0.10)', text: '同步异常' }
 				: syncStatus.lastSyncedAt
 					? { dot: '#0f766e', bg: 'rgba(15, 118, 110, 0.10)', text: '已同步' }
@@ -943,7 +1166,7 @@ export class VaultOsView extends ItemView {
 		syncTextWrap.createSpan({
 			text: syncStatus.state === 'syncing'
 				? '正在拉取最新 TickTick 数据'
-				: syncStatus.state === 'error'
+				: syncStatus.state === 'error' || syncStatus.cacheState === 'write-error'
 					? (syncStatus.errorMessage || '同步失败，请检查配置')
 					: `上次同步: ${this.formatTickTickSyncTime(syncStatus.lastSyncedAt)}`,
 			attr: { style: 'font-size: 11px; color: var(--text-muted); line-height: 1.1;' }
@@ -2338,7 +2561,7 @@ export class VaultOsView extends ItemView {
 	 */
 	private renderDiaryDashboard(contentContainer: Element): void {
 		const grid = contentContainer.createDiv({ 
-			cls: 'vo-dashboard-grid vo-diary-grid',
+			cls: 'vo-dashboard-grid vo-diary-grid vo-workspace-dashboard vo-diary-workspace',
 			attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 20px; height: 100%; overflow: hidden;' }
 		});
 		
@@ -2361,21 +2584,21 @@ export class VaultOsView extends ItemView {
 		if (isCreated) {
 			void this.app.workspace.openLinkText(filePath, '', false);
 		} else {
-			try {
-				const newPath = await this.diaryService.createPeriodicNote(date, cycle);
-				new Notice(`已成功创建笔记：${fileName}`);
-				void this.app.workspace.openLinkText(newPath, '', false);
-				this.render();
-			} catch (e) {
-				const errMsg = e instanceof Error ? e.message : String(e);
-				new Notice(`创建笔记失败: ${errMsg}`);
+			const result = await this.diaryService.createPeriodicNote(date, cycle);
+			if (result.status === 'failed' || !result.path) {
+				new Notice(`创建笔记失败: ${result.errorMessage || '未知错误'}`);
+				return;
 			}
+			if (result.warningMessage) new Notice(result.warningMessage);
+			new Notice(result.status === 'existing' ? `笔记已存在：${fileName}` : `已成功创建笔记：${fileName}`);
+			void this.app.workspace.openLinkText(result.path, '', false);
+			this.render();
 		}
 	}
 
 	private renderPeriodicNotesPanel(parent: Element): void {
-		const card = parent.createDiv({ cls: 'vo-card vo-periodic-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
-		const header = card.createDiv({ cls: 'vo-card-header', attr: { style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;' } });
+		const card = parent.createDiv({ cls: 'vo-card vo-periodic-card vo-tech-card vo-workspace-card vo-diary-periodic-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
+		const header = card.createDiv({ cls: 'vo-card-header vo-workspace-card-header', attr: { style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px;' } });
 
 		const subTabs = header.createDiv({ cls: 'vo-card-tabs' });
 		const tabs = [
@@ -2397,7 +2620,7 @@ export class VaultOsView extends ItemView {
 			});
 		});
 
-		const datePicker = header.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 4px;' } });
+		const datePicker = header.createDiv({ cls: 'vo-workspace-date-picker', attr: { style: 'display: flex; align-items: center; gap: 4px;' } });
 		const prevBtn = datePicker.createEl('button', { cls: 'icon-btn', attr: { style: 'background: transparent; border: none; box-shadow: none; cursor: pointer; padding: 4px;' } });
 		setIcon(prevBtn, 'chevron-left');
 		prevBtn.addEventListener('click', () => {
@@ -2420,11 +2643,12 @@ export class VaultOsView extends ItemView {
 
 		if (this.periodicTab === 'day') {
 			const grid = gridContainer.createDiv({ 
+				cls: 'vo-periodic-grid vo-periodic-day-grid',
 				attr: { style: 'display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; width: 100%;' } 
 			});
 			const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
 			weekdays.forEach(wd => {
-				grid.createDiv({ text: wd, attr: { style: 'text-align: center; font-size: 11px; color: var(--text-muted); font-weight: 600; padding-bottom: 4px;' } });
+				grid.createDiv({ text: wd, cls: 'vo-periodic-weekday', attr: { style: 'text-align: center; font-size: 11px; color: var(--text-muted); font-weight: 600; padding-bottom: 4px;' } });
 			});
 
 			const daysInMonth = baseDate.daysInMonth();
@@ -2533,15 +2757,17 @@ export class VaultOsView extends ItemView {
 	}
 
 	private renderCurrentPeriodicNote(parent: Element): void {
-		const diaryCard = parent.createDiv({ cls: 'vo-card vo-diary-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
+		const diaryCard = parent.createDiv({ cls: 'vo-card vo-diary-card vo-tech-card vo-workspace-card vo-diary-current-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
 		
 		const tabNames: Record<string, string> = {
 			'day': '日记', 'week': '周记', 'month': '月记', 'quarter': '季记', 'year': '年记'
 		};
 		const currentName = tabNames[this.periodicTab] || '日记';
 
-		const header = diaryCard.createDiv({ cls: 'vo-card-header', attr: { style: 'display: flex; align-items: center; width: 100%; text-align: left;' } });
-		header.createSpan({ text: this.getPeriodicCardTitle(), attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
+		const header = diaryCard.createDiv({ cls: 'vo-card-header vo-workspace-card-header', attr: { style: 'display: flex; align-items: center; width: 100%; text-align: left;' } });
+		const headerIcon = header.createDiv({ cls: 'vo-workspace-card-icon' });
+		setIcon(headerIcon, 'notebook-pen');
+		header.createSpan({ text: this.getPeriodicCardTitle(), cls: 'vo-workspace-card-label', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 		
 		const baseDate = this.getPeriodicBaseDate();
 		const { filePath } = this.diaryService.resolvePeriodicNotePath(baseDate, this.periodicTab);
@@ -2551,8 +2777,8 @@ export class VaultOsView extends ItemView {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 		const isCreated = file instanceof TFile;
 
-		const borderStyle = isCreated ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
-		const innerDiv = content.createDiv({ attr: { style: `border: ${borderStyle}; border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;` } });
+		const borderStyle = isCreated ? '1px solid var(--interactive-accent)' : '1px dashed var(--background-modifier-border)';
+		const innerDiv = content.createDiv({ cls: `vo-diary-note-surface ${isCreated ? 'is-created' : 'is-missing'}`, attr: { style: `border: ${borderStyle}; border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; min-height: 0;` } });
 		
 		innerDiv.createEl('div', { text: filePath, cls: 'vo-diary-path', attr: { style: 'font-family: var(--font-monospace); font-size: 11px; margin-bottom: 10px; color: var(--text-muted);' } });
 		const summaryEl = innerDiv.createEl('p', { text: `读取中...`, cls: 'vo-diary-summary', attr: { style: 'font-size: 13px; line-height: 1.5; color: var(--text-normal); flex-grow: 1; overflow-y: auto;' } });
@@ -2568,22 +2794,22 @@ export class VaultOsView extends ItemView {
 
 		const openBtn = content.createEl('button', { 
 			text: `打开当前${currentName}`, 
-			cls: 'vo-btn vo-btn-secondary',
+			cls: 'vo-btn vo-btn-secondary vo-workspace-action',
 			attr: { style: 'width: 100%; margin-top: 15px;' }
 		});
 		
 		openBtn.onclick = () => {
 			void (async () => {
-				if (!isCreated) {
-					try {
-						const newPath = await this.diaryService.createPeriodicNote(baseDate, this.periodicTab);
-						new Notice(`成功创建${currentName}: ${newPath}`);
-						void this.app.workspace.openLinkText(newPath, '', false);
+					if (!isCreated) {
+						const result = await this.diaryService.createPeriodicNote(baseDate, this.periodicTab);
+						if (result.status === 'failed' || !result.path) {
+							new Notice(`创建${currentName}失败: ${result.errorMessage || '未知错误'}`);
+							return;
+						}
+						if (result.warningMessage) new Notice(result.warningMessage);
+						new Notice(result.status === 'existing' ? `${currentName}已存在` : `成功创建${currentName}`);
+						void this.app.workspace.openLinkText(result.path, '', false);
 						this.render();
-					} catch (e) {
-						const errMsg = e instanceof Error ? e.message : String(e);
-						new Notice(`创建${currentName}失败: ${errMsg}`);
-					}
 				} else {
 					void this.app.workspace.openLinkText(filePath, '', false);
 				}
@@ -2592,11 +2818,13 @@ export class VaultOsView extends ItemView {
 	}
 
 	private async renderDiaryStatsCard(parent: Element): Promise<void> {
-		const card = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
-		const header = card.createDiv({ cls: 'vo-card-header' });
-		header.createSpan({ text: '日记数据概览 (DIARY STATS)' , attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
+		const card = parent.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-diary-stats-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
+		const header = card.createDiv({ cls: 'vo-card-header vo-workspace-card-header' });
+		const headerIcon = header.createDiv({ cls: 'vo-workspace-card-icon' });
+		setIcon(headerIcon, 'chart-no-axes-column');
+		header.createSpan({ text: '日记数据概览 (DIARY STATS)', cls: 'vo-workspace-card-label', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 
-		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 4px 0; align-content: center; overflow-y: auto;' } });
+		const content = card.createDiv({ cls: 'vo-diary-stat-grid', attr: { style: 'flex-grow: 1; display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 4px 0; align-content: center; overflow-y: auto;' } });
 		content.createDiv({ text: '分析中...', attr: { style: 'color: var(--text-muted); font-size: 13px; grid-column: span 2; text-align: center;' } });
 
 		try {
@@ -2604,9 +2832,9 @@ export class VaultOsView extends ItemView {
 			content.empty();
 
 			const createStatItem = (label: string, value: string | number, highlight = false) => {
-				const item = content.createDiv({ attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); border: 1px solid color-mix(in srgb, var(--background-modifier-border) 60%, transparent); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02); padding: 8px 8px; border-radius: 8px; transition: transform 0.2s;' } });
-				item.createDiv({ text: String(value), attr: { style: `font-size: ${highlight ? '18px' : '15px'}; font-weight: 700; font-family: var(--font-monospace); color: ${highlight ? 'var(--text-success)' : 'var(--text-normal)'}; margin-bottom: 2px; text-align: center;` } });
-				item.createDiv({ text: label, attr: { style: 'font-size: 11px; color: var(--text-muted); font-weight: 500; text-align: center;' } });
+				const item = content.createDiv({ cls: `vo-diary-stat-item ${highlight ? 'is-highlighted' : ''}`, attr: { style: 'display: flex; flex-direction: column; align-items: center; justify-content: center; background: var(--background-secondary); border: 1px solid color-mix(in srgb, var(--background-modifier-border) 60%, transparent); box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02); padding: 8px 8px; border-radius: 8px; transition: transform 0.2s;' } });
+				item.createDiv({ text: String(value), cls: 'vo-diary-stat-value', attr: { style: `font-size: ${highlight ? '18px' : '15px'}; font-weight: 700; font-family: var(--font-monospace); color: ${highlight ? 'var(--interactive-accent)' : 'var(--text-normal)'}; margin-bottom: 2px; text-align: center;` } });
+				item.createDiv({ text: label, cls: 'vo-diary-stat-label', attr: { style: 'font-size: 11px; color: var(--text-muted); font-weight: 500; text-align: center;' } });
 			};
 
 			createStatItem('累计日记', stats.totalDiaries);
@@ -2617,20 +2845,22 @@ export class VaultOsView extends ItemView {
 
 		} catch {
 			content.empty();
-			content.createDiv({ text: '统计失败', attr: { style: 'color: var(--text-error); font-size: 13px; grid-column: span 2; text-align: center;' } });
+			content.createDiv({ text: '统计失败', attr: { style: 'color: var(--text-muted); font-size: 13px; grid-column: span 2; text-align: center;' } });
 		}
 	}
 
 	private async renderLastYearPreviewCard(parent: Element): Promise<void> {
-		const card = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
-		const header = card.createDiv({ cls: 'vo-card-header' });
+		const card = parent.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-diary-memory-card', attr: { style: 'height: 100%; box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden;' } });
+		const header = card.createDiv({ cls: 'vo-card-header vo-workspace-card-header' });
 		
 		const baseDate = this.getPeriodicBaseDate();
 		const targetLabel = this.periodicTab === 'day' ? '去年今日' : 
 							this.periodicTab === 'year' ? '去年' : 
 							`去年同${this.periodicTab === 'week' ? '周' : this.periodicTab === 'month' ? '月' : '季'}`;
 		
-		header.createSpan({ text: `${targetLabel}回望 (MEMORY)`, attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
+		const headerIcon = header.createDiv({ cls: 'vo-workspace-card-icon' });
+		setIcon(headerIcon, 'history');
+		header.createSpan({ text: `${targetLabel}回望 (MEMORY)`, cls: 'vo-workspace-card-label', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; text-align: left; align-self: flex-start;' } });
 
 		const content = card.createDiv({ attr: { style: 'flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; gap: 12px; padding: 8px 0; min-height: 0;' } });
 		
@@ -2642,7 +2872,7 @@ export class VaultOsView extends ItemView {
 			innerDiv.empty();
 
 			if (info) {
-				innerDiv.setAttr('style', 'border: 1px solid var(--text-success); border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0;');
+				innerDiv.setAttr('style', 'border: 1px solid var(--interactive-accent); border-radius: 8px; padding: 12px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0;');
 				innerDiv.createDiv({ 
 					text: info.path, 
 					attr: { style: 'font-family: var(--font-monospace); font-size: 11px; color: var(--text-muted); word-break: break-all; margin-bottom: 8px;' } 
@@ -2663,31 +2893,32 @@ export class VaultOsView extends ItemView {
 				});
 			}
 
-			const btn = content.createEl('button', { cls: 'vo-btn vo-btn-primary', attr: { style: 'width: 100%; margin-top: auto;' } });
+			const btn = content.createEl('button', { cls: 'vo-btn vo-btn-primary vo-workspace-action', attr: { style: 'width: 100%; margin-top: auto;' } });
 			btn.createSpan({ text: `打开${targetLabel}` });
 			btn.addEventListener('click', () => {
 				void (async () => {
 					const targetDate = baseDate.clone().subtract(1, 'year');
 					const { filePath } = this.diaryService.resolvePeriodicNotePath(targetDate, this.periodicTab);
 					const file = this.app.vault.getAbstractFileByPath(filePath);
-					if (file instanceof TFile) {
-						void this.app.workspace.openLinkText(filePath, '', false);
-					} else {
-						try {
-							const newPath = await this.diaryService.createPeriodicNote(targetDate, this.periodicTab);
-							new Notice(`成功创建${targetLabel}: ${newPath}`);
-							void this.app.workspace.openLinkText(newPath, '', false);
+						if (file instanceof TFile) {
+							void this.app.workspace.openLinkText(filePath, '', false);
+						} else {
+							const result = await this.diaryService.createPeriodicNote(targetDate, this.periodicTab);
+							if (result.status === 'failed' || !result.path) {
+								new Notice(`创建${targetLabel}失败: ${result.errorMessage || '未知错误'}`);
+								return;
+							}
+							if (result.warningMessage) new Notice(result.warningMessage);
+							new Notice(result.status === 'existing' ? `${targetLabel}已存在` : `成功创建${targetLabel}`);
+							void this.app.workspace.openLinkText(result.path, '', false);
 							this.render();
-						} catch (e) {
-							new Notice(`创建${targetLabel}失败: ${String(e)}`);
-						}
 					}
 				})();
 			});
 
 		} catch {
 			innerDiv.empty();
-			innerDiv.createDiv({ text: '查询失败', attr: { style: 'color: var(--text-error); font-size: 13px; text-align: center;' } });
+			innerDiv.createDiv({ text: '查询失败', attr: { style: 'color: var(--text-muted); font-size: 13px; text-align: center;' } });
 		}
 	}
 
@@ -2700,12 +2931,15 @@ export class VaultOsView extends ItemView {
 	 */
 	private renderLintDashboard(parent: Element): void {
 		parent.empty();
+		parent.addClass('vo-workspace-dashboard', 'vo-lint-workspace');
 		parent.setAttr('style', 'display: flex; flex-direction: column; height: 100%; overflow: hidden;');
 
-		const grid = parent.createDiv({ cls: 'vo-middle-grid', attr: { style: 'display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 12px;' } });
+		const grid = parent.createDiv({ cls: 'vo-middle-grid vo-lint-overview-grid', attr: { style: 'display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 12px;' } });
 
-		const leftCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; min-height: 280px;' } });
-		const microHeaderLeft = leftCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px; text-align: left; align-self: flex-start; width: 100%; margin-bottom: 6px;' } });
+		const leftCard = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-lint-health-card', attr: { style: 'text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; min-height: 280px;' } });
+		const microHeaderLeft = leftCard.createDiv({ cls: 'vo-workspace-card-header', attr: { style: 'display: flex; flex-direction: column; gap: 2px; text-align: left; align-self: flex-start; width: 100%; margin-bottom: 6px;' } });
+		const healthHeaderIcon = microHeaderLeft.createDiv({ cls: 'vo-workspace-card-icon' });
+		setIcon(healthHeaderIcon, 'shield-check');
 		microHeaderLeft.createSpan({ text: '仓库健康度 (HEALTH)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px;' } });
 		microHeaderLeft.createSpan({ text: '基于 Inbox、死链、孤儿和空白笔记综合评估', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.6;' } });
 
@@ -2730,15 +2964,17 @@ export class VaultOsView extends ItemView {
 
 		const btnGroup = leftCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 10px;' } });
 		const runBtn = btnGroup.createEl('button', {
-			cls: 'vo-btn vo-btn-secondary',
+			cls: 'vo-btn vo-btn-secondary vo-workspace-action',
 			attr: { style: 'width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;' }
 		});
 		setIcon(runBtn, 'play');
 		runBtn.createSpan({ text: '开始体检' });
 
-		const rightCard = grid.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'padding: 12px; display: flex; flex-direction: column; justify-content: flex-start; min-height: 280px; gap: 10px;' } });
+		const rightCard = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-lint-diagnostics-card', attr: { style: 'padding: 12px; display: flex; flex-direction: column; justify-content: flex-start; min-height: 280px; gap: 10px;' } });
 		
-		const rightCardHeader = rightCard.createDiv({ attr: { style: 'display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin: 0;' } });
+		const rightCardHeader = rightCard.createDiv({ cls: 'vo-workspace-card-header', attr: { style: 'display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin: 0;' } });
+		const diagnosticsHeaderIcon = rightCardHeader.createDiv({ cls: 'vo-workspace-card-icon' });
+		setIcon(diagnosticsHeaderIcon, 'radar');
 		rightCardHeader.createSpan({ text: '诊断面板 (DIAGNOSTICS)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px;' } });
 		
 		const reportBtn = rightCardHeader.createEl('button', { cls: 'icon-btn', attr: { title: '打开最近一次体检报告', style: 'background: transparent; border: none; box-shadow: none; cursor: pointer; padding: 0; color: var(--text-muted); line-height: 1;' } });
@@ -2747,7 +2983,7 @@ export class VaultOsView extends ItemView {
 			const outputFolder = this.app.vault.getAbstractFileByPath(this.plugin.settings.outputFolder);
 			if (outputFolder instanceof TFolder) {
 				const reportFiles = outputFolder.children.filter((f): f is TFile => 
-					f instanceof TFile && f.name.endsWith('.md') && f.name.startsWith('知识库体检报告-')
+					f instanceof TFile && f.name.endsWith('知识库体检报告.md')
 				);
 				if (reportFiles.length > 0) {
 					reportFiles.sort((a, b) => b.name.localeCompare(a.name));
@@ -2764,16 +3000,16 @@ export class VaultOsView extends ItemView {
 		});
 		
 		// Log layout (compressed)
-		const topLogContainer = rightCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex-shrink: 0;' } });
+		const topLogContainer = rightCard.createDiv({ cls: 'vo-lint-metric-grid', attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex-shrink: 0;' } });
 		
-		const inboxItem = topLogContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const inboxItem = topLogContainer.createDiv({ cls: 'vo-task-item vo-lint-metric-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const inboxLeft = inboxItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px;' } });
 		const inboxIconEl = inboxLeft.createDiv(); setIcon(inboxIconEl, 'inbox');
 		const inboxTextWrap = inboxLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 0;' } });
 		inboxTextWrap.createSpan({ text: '待分类文件', attr: { style: 'font-weight: 600; font-size: 12px;' } });
 		const inboxDesc = inboxTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 10px; color: var(--text-muted);' } });
 
-		const diaryItem = topLogContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const diaryItem = topLogContainer.createDiv({ cls: 'vo-task-item vo-lint-metric-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const diaryLeft = diaryItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px;' } });
 		const diaryIconEl = diaryLeft.createDiv(); setIcon(diaryIconEl, 'calendar');
 		const diaryTextWrap = diaryLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 0;' } });
@@ -2783,21 +3019,21 @@ export class VaultOsView extends ItemView {
 		// Inspect layout (expanded)
 		const bottomInspectContainer = rightCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 10px; flex-grow: 1; overflow-y: auto;' } });
 		
-		const orphanItem = bottomInspectContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const orphanItem = bottomInspectContainer.createDiv({ cls: 'vo-task-item vo-lint-metric-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const orphanLeft = orphanItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
 		const orphanIconEl = orphanLeft.createDiv(); setIcon(orphanIconEl, 'compass');
 		const orphanTextWrap = orphanLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
 		orphanTextWrap.createSpan({ text: '孤儿笔记 (Orphans)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
 		const orphanDesc = orphanTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
-		const deadLinkItem = bottomInspectContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const deadLinkItem = bottomInspectContainer.createDiv({ cls: 'vo-task-item vo-lint-metric-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const deadLinkLeft = deadLinkItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
 		const deadLinkIconEl = deadLinkLeft.createDiv(); setIcon(deadLinkIconEl, 'link');
 		const deadLinkTextWrap = deadLinkLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
 		deadLinkTextWrap.createSpan({ text: '未解析死链 (Dead Links)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
 		const deadLinkDesc = deadLinkTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
 
-		const emptyNoteItem = bottomInspectContainer.createDiv({ cls: 'vo-task-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const emptyNoteItem = bottomInspectContainer.createDiv({ cls: 'vo-task-item vo-lint-metric-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const emptyNoteLeft = emptyNoteItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
 		const emptyNoteIconEl = emptyNoteLeft.createDiv(); setIcon(emptyNoteIconEl, 'file-text');
 		const emptyNoteTextWrap = emptyNoteLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
@@ -2812,7 +3048,7 @@ export class VaultOsView extends ItemView {
 		emptyNoteItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.empty.files) new SimpleListModal(this.app, '空白笔记 (Empty Notes)', this.currentScanData.empty.files).open(); });
 
 		// Bottom Console: claudian Skill Panel
-		const consoleCard = parent.createDiv({ cls: 'vo-card vo-tech-card', attr: { style: 'flex-grow: 1; overflow-y: auto; padding: 10px 12px;' } });
+		const consoleCard = parent.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-lint-commands-card', attr: { style: 'flex-grow: 1; overflow-y: auto; padding: 10px 12px;' } });
 		consoleCard.createSpan({ text: '智能指令 (COMMANDS)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 6px; display: block;' } });
 
 		const consoleLayout = consoleCard.createDiv({ cls: 'vo-console-layout', attr: { style: 'display: flex; flex-direction: column; gap: 8px;' } });
@@ -2833,8 +3069,9 @@ export class VaultOsView extends ItemView {
 
 		actions.forEach(action => {
 			if (!action.requireInput) {
-				const btn = presetsGrid.createEl('button', { cls: 'vo-btn vo-btn-secondary', attr: { style: 'justify-content: flex-start; gap: 6px; font-size: 11px; padding: 8px;' } });
-				if (action.icon) setIcon(btn, action.icon);
+				const btn = presetsGrid.createEl('button', { cls: 'vo-btn vo-btn-secondary vo-lint-command-button', attr: { style: 'justify-content: flex-start; gap: 6px; font-size: 11px; padding: 8px;' } });
+				const iconWrap = btn.createSpan({ cls: 'vo-lint-command-icon' });
+				setIcon(iconWrap, action.icon || 'sparkles');
 				btn.createSpan({ text: action.label });
 				btn.addEventListener('click', () => {
 					new Notice(`已触发: ${action.label}`);
@@ -2843,14 +3080,14 @@ export class VaultOsView extends ItemView {
 			} else {
 				const group = inputsDiv.createDiv({ attr: { style: 'display: flex; gap: 6px; align-items: center; min-width: 0;' } });
 				const input = group.createEl('input', { type: 'text', placeholder: action.inputPlaceholder || '', attr: { style: 'flex-grow: 1; min-width: 0; height: 30px; font-size: 12px; padding: 0 8px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal);' } });
-				const btn = group.createEl('button', { cls: 'vo-btn vo-btn-primary', attr: { style: 'height: 30px; min-width: 96px; justify-content: flex-start; gap: 4px; font-size: 11px; white-space: nowrap; flex-shrink: 0;' } });
-				if (action.icon) setIcon(btn, action.icon);
+				const btn = group.createEl('button', { cls: 'vo-btn vo-btn-primary vo-lint-command-button', attr: { style: 'height: 30px; min-width: 96px; justify-content: flex-start; gap: 4px; font-size: 11px; white-space: nowrap; flex-shrink: 0;' } });
+				const iconWrap = btn.createSpan({ cls: 'vo-lint-command-icon' });
+				setIcon(iconWrap, action.icon || 'sparkles');
 				btn.createSpan({ text: action.label });
 				btn.addEventListener('click', () => {
 					const val = input.value.trim();
 					if (val) {
-						const finalPrompt = action.prompt.replace(/\{\{input\}\}/g, val);
-						this.triggerClaudianPrompt(finalPrompt);
+						this.triggerClaudianPrompt(action.prompt, val);
 						input.value = '';
 					} else {
 						new Notice(action.inputPlaceholder ? `请先${action.inputPlaceholder}` : '请输入内容');
@@ -2886,13 +3123,13 @@ export class VaultOsView extends ItemView {
 
 					if (score >= 90) {
 						statusText.setText('知识库健康状况极佳，无需特殊干预。');
-						statusText.setCssStyles({ color: 'var(--text-success)' });
+						statusText.setCssStyles({ color: 'var(--interactive-accent)' });
 					} else if (score >= 70) {
 						statusText.setText('存在部分需要清理的临时文档或孤立页面。');
-						statusText.setCssStyles({ color: 'var(--text-warning)' });
+						statusText.setCssStyles({ color: 'var(--interactive-accent)' });
 					} else {
 						statusText.setText('建议尽快运行一键修复清理孤立节点与空白笔记。');
-						statusText.setCssStyles({ color: 'var(--text-error)' });
+						statusText.setCssStyles({ color: 'var(--interactive-accent)' });
 					}
 
 					inboxDesc.setText(`范围: ${this.plugin.settings.inboxFolder} | ${inbox.count} 篇 | 最久 ${inbox.oldestDays} 天`);
@@ -2901,12 +3138,14 @@ export class VaultOsView extends ItemView {
 					deadLinkDesc.setText(`范围: ${this.plugin.settings.atomicsFolder} | ${deadLinks.count} 处失效链接`);
 					emptyNoteDesc.setText(`范围: 全库 Markdown | ${empty.count} 篇正文为空`);
 					
-					// Dynamic Border Colors
-					inboxItem.style.border = inbox.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
-					diaryItem.style.border = uningested.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
-					orphanItem.style.border = orphans.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
-					deadLinkItem.style.border = deadLinks.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
-					emptyNoteItem.style.border = empty.count > 0 ? '1px solid var(--text-success)' : '1px dashed var(--background-modifier-border)';
+					const updateMetricState = (element: HTMLElement, hasItems: boolean) => {
+						element.toggleClass('is-attention', hasItems);
+					};
+					updateMetricState(inboxItem, inbox.count > 0);
+					updateMetricState(diaryItem, uningested.count > 0);
+					updateMetricState(orphanItem, orphans.count > 0);
+					updateMetricState(deadLinkItem, deadLinks.count > 0);
+					updateMetricState(emptyNoteItem, empty.count > 0);
 
 					this.lastScanTime = moment().format('YYYY-MM-DD HH:mm:ss');
 					scanTimeSpan.setText(`上次体检: ${this.lastScanTime}`);
@@ -2928,64 +3167,43 @@ export class VaultOsView extends ItemView {
 		runBtn.addEventListener('click', runScan);
 	}
 	async generateMonthlyReport(): Promise<void> {
-		const ymStr = moment().format('YYYY-MM');
-		const dirPath = `Vault OS/Reports`;
-		const filePath = `${dirPath}/${ymStr} 巡检报告.md`;
-
-		try {
-			// Ensure folder exists
-			const folder = this.app.vault.getAbstractFileByPath(dirPath);
-			if (!folder) {
-				await this.app.vault.createFolder(dirPath);
-			}
-
-			// Gather data
-			const inbox = await this.vaultService.getInboxBacklog();
-			const uningested = await this.vaultService.getUningestedDiariesCount();
-			const orphans = await this.vaultService.getOrphanCount();
-			const deadLinks = await this.vaultService.getDeadLinkCount();
-			const empty = await this.vaultService.getEmptyNotesCount();
-			
-			const score = this.calculateLintHealthScore({ inbox, orphans, deadLinks, uningested, empty });
-
-			const content = `---
-created: ${moment().format('YYYY-MM-DD')}
-author: "[[Jarvis]]"
-type: "report"
----
-
-# ${ymStr} 知识库巡检报告
-
-## 1. 综合健康评分
-- **当前得分**: **${score} / 100**
-- **体检时间**: ${moment().format('YYYY-MM-DD HH:mm:ss')}
-
-## 2. 诊断子项状态
-- **待分类文件 (Inbox)**: ${inbox.count} 篇 (最久积压: ${inbox.oldestDays} 天)
-- **待入库日记 (Diary)**: ${uningested.count} 篇
-- **孤儿笔记 (Orphans)**: ${orphans.count} 篇
-- **失效死链 (Dead Links)**: ${deadLinks.count} 处
-- **空白笔记 (Empty Notes)**: ${empty.count} 篇
-
-## 3. 本月工作流处理统计
-- **已分类入库 (Ingested)**: ${this.historyStats.ingested} 篇
-- **已修复死链 (Fixed Links)**: ${this.historyStats.fixedLinks} 处
-- **已清理空白笔记 (Cleaned Empty)**: ${this.historyStats.cleanedEmpty} 篇
-
-## 4. 优化建议
-${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : '- 建议运行 claudian 智能体指令修复失效死链与空白笔记。\n- 建议使用 claudian 整理收件箱积压。'}
-`;
-
-			await this.app.vault.adapter.write(filePath, content);
-			new Notice(`已成功生成月度巡检报告: ${filePath}`);
-			void this.app.workspace.openLinkText(filePath, '', false);
-		} catch (e) {
-			new Notice(`生成月度报告失败: ${e instanceof Error ? e.message : String(e)}`);
+		const [inbox, uningested, orphans, deadLinks, empty] = await Promise.all([
+			this.vaultService.getInboxBacklog(),
+			this.vaultService.getUningestedDiariesCount(),
+			this.vaultService.getOrphanCount(),
+			this.vaultService.getDeadLinkCount(),
+			this.vaultService.getEmptyNotesCount()
+		]);
+		const generatedAt = new Date();
+		const score = this.calculateLintHealthScore({ inbox, orphans, deadLinks, uningested, empty });
+		const content = buildMonthlyHealthReport({
+			generatedAt,
+			score,
+			inboxCount: inbox.count,
+			inboxOldestDays: inbox.oldestDays,
+			uningestedCount: uningested.count,
+			orphanCount: orphans.count,
+			deadLinkCount: deadLinks.count,
+			emptyNoteCount: empty.count,
+			ingestedCount: this.historyStats.ingested,
+			fixedLinkCount: this.historyStats.fixedLinks,
+			cleanedEmptyCount: this.historyStats.cleanedEmpty
+		});
+		const result = await this.healthReports.createReport(
+			this.plugin.settings.outputFolder,
+			getMonthlyHealthReportFileName(generatedAt),
+			content
+		);
+		if (result.status === 'success' && result.filePath) {
+			new Notice(`已生成月度巡检报告: ${result.filePath}`);
+			void this.app.workspace.openLinkText(result.filePath, '', false);
+		} else {
+			new Notice(result.errorMessage || '生成月度巡检报告失败');
 		}
 	}
 
 	private openLintModal(): void {
-		new LintModal(this.app, this.vaultService, this).open();
+		new LintModal(this.app, this.vaultService, this.fileOperations, this).open();
 	}
 
 	updateCleanedEmpty(count: number): void {
@@ -3802,4 +4020,3 @@ ${score >= 90 ? '- 知识库健康状况良好，保持常规读写即可。' : 
 		legend.createSpan({ text: '多' });
 	}
 }
-

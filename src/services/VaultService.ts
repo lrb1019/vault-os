@@ -1,5 +1,6 @@
-import { App, TFile, TFolder } from 'obsidian';
+import { App, TFile } from 'obsidian';
 import VaultOsPlugin from '../main';
+import { createLegacyVaultProfile, isVaultProfile, resolveScope, unionScopeRules, type ScopeRule, type VaultProfile } from '../domain/vault-profile';
 
 export interface InboxBacklogInfo {
 	count: number;
@@ -18,10 +19,10 @@ export interface VaultOverviewStats {
 	totalMdFiles: number;
 	totalDays: number;
 	dailyAvg: number;
-	
+
 	countDaily: number;
 	countInbox: number;
-	countProjects: number;
+
 	countAtomics: number;
 	countOutput: number;
 	countOther: number;
@@ -36,6 +37,44 @@ export class VaultService {
 	constructor(plugin: VaultOsPlugin) {
 		this.plugin = plugin;
 		this.app = plugin.app;
+	}
+
+	private getVaultProfile(): VaultProfile {
+		const configuredProfile = this.plugin.settings.vaultProfile;
+		if (isVaultProfile(configuredProfile)) return configuredProfile;
+
+		return createLegacyVaultProfile({
+			dailyNoteFolder: this.plugin.settings.dailyNoteFolder,
+			inboxFolder: this.plugin.settings.inboxFolder,
+			atomicsFolder: this.plugin.settings.atomicsFolder,
+			outputFolder: this.plugin.settings.outputFolder
+		});
+	}
+
+	private getMarkdownDescriptors(): Array<{ file: TFile; path: string; tags: string[]; properties: Record<string, unknown> | undefined }> {
+		return this.app.vault.getMarkdownFiles().map(file => {
+			const cache = this.app.metadataCache.getFileCache(file);
+			return {
+				file,
+				path: file.path,
+				tags: cache?.tags?.map(tag => tag.tag) || [],
+				properties: cache?.frontmatter
+			};
+		});
+	}
+
+	private resolveMarkdownFiles(scope: ScopeRule): TFile[] {
+		return resolveScope(this.getMarkdownDescriptors(), scope, this.getVaultProfile().exclusions).map(descriptor => descriptor.file);
+	}
+
+	private resolveMarkdownFilesForScopes(scopes: readonly (ScopeRule | undefined)[]): TFile[] {
+		const include = unionScopeRules(scopes);
+		if (!include) return [];
+		return this.resolveMarkdownFiles(include);
+	}
+
+	private getJournalDailyScope(profile: VaultProfile): ScopeRule | undefined {
+		return profile.journal.provider === 'manual' ? profile.journal.daily : undefined;
 	}
 
 	private parseFrontmatterDate(value: unknown): number | null {
@@ -118,39 +157,27 @@ export class VaultService {
 	}
 
 	/**
-	 * Scans the 02 Inbox/ directory to calculate backlog file count, age, and routing status
+	 * Scans the configured Inbox scope. Legacy folder settings remain a non-recursive compatibility profile.
 	 */
 	async getInboxBacklog(): Promise<InboxBacklogInfo> {
 		try {
-			const folderPath = this.plugin.settings.inboxFolder;
-			// Rule 21: getAbstractFileByPath for folder lookup
-			const folder = this.app.vault.getAbstractFileByPath(folderPath);
+			const inboxScope = this.getVaultProfile().inbox;
+			if (!inboxScope) return { count: 0, oldestDays: 0, needRouting: 0, files: [] };
 
-			if (folder instanceof TFolder) {
-				let count = 0;
-				let oldestTime = Date.now();
-				let needRouting = 0;
-				const filesList: string[] = [];
-
-				folder.children.forEach(file => {
-					if (file instanceof TFile && file.extension === 'md') {
-						count++;
-						filesList.push(file.path);
-						const createdAt = this.resolveLogicalCreatedAt(file);
-						if (createdAt < oldestTime) {
-							oldestTime = createdAt;
-						}
-						// Check frontmatter routing indicators if necessary (mock check)
-						needRouting++;
-					}
-				});
-
-				const oldestDays = count > 0 
-					? Math.floor((Date.now() - oldestTime) / (1000 * 60 * 60 * 24)) 
-					: 0;
-
-				return { count, oldestDays, needRouting, files: filesList };
+			const files = this.resolveMarkdownFiles(inboxScope);
+			let oldestTime = Date.now();
+			for (const file of files) {
+				const createdAt = this.resolveLogicalCreatedAt(file);
+				if (createdAt < oldestTime) oldestTime = createdAt;
 			}
+
+			const count = files.length;
+			return {
+				count,
+				oldestDays: count > 0 ? Math.floor((Date.now() - oldestTime) / 86400000) : 0,
+				needRouting: count,
+				files: files.map(file => file.path)
+			};
 		} catch (error) {
 			console.error('Failed to scan inbox folder:', error);
 		}
@@ -163,16 +190,21 @@ export class VaultService {
 	 */
 	async getOrphanCount(): Promise<{count: number, files: string[]}> {
 		try {
-			const files = this.app.vault.getMarkdownFiles();
+			const profile = this.getVaultProfile();
+			const files = this.resolveMarkdownFilesForScopes([profile.knowledge]);
+			const linkSourcePaths = new Set(this.resolveMarkdownFilesForScopes([
+				profile.knowledge,
+				profile.outputs,
+				this.getJournalDailyScope(profile)
+			]).map(file => file.path));
 			const resolvedLinks = this.app.metadataCache.resolvedLinks;
 			
 			const linkedFiles = new Set<string>();
 			for (const sourcePath of Object.keys(resolvedLinks)) {
-				// 排除索引文件，仅统计来自 04 Atomics、05 Output、01 Daily 的链接（对齐 AI 脚本逻辑）
+				// Exclude generated indexes and reports from the configured link evidence scope.
 				if (sourcePath.includes('Index')) continue;
-				// 排除 AI 生成的体检报告，防止报告本身“超度”了孤儿笔记
 				if (sourcePath.includes('体检报告')) continue;
-				if (!sourcePath.startsWith(this.plugin.settings.atomicsFolder) && !sourcePath.startsWith(this.plugin.settings.outputFolder) && !sourcePath.startsWith(this.plugin.settings.dailyNoteFolder)) continue;
+				if (!linkSourcePaths.has(sourcePath)) continue;
 
 				const targets = resolvedLinks[sourcePath];
 				if (targets) {
@@ -185,12 +217,9 @@ export class VaultService {
 			let orphanCount = 0;
 			const orphans: string[] = [];
 			files.forEach(file => {
-				// Only check files in 04 Atomics for orphans, aligning with lint skill
-				if (file.path.startsWith(this.plugin.settings.atomicsFolder)) {
-					if (!linkedFiles.has(file.path) && !file.name.includes('Index')) {
-						orphanCount++;
-						orphans.push(file.path);
-					}
+				if (!linkedFiles.has(file.path) && !file.name.includes('Index')) {
+					orphanCount++;
+					orphans.push(file.path);
 				}
 			});
 			
@@ -206,15 +235,18 @@ export class VaultService {
 	 */
 	async getDeadLinkCount(): Promise<{count: number, files: string[]}> {
 		try {
+			const profile = this.getVaultProfile();
+			const linkSourcePaths = new Set(this.resolveMarkdownFilesForScopes([
+				profile.knowledge,
+				profile.outputs,
+				profile.inbox
+			]).map(file => file.path));
 			const unresolvedLinks = this.app.metadataCache.unresolvedLinks;
 			let deadLinksCount = 0;
 			const deadLinksList: string[] = [];
 			
 			for (const sourcePath of Object.keys(unresolvedLinks)) {
-				// Only count dead links originating from core content folders
-				if (!sourcePath.startsWith(this.plugin.settings.atomicsFolder) && !sourcePath.startsWith(this.plugin.settings.outputFolder) && !sourcePath.startsWith(this.plugin.settings.inboxFolder)) {
-					continue;
-				}
+				if (!linkSourcePaths.has(sourcePath)) continue;
 				const targets = unresolvedLinks[sourcePath];
 				if (targets) {
 					for (const target of Object.keys(targets)) {
@@ -276,39 +308,16 @@ export class VaultService {
 		return data;
 	}
 
-	/**
-	 * Scans the 02 Inbox folder for un-ingested daily diaries (files matching YYYY-MM-DD format)
-	 */
+	/** Scans the configured daily journal scope for files not yet marked as ingested. */
 	async getUningestedDiariesCount(): Promise<{count: number, files: string[]}> {
 		try {
-			const folderPath = this.plugin.settings.dailyNoteFolder;
-			const folder = this.app.vault.getAbstractFileByPath(folderPath);
-			if (folder instanceof TFolder) {
-				let count = 0;
-				const uningestedFiles: string[] = [];
-				const files: TFile[] = [];
-				
-				const scanFolder = (f: TFolder) => {
-					for (const child of f.children) {
-						if (child instanceof TFile && child.extension === 'md') {
-							files.push(child);
-						} else if (child instanceof TFolder) {
-							scanFolder(child);
-						}
-					}
-				};
-				scanFolder(folder);
+			const journalScope = this.getJournalDailyScope(this.getVaultProfile());
+			if (!journalScope) return { count: 0, files: [] };
 
-				for (const file of files) {
-					const cache = this.app.metadataCache.getFileCache(file);
-					const frontmatter = cache?.frontmatter;
-					if (!frontmatter || frontmatter.ingested !== true) {
-						count++;
-						uningestedFiles.push(file.path);
-					}
-				}
-				return { count, files: uningestedFiles };
-			}
+			const uningestedFiles = this.resolveMarkdownFiles(journalScope)
+				.filter(file => this.app.metadataCache.getFileCache(file)?.frontmatter?.ingested !== true)
+				.map(file => file.path);
+			return { count: uningestedFiles.length, files: uningestedFiles };
 		} catch (e) {
 			console.error('Failed to calculate un-ingested diaries:', e);
 		}
@@ -325,22 +334,11 @@ export class VaultService {
 		return withoutHeadings.trim() === '';
 	}
 
-	private shouldIgnoreForEmptyNoteScan(file: TFile): boolean {
-		const normalizedPath = file.path.replace(/\\/g, '/').toLowerCase();
-		return normalizedPath.startsWith('00templates/')
-			|| normalizedPath.startsWith('00 templates/')
-			|| normalizedPath.startsWith('09books/')
-			|| normalizedPath.startsWith('09 books/');
-	}
-
 	async getEmptyNoteFiles(): Promise<TFile[]> {
 		const emptyFiles: TFile[] = [];
 		try {
-			const files = this.app.vault.getMarkdownFiles();
+			const files = this.resolveMarkdownFiles({ type: 'all-markdown' });
 			for (const file of files) {
-				if (this.shouldIgnoreForEmptyNoteScan(file)) {
-					continue;
-				}
 				const content = await this.app.vault.read(file);
 				if (this.isStructurallyEmptyMarkdown(content)) {
 					emptyFiles.push(file);
@@ -372,7 +370,7 @@ export class VaultService {
 	computeVaultData(): { stats: VaultOverviewStats; dateCounts: Map<string, number> } {
 		const stats: VaultOverviewStats = {
 			totalMdFiles: 0, totalDays: 0, dailyAvg: 0,
-			countDaily: 0, countInbox: 0, countProjects: 0,
+			countDaily: 0, countInbox: 0,
 			countAtomics: 0, countOutput: 0, countOther: 0, countOrphans: 0
 		};
 		const dateCounts = new Map<string, number>();
@@ -395,7 +393,7 @@ export class VaultService {
 				if (targets) for (const t of Object.keys(targets)) linkedFiles.add(t);
 			}
 
-			const { dailyNoteFolder, inboxFolder, projectsFolder, atomicsFolder, outputFolder } = this.plugin.settings;
+			const { dailyNoteFolder, inboxFolder, atomicsFolder, outputFolder } = this.plugin.settings;
 			let oldestTime = Number.POSITIVE_INFINITY;
 
 			for (const file of files) {
@@ -404,7 +402,6 @@ export class VaultService {
 				// Categorize (pure string ops)
 				if      (path.startsWith(dailyNoteFolder)) stats.countDaily++;
 				else if (path.startsWith(inboxFolder))     stats.countInbox++;
-				else if (path.startsWith(projectsFolder))  stats.countProjects++;
 				else if (path.startsWith(atomicsFolder))   stats.countAtomics++;
 				else if (path.startsWith(outputFolder))    stats.countOutput++;
 				else                                       stats.countOther++;

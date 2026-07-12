@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&display=swap');
-
 .vo-container {
 	width: 100%;
 	height: 100%;
@@ -285,6 +283,687 @@
 	flex-direction: column;
 	flex-grow: 1;
 	min-height: 0;
+}
+
+/* Home: a focused daily work surface, not a second analytics dashboard. */
+.vo-home-dashboard {
+	--vo-home-ink: var(--text-normal);
+	--vo-home-muted: var(--text-muted);
+	--vo-home-surface: color-mix(in srgb, var(--background-primary) 90%, var(--background-secondary) 10%);
+	--vo-home-soft-surface: color-mix(in srgb, var(--background-secondary) 66%, transparent);
+	--vo-home-line: color-mix(in srgb, var(--background-modifier-border) 75%, transparent);
+	display: flex;
+	flex-direction: column;
+	gap: 18px;
+	min-height: 0;
+	padding: 2px 0 14px;
+	font-family: var(--font-interface);
+}
+
+.vo-home-hero {
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 20px;
+	min-height: 136px;
+	overflow: hidden;
+	padding: 26px 28px;
+	border: 1px solid var(--vo-home-line);
+	border-radius: 18px;
+	background:
+		radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--interactive-accent) 19%, transparent), transparent 32%),
+		linear-gradient(120deg, var(--vo-home-surface), var(--vo-home-soft-surface));
+	box-shadow: 0 12px 28px color-mix(in srgb, var(--background-modifier-border) 18%, transparent);
+}
+
+.vo-home-hero::after {
+	position: absolute;
+	inset: auto -40px -92px auto;
+	width: 220px;
+	height: 220px;
+	border: 1px solid color-mix(in srgb, var(--interactive-accent) 24%, transparent);
+	border-radius: 50%;
+	content: '';
+	pointer-events: none;
+}
+
+.vo-home-hero-copy,
+.vo-home-date-badge {
+	position: relative;
+	z-index: 1;
+}
+
+.vo-home-eyebrow,
+.vo-home-card-label {
+	font-family: var(--font-monospace);
+	font-size: 10px;
+	font-weight: 700;
+	letter-spacing: 0.13em;
+	line-height: 1.2;
+	color: var(--vo-home-muted);
+}
+
+.vo-home-title {
+	margin: 8px 0 5px !important;
+	font-family: var(--font-text-theme), var(--font-interface);
+	font-size: clamp(24px, 3vw, 32px) !important;
+	font-weight: 650 !important;
+	letter-spacing: -0.035em;
+	line-height: 1.08;
+	color: var(--vo-home-ink);
+}
+
+.vo-home-subtitle {
+	max-width: 44rem;
+	font-size: 13px;
+	line-height: 1.6;
+	color: var(--vo-home-muted);
+}
+
+.vo-home-date-badge {
+	display: grid;
+	grid-template-columns: auto auto;
+	grid-template-rows: auto auto;
+	column-gap: 8px;
+	align-items: center;
+	min-width: 94px;
+	padding: 12px 13px;
+	border: 1px solid color-mix(in srgb, var(--interactive-accent) 28%, var(--vo-home-line));
+	border-radius: 14px;
+	background: color-mix(in srgb, var(--background-primary) 72%, transparent);
+	backdrop-filter: blur(8px);
+}
+
+.vo-home-date-weekday,
+.vo-home-date-month {
+	font-family: var(--font-monospace);
+	font-size: 9px;
+	font-weight: 700;
+	letter-spacing: 0.11em;
+	color: var(--vo-home-muted);
+}
+
+.vo-home-date-day {
+	grid-row: span 2;
+	font-size: 34px;
+	font-weight: 650;
+	letter-spacing: -0.07em;
+	line-height: 0.9;
+	color: var(--interactive-accent);
+}
+
+.vo-home-overview-grid {
+	display: grid;
+	grid-template-columns: minmax(250px, 1.28fr) repeat(2, minmax(0, 1fr));
+	gap: 14px;
+}
+
+.vo-home-card,
+.vo-home-actions {
+	border: 1px solid var(--vo-home-line);
+	border-radius: 16px;
+	background: var(--vo-home-surface);
+	box-shadow: 0 6px 16px color-mix(in srgb, var(--background-modifier-border) 11%, transparent);
+}
+
+.vo-home-card {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	min-width: 0;
+	padding: 18px;
+	transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.vo-home-card:hover {
+	border-color: color-mix(in srgb, var(--interactive-accent) 34%, var(--vo-home-line));
+	box-shadow: 0 10px 24px color-mix(in srgb, var(--background-modifier-border) 16%, transparent);
+	transform: translateY(-1px);
+}
+
+.vo-home-card-period {
+	background: linear-gradient(135deg, color-mix(in srgb, var(--interactive-accent) 10%, var(--vo-home-surface)), var(--vo-home-surface) 58%);
+}
+
+.vo-home-card-topline,
+.vo-home-actions-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+}
+
+.vo-home-card-icon,
+.vo-home-action-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	color: var(--interactive-accent);
+}
+
+.vo-home-card-icon {
+	width: 28px;
+	height: 28px;
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+.vo-home-card-icon svg {
+	width: 15px;
+	height: 15px;
+}
+
+.vo-home-card-icon-health {
+	color: var(--interactive-accent);
+	background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+.vo-home-card-icon-time {
+	color: var(--interactive-accent);
+	background: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+}
+
+.vo-home-card-title {
+	font-size: 17px;
+	font-weight: 650;
+	letter-spacing: -0.02em;
+	line-height: 1.25;
+	color: var(--vo-home-ink);
+}
+
+.vo-home-card-detail {
+	margin-top: -10px;
+	overflow: hidden;
+	font-family: var(--font-monospace);
+	font-size: 11px;
+	line-height: 1.45;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vo-home-muted);
+}
+
+.vo-home-card-action {
+	width: 100%;
+	min-height: 34px;
+	margin-top: auto;
+	font-size: 12px !important;
+	font-weight: 600 !important;
+}
+
+.vo-home-metrics {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 8px;
+	margin-top: auto;
+}
+
+.vo-home-metric {
+	min-width: 0;
+	padding: 10px 8px 9px;
+	border: 1px solid color-mix(in srgb, var(--vo-home-line) 82%, transparent);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--background-secondary) 46%, transparent);
+	text-align: center;
+}
+
+.vo-home-metric-value {
+	overflow: hidden;
+	font-size: 19px;
+	font-weight: 650;
+	letter-spacing: -0.04em;
+	line-height: 1;
+	text-overflow: ellipsis;
+	color: var(--vo-home-ink);
+}
+
+.vo-home-metric-label {
+	margin-top: 5px;
+	font-size: 10px;
+	line-height: 1;
+	color: var(--vo-home-muted);
+}
+
+.vo-home-actions {
+	padding: 18px;
+}
+
+.vo-home-section-title {
+	font-size: 14px;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+	color: var(--vo-home-ink);
+}
+
+.vo-home-section-note {
+	font-family: var(--font-monospace);
+	font-size: 10px;
+	letter-spacing: 0.06em;
+	color: var(--vo-home-muted);
+}
+
+.vo-home-action-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(185px, 1fr));
+	gap: 10px;
+	margin-top: 14px;
+	max-height: 248px;
+	overflow-y: auto;
+	padding: 1px 5px 2px 1px;
+	scrollbar-gutter: stable;
+}
+
+.vo-home-action-button {
+	display: grid !important;
+	grid-template-columns: 28px minmax(0, 1fr);
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+	min-height: 72px !important;
+	height: auto !important;
+	padding: 12px;
+	border: 1px solid var(--vo-home-line);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-secondary) 44%, transparent);
+	box-shadow: none;
+	text-align: left;
+	overflow: hidden;
+	transition: background 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.vo-home-action-button:hover {
+	border-color: color-mix(in srgb, var(--interactive-accent) 42%, var(--vo-home-line));
+	background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary));
+	transform: translateY(-1px);
+}
+
+.vo-home-action-button.is-input-required .vo-home-action-icon {
+	color: var(--text-accent);
+}
+
+.vo-home-action-icon {
+	width: 28px;
+	height: 28px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--interactive-accent) 10%, transparent);
+}
+
+.vo-home-action-icon svg {
+	width: 15px;
+	height: 15px;
+}
+
+.vo-home-action-copy {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.vo-home-action-label {
+	overflow: hidden;
+	font-size: 12px;
+	font-weight: 650;
+	line-height: 1.35;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: var(--vo-home-ink);
+}
+
+.vo-home-action-description {
+	display: -webkit-box;
+	max-height: 2.9em;
+	margin-top: 3px;
+	overflow: hidden;
+	font-size: 11px;
+	line-height: 1.45;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	color: var(--vo-home-muted);
+}
+
+.vo-home-empty-state {
+	padding: 14px 2px;
+	font-size: 12px;
+	color: var(--vo-home-muted);
+}
+
+@media (max-width: 900px) {
+	.vo-home-overview-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+
+	.vo-home-card-period {
+		grid-column: span 2;
+	}
+}
+
+@media (max-width: 620px) {
+	.vo-home-dashboard {
+		gap: 12px;
+	}
+
+	.vo-home-hero {
+		min-height: 0;
+		padding: 20px;
+	}
+
+	.vo-home-date-badge {
+		display: none;
+	}
+
+	.vo-home-overview-grid {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 10px;
+	}
+
+	.vo-home-card-period {
+		grid-column: auto;
+	}
+
+	.vo-home-action-grid {
+		grid-template-columns: minmax(0, 1fr);
+		max-height: 312px;
+	}
+}
+
+/* Shared workbench language for periodic review and vault health. */
+.vo-workspace-dashboard {
+	--vo-workspace-surface: color-mix(in srgb, var(--background-primary) 90%, var(--background-secondary) 10%);
+	--vo-workspace-line: color-mix(in srgb, var(--background-modifier-border) 76%, transparent);
+	--vo-workspace-muted: var(--text-muted);
+	--vo-workspace-accent: var(--interactive-accent);
+	--vo-workspace-accent-soft: color-mix(in srgb, var(--interactive-accent) 11%, transparent);
+	--vo-workspace-accent-hover: color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+	gap: 14px;
+}
+
+.vo-workspace-card {
+	border-color: var(--vo-workspace-line) !important;
+	border-radius: 16px !important;
+	background: var(--vo-workspace-surface) !important;
+	box-shadow: 0 6px 16px color-mix(in srgb, var(--background-modifier-border) 11%, transparent) !important;
+	transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.vo-workspace-card:hover {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 38%, var(--vo-workspace-line)) !important;
+	box-shadow: 0 10px 24px color-mix(in srgb, var(--background-modifier-border) 16%, transparent) !important;
+	transform: translateY(-1px);
+}
+
+.vo-workspace-card-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	min-height: 28px;
+}
+
+.vo-workspace-card-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 28px;
+	height: 28px;
+	border-radius: 9px;
+	background: var(--vo-workspace-accent-soft);
+	color: var(--vo-workspace-accent);
+}
+
+.vo-workspace-card-icon svg {
+	width: 15px;
+	height: 15px;
+}
+
+.vo-workspace-card-label {
+	font-family: var(--font-monospace);
+	font-size: 10px !important;
+	font-weight: 700 !important;
+	letter-spacing: 0.09em !important;
+	line-height: 1.25;
+	color: var(--vo-workspace-muted) !important;
+}
+
+.vo-workspace-action {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 34%, var(--background-modifier-border)) !important;
+	transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.vo-workspace-action:hover {
+	border-color: var(--vo-workspace-accent) !important;
+	box-shadow: 0 7px 14px color-mix(in srgb, var(--vo-workspace-accent) 18%, transparent) !important;
+	transform: translateY(-1px);
+}
+
+.vo-workspace-dashboard button:focus-visible,
+.vo-periodic-cell:focus-visible {
+	outline: 2px solid var(--vo-workspace-accent);
+	outline-offset: 2px;
+}
+
+.vo-diary-grid {
+	gap: 14px !important;
+}
+
+.vo-diary-periodic-card {
+	background: linear-gradient(135deg, color-mix(in srgb, var(--vo-workspace-accent) 8%, var(--vo-workspace-surface)), var(--vo-workspace-surface) 60%) !important;
+}
+
+.vo-workspace-date-picker {
+	padding: 3px 5px;
+	border: 1px solid var(--vo-workspace-line);
+	border-radius: 9px;
+	background: color-mix(in srgb, var(--background-secondary) 50%, transparent);
+}
+
+.vo-workspace-date-picker button {
+	border-radius: 6px;
+	color: var(--vo-workspace-muted);
+}
+
+.vo-workspace-date-picker button:hover {
+	background: color-mix(in srgb, var(--vo-workspace-accent) 10%, transparent) !important;
+	color: var(--vo-workspace-accent) !important;
+}
+
+.vo-diary-workspace .vo-card-tab-btn {
+	border-color: transparent;
+	border-radius: 8px;
+	background: transparent;
+	color: var(--vo-workspace-muted);
+}
+
+.vo-diary-workspace .vo-card-tab-btn:hover {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 26%, transparent);
+	background: color-mix(in srgb, var(--vo-workspace-accent) 8%, transparent);
+	color: var(--vo-workspace-accent);
+}
+
+.vo-diary-workspace .vo-card-tab-btn.is-active {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 38%, transparent);
+	background: color-mix(in srgb, var(--vo-workspace-accent) 14%, transparent);
+	color: var(--vo-workspace-accent);
+	box-shadow: none;
+}
+
+.vo-periodic-weekday {
+	font-family: var(--font-monospace);
+	letter-spacing: 0.06em;
+}
+
+.vo-diary-workspace .vo-periodic-cell {
+	min-height: 32px;
+	border-color: var(--vo-workspace-line);
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--background-secondary) 38%, transparent);
+	transition: border-color 150ms ease, background 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.vo-diary-workspace .vo-periodic-cell:hover {
+	border-color: var(--vo-workspace-accent);
+	background: color-mix(in srgb, var(--vo-workspace-accent) 10%, transparent);
+	color: var(--vo-workspace-accent);
+	transform: translateY(-1px);
+}
+
+.vo-diary-workspace .vo-periodic-cell.is-created {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 60%, var(--vo-workspace-line));
+	background: color-mix(in srgb, var(--vo-workspace-accent) 11%, transparent);
+	color: var(--vo-workspace-accent);
+}
+
+.vo-diary-note-surface {
+	background: color-mix(in srgb, var(--background-secondary) 38%, transparent);
+	transition: border-color 160ms ease, background 160ms ease;
+}
+
+.vo-diary-note-surface.is-created {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 58%, var(--vo-workspace-line)) !important;
+}
+
+.vo-diary-note-surface.is-missing {
+	border-color: var(--vo-workspace-line) !important;
+}
+
+.vo-diary-stat-grid {
+	gap: 10px !important;
+}
+
+.vo-diary-stat-item {
+	border-color: var(--vo-workspace-line) !important;
+	border-radius: 11px !important;
+	background: color-mix(in srgb, var(--background-secondary) 45%, transparent) !important;
+	transition: border-color 150ms ease, background 150ms ease, transform 150ms ease !important;
+}
+
+.vo-diary-stat-item:hover {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 40%, var(--vo-workspace-line)) !important;
+	background: color-mix(in srgb, var(--vo-workspace-accent) 7%, var(--background-secondary)) !important;
+	transform: translateY(-1px);
+}
+
+.vo-diary-stat-item.is-highlighted {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 42%, var(--vo-workspace-line)) !important;
+}
+
+.vo-diary-stat-value {
+	letter-spacing: -0.04em;
+}
+
+.vo-lint-workspace {
+	gap: 14px;
+}
+
+.vo-lint-overview-grid {
+	gap: 14px !important;
+}
+
+.vo-lint-health-card {
+	background: linear-gradient(145deg, color-mix(in srgb, var(--vo-workspace-accent) 8%, var(--vo-workspace-surface)), var(--vo-workspace-surface) 65%) !important;
+}
+
+.vo-lint-health-card .vo-workspace-card-header {
+	align-items: flex-start;
+}
+
+.vo-lint-health-card .vo-workspace-card-icon {
+	color: var(--vo-workspace-accent);
+	background: color-mix(in srgb, var(--vo-workspace-accent) 11%, transparent);
+}
+
+.vo-lint-diagnostics-card .vo-workspace-card-icon,
+.vo-lint-commands-card .vo-workspace-card-icon {
+	color: var(--text-accent);
+	background: color-mix(in srgb, var(--text-accent) 10%, transparent);
+}
+
+.vo-lint-metric-grid {
+	gap: 8px !important;
+}
+
+.vo-lint-metric-item {
+	border-color: var(--vo-workspace-line) !important;
+	border-radius: 10px !important;
+	background: color-mix(in srgb, var(--background-secondary) 42%, transparent) !important;
+	transition: border-color 150ms ease, background 150ms ease, box-shadow 150ms ease, transform 150ms ease !important;
+}
+
+.vo-lint-metric-item:hover {
+	border-color: var(--vo-workspace-accent) !important;
+	background: color-mix(in srgb, var(--vo-workspace-accent) 8%, var(--background-secondary)) !important;
+	box-shadow: 0 6px 13px color-mix(in srgb, var(--vo-workspace-accent) 13%, transparent);
+	transform: translateY(-1px);
+}
+
+.vo-lint-metric-item.is-attention {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 64%, var(--vo-workspace-line)) !important;
+	background: color-mix(in srgb, var(--vo-workspace-accent) 9%, var(--background-secondary)) !important;
+}
+
+.vo-lint-metric-item.is-attention svg {
+	color: var(--vo-workspace-accent);
+}
+
+.vo-lint-metric-item svg {
+	color: var(--vo-workspace-accent);
+}
+
+.vo-lint-commands-card {
+	background: color-mix(in srgb, var(--background-primary) 88%, var(--background-secondary) 12%) !important;
+}
+
+.vo-lint-commands-card .vo-btn {
+	transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.vo-lint-commands-card .vo-btn:hover {
+	border-color: var(--vo-workspace-accent) !important;
+	transform: translateY(-1px);
+}
+
+.vo-lint-command-button {
+	display: inline-flex !important;
+	align-items: center;
+	gap: 8px !important;
+	color: var(--text-normal) !important;
+}
+
+.vo-lint-command-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	flex: 0 0 auto;
+	width: 26px;
+	height: 26px;
+	border-radius: 8px;
+	background: color-mix(in srgb, var(--vo-workspace-accent) 11%, transparent);
+	color: var(--vo-workspace-accent);
+}
+
+.vo-lint-command-icon svg {
+	width: 15px;
+	height: 15px;
+}
+
+.vo-lint-command-button:hover .vo-lint-command-icon {
+	background: color-mix(in srgb, var(--vo-workspace-accent) 18%, transparent);
+}
+
+.vo-lint-command-button:hover {
+	background: color-mix(in srgb, var(--vo-workspace-accent) 8%, var(--background-secondary)) !important;
+}
+
+@media (max-width: 900px) {
+	.vo-diary-grid,
+	.vo-lint-overview-grid {
+		grid-template-columns: minmax(0, 1fr) !important;
+		grid-template-rows: none !important;
+		height: auto !important;
+		overflow: visible !important;
+	}
 }
 
 /* 图表区域拉伸 */

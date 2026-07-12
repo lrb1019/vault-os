@@ -31,6 +31,12 @@ export default tseslint.config(
 	},
 	...obsidianmd.configs.recommended,
 	{
+		files: ['tests/**/*.ts'],
+		rules: {
+			'import/no-nodejs-modules': 'off',
+		},
+	},
+	{
 		rules: {
 			'obsidianmd/ui/sentence-case': 'off',
 		},

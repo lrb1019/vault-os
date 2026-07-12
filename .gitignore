@@ -21,13 +21,14 @@ data.json
 
 # Local project management files (Do not upload to GitHub)
 00 项目总览.md
-01 PROJECT_RULES.md
+01 项目规则.md
 02 后续想法.md
 03 改动日志.md
 04 接续说明.md
 05 审查流程.md
-06 GITHUB_SYNC.md
-07 审计与体检逻辑备忘录.md
+06 发布与同步流程.md
+07 知识库体检规则.md
+08 总体整改计划.md
 CODEBOOK.md
 GEMINI.md
 RELEASE_WORKFLOW.md
@@ -38,7 +39,3 @@ CLAUDE.md
 
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
-
-# Local release scripts containing tokens
-publish.py
-

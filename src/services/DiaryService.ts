@@ -1,5 +1,9 @@
-import { App, TFile, TFolder, moment } from 'obsidian';
+import { App, TFile, moment } from 'obsidian';
 import VaultOsPlugin from '../main';
+import { createDefaultManualPeriodicConfig, type ManualPeriodicConfig, type PeriodicCycle, type PeriodicNoteTarget, type PeriodicPathProvider } from '../domain/periodic-note';
+import { ConfiguredManualPeriodicPathProvider } from './ConfiguredManualPeriodicPathProvider';
+import { NotebookNavigatorPeriodicPathProvider } from './NotebookNavigatorPeriodicPathProvider';
+import { PeriodicNoteFileService, type PeriodicNoteCreateResult } from './PeriodicNoteFileService';
 
 export interface DiaryInfo {
 	isCreated: boolean;
@@ -42,17 +46,6 @@ interface NavigatorPlugin {
 	settings: NavigatorSettings;
 }
 
-interface TemplaterPlugin {
-	templater?: {
-		create_new_note_from_template?: (
-			templateFile: TFile,
-			folderObj: TFolder,
-			baseName: string,
-			open: boolean
-		) => Promise<unknown>;
-	};
-}
-
 interface ObsidianAppWithPlugins {
 	plugins: {
 		getPlugin(id: string): unknown;
@@ -80,10 +73,12 @@ interface NavigatorConfig {
 export class DiaryService {
 	private plugin: VaultOsPlugin;
 	private app: App;
+	private readonly periodicFiles: PeriodicNoteFileService;
 
 	constructor(plugin: VaultOsPlugin) {
 		this.plugin = plugin;
 		this.app = plugin.app;
+		this.periodicFiles = new PeriodicNoteFileService(this.app);
 	}
 
 	private parseDiaryDateFromFilename(file: TFile): string | null {
@@ -150,128 +145,37 @@ export class DiaryService {
 	}
 
 	/**
-	 * Resolves the folder path, file name, and full path of a periodic note
+	 * Resolves paths through a provider while keeping file creation in this service.
 	 */
-	resolvePeriodicNotePath(date: moment.Moment, cycle: 'day' | 'week' | 'month' | 'quarter' | 'year'): { folderPath: string; fileName: string; filePath: string } {
-		const config = this.getNavigatorSettings();
-		if (!config) {
-			const todayStr = date.format('YYYY-MM-DD');
-			return {
-				folderPath: this.plugin.settings.dailyNoteFolder,
-				fileName: `${todayStr}.md`,
-				filePath: `${this.plugin.settings.dailyNoteFolder}/${todayStr}.md`
-			};
-		}
-		
-		const pattern = config.patterns[cycle];
-		const rootFolder = config.rootFolder;
-		
-		let folderPattern = '';
-		let filePattern = pattern;
-		
-		let insideBrackets = false;
-		let lastSlashIndex = -1;
-		for (let i = 0; i < pattern.length; i++) {
-			const char = pattern[i];
-			if (char === '[') insideBrackets = true;
-			else if (char === ']') insideBrackets = false;
-			else if (char === '/' && !insideBrackets) {
-				lastSlashIndex = i;
-			}
-		}
-		
-		if (lastSlashIndex !== -1) {
-			folderPattern = pattern.slice(0, lastSlashIndex);
-			filePattern = pattern.slice(lastSlashIndex + 1);
-		}
-		
-		const formattedFolderSub = folderPattern ? date.format(folderPattern) : '';
-		const formattedFileName = date.format(filePattern).trim();
-		
-		let folderPath = rootFolder;
-		if (formattedFolderSub) {
-			folderPath = folderPath ? `${folderPath}/${formattedFolderSub}` : formattedFolderSub;
-		}
-		
-		const cleanFolderName = folderPath.trim().replace(/^\/+|\/+$/g, '');
-		const cleanFileName = formattedFileName.endsWith('.md') ? formattedFileName : `${formattedFileName}.md`;
-		const filePath = cleanFolderName ? `${cleanFolderName}/${cleanFileName}` : cleanFileName;
-		
-		return {
-			folderPath: cleanFolderName || '/',
-			fileName: cleanFileName,
-			filePath: filePath
-		};
+	private getManualPeriodicConfig(): ManualPeriodicConfig {
+		return this.plugin.settings.manualPeriodic || createDefaultManualPeriodicConfig(this.plugin.settings.dailyNoteFolder);
+	}
+
+	private getPeriodicPathProvider(): PeriodicPathProvider {
+		const preference = this.plugin.settings.periodicProvider || 'auto';
+		const config = preference === 'manual' ? null : this.getNavigatorSettings();
+		if (config) return new NotebookNavigatorPeriodicPathProvider(config);
+		return new ConfiguredManualPeriodicPathProvider(this.getManualPeriodicConfig());
+	}
+
+	getPeriodicRootFolder(): string {
+		const preference = this.plugin.settings.periodicProvider || 'auto';
+		const navigatorConfig = preference === 'manual' ? null : this.getNavigatorSettings();
+		return navigatorConfig?.rootFolder || this.getManualPeriodicConfig().rootFolder;
+	}
+
+	resolvePeriodicNotePath(date: moment.Moment, cycle: PeriodicCycle): PeriodicNoteTarget {
+		return this.getPeriodicPathProvider().resolve(date.toDate(), cycle);
 	}
 
 	/**
 	 * Creates a new periodic note based on Notebook Navigator settings and Templater integration
 	 */
-	async createPeriodicNote(date: moment.Moment, cycle: 'day' | 'week' | 'month' | 'quarter' | 'year'): Promise<string> {
-		const { folderPath, fileName, filePath } = this.resolvePeriodicNotePath(date, cycle);
-		
-		const file = this.app.vault.getAbstractFileByPath(filePath);
-		if (file instanceof TFile) {
-			return filePath;
-		}
-		
-		// Ensure folder exists
-		if (folderPath && folderPath !== '/') {
-			const folderParts = folderPath.split('/');
-			let currentPath = '';
-			for (const part of folderParts) {
-				currentPath = currentPath ? `${currentPath}/${part}` : part;
-				const existFolder = this.app.vault.getAbstractFileByPath(currentPath);
-				if (!existFolder) {
-					await this.app.vault.createFolder(currentPath);
-				}
-			}
-		}
-		
-		const folderObj = folderPath && folderPath !== '/'
-			? this.app.vault.getAbstractFileByPath(folderPath)
-			: this.app.vault.getRoot();
-		if (!(folderObj instanceof TFolder)) {
-			throw new Error(`Failed to resolve target folder: ${folderPath}`);
-		}
-		
-		const config = this.getNavigatorSettings();
-		const templatePath = config?.templates[cycle] || "";
-		const baseName = fileName.replace(/\.md$/iu, '').trim();
-		
-		let templateFile: TFile | null = null;
-		if (templatePath) {
-			const cleanTemplatePath = templatePath.trim().replace(/^\/+/, '');
-			const tFile = this.app.vault.getAbstractFileByPath(cleanTemplatePath);
-			if (tFile instanceof TFile) {
-				templateFile = tFile;
-			}
-		}
-		
-		// Attempt to use Templater plugin if active
-		const appWithPlugins = this.app as unknown as ObsidianAppWithPlugins;
-		const templaterPlugin = appWithPlugins.plugins.getPlugin("templater-obsidian") as TemplaterPlugin | undefined;
-		if (templaterPlugin && templaterPlugin.templater && typeof templaterPlugin.templater.create_new_note_from_template === 'function' && templateFile) {
-			try {
-				const createdFile = await templaterPlugin.templater.create_new_note_from_template(templateFile, folderObj, baseName, false);
-				if (createdFile instanceof TFile) {
-					return createdFile.path;
-				}
-			} catch (e) {
-				console.error("Templater failed, falling back to manual template copy:", e);
-			}
-		}
-		
-		// Fallback: Create file manually and copy template content
-		let content = '';
-		if (templateFile) {
-			content = await this.app.vault.read(templateFile);
-		} else {
-			content = `---\ncreated: ${date.format('YYYY-MM-DD')}\nauthor: "[[Jarvis]]"\ningested: false\n---\n\n# ${baseName}\n`;
-		}
-		
-		await this.app.vault.create(filePath, content);
-		return filePath;
+	async createPeriodicNote(date: moment.Moment, cycle: PeriodicCycle): Promise<PeriodicNoteCreateResult> {
+		const target = this.resolvePeriodicNotePath(date, cycle);
+		const navigatorConfig = this.plugin.settings.periodicProvider === 'manual' ? null : this.getNavigatorSettings();
+		const templatePath = navigatorConfig?.templates[cycle] || this.getManualPeriodicConfig().templates[cycle];
+		return this.periodicFiles.create(target, date.toDate(), templatePath);
 	}
 
 	/**
@@ -303,7 +207,7 @@ export class DiaryService {
 	/**
 	 * Creates a new daily diary file based on templates
 	 */
-	async createTodayDiary(): Promise<string> {
+	async createTodayDiary(): Promise<PeriodicNoteCreateResult> {
 		return this.createPeriodicNote(moment(), 'day');
 	}
 
@@ -372,7 +276,7 @@ export class DiaryService {
 		return stats;
 	}
 
-	async getLastYearNote(date: moment.Moment, cycle: 'day' | 'week' | 'month' | 'quarter' | 'year'): Promise<DiaryInfo | null> {
+	async getLastYearNote(date: moment.Moment, cycle: PeriodicCycle): Promise<DiaryInfo | null> {
 		const targetDate = date.clone().subtract(1, 'year');
 		const { filePath } = this.resolvePeriodicNotePath(targetDate, cycle);
 		const file = this.app.vault.getAbstractFileByPath(filePath);

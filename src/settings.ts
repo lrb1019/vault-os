@@ -1,5 +1,8 @@
 import { App, Modal, PluginSettingTab, Setting, setIcon } from 'obsidian';
 import VaultOsPlugin from './main';
+import { createLegacyVaultProfile, isVaultProfile, type ScopeRule, type VaultProfile } from './domain/vault-profile';
+import { VaultProfileDiscoveryService } from './services/VaultProfileDiscoveryService';
+import { createDefaultManualPeriodicConfig, type ManualPeriodicConfig, type PeriodicCycle } from './domain/periodic-note';
 
 function stringifyHeaderLines(headers: Record<string, string>): string {
 	return Object.entries(headers)
@@ -31,6 +34,7 @@ export interface ClaudianAction {
 	prompt: string;
 	requireInput: boolean;
 	enabled?: boolean;
+	showOnHome?: boolean;
 	inputPlaceholder?: string;
 }
 
@@ -48,9 +52,11 @@ export interface VaultOsSettings {
 	claudianActions: ClaudianAction[];
 	
 	dailyNoteFolder: string;
+	manualPeriodic?: ManualPeriodicConfig;
+	periodicProvider?: 'auto' | 'manual' | 'notebook-navigator';
 	inboxFolder: string;
-	projectsFolder: string;
-	projectBaseFilePath: string;
+	vaultProfile?: VaultProfile;
+
 	archiveFolder: string;
 	outputFolder: string;
 	atomicsFolder: string;
@@ -69,7 +75,8 @@ export interface VaultOsSettings {
 	containerMaxWidth: number;
 }
 
-type SettingsTabId = 'general' | 'paths' | 'mcp' | 'actions';
+type SettingsTabId = 'general' | 'paths' | 'profile' | 'mcp' | 'actions';
+type EditableProfileScope = 'inbox' | 'knowledge' | 'outputs';
 
 export const DEFAULT_SETTINGS: VaultOsSettings = {
 	dashboardTitle: "Vault OS",
@@ -92,8 +99,7 @@ export const DEFAULT_SETTINGS: VaultOsSettings = {
 	],
 	dailyNoteFolder: "01 Daily",
 	inboxFolder: "02 Inbox",
-	projectsFolder: "03 Projects",
-	projectBaseFilePath: "03 Projects/Projects.base",
+
 	archiveFolder: "06 Archive",
 	outputFolder: "05 Output",
 	atomicsFolder: "04 Atomics",
@@ -133,7 +139,8 @@ class ClaudianActionEditModal extends Modal {
 
 		let draft: ClaudianAction = {
 			enabled: true,
-			...this.originalAction
+			...this.originalAction,
+			showOnHome: this.originalAction.requireInput ? false : this.originalAction.showOnHome !== false
 		};
 
 		contentEl.createEl('h2', { text: 'Edit Smart Action' });
@@ -170,15 +177,25 @@ class ClaudianActionEditModal extends Modal {
 
 		new Setting(contentEl)
 			.setName('启用独立输入框')
-			.setDesc('开启后，这个按钮会出现在下方双列输入区')
+			.setDesc('开启后只能在体检页的参数区执行，不会直接显示在首页。')
 			.addToggle(toggle => toggle
 				.setValue(!!draft.requireInput)
 				.onChange((value) => {
 					draft = {
 						...draft,
 						requireInput: value,
+						showOnHome: value ? false : draft.showOnHome,
 						inputPlaceholder: value ? (draft.inputPlaceholder || '') : ''
 					};
+				}));
+
+		new Setting(contentEl)
+			.setName('在首页显示')
+			.setDesc('仅适用于不需要输入的指令。关闭后，该指令仍可在体检页使用。')
+			.addToggle(toggle => toggle
+				.setValue(!draft.requireInput && draft.showOnHome !== false)
+				.onChange((value) => {
+					draft = { ...draft, showOnHome: value };
 				}));
 
 		new Setting(contentEl)
@@ -193,7 +210,7 @@ class ClaudianActionEditModal extends Modal {
 
 		new Setting(contentEl)
 			.setName('指令模板')
-			.setDesc('点击后发送给 Claudian 的完整内容，可使用 {{input}}、{{daily_path}}、{{inbox_path}}、{{projects_path}}')
+			.setDesc('点击后发送给 Claudian 的完整内容，可使用 {{input}}、{{daily_path}}、{{inbox_path}}')
 			.addTextArea(text => {
 				text
 					.setPlaceholder('例如：@skills/query 请帮我检索关于“{{input}}”的内容')
@@ -225,6 +242,7 @@ class ClaudianActionEditModal extends Modal {
 				description: (draft.description || '').trim(),
 				icon: draft.icon.trim(),
 				prompt: draft.prompt.trim(),
+				showOnHome: draft.requireInput ? false : draft.showOnHome !== false,
 				inputPlaceholder: draft.requireInput ? (draft.inputPlaceholder || '').trim() : ''
 			}).then(() => this.close());
 		});
@@ -246,6 +264,200 @@ export class VaultOsSettingTab extends PluginSettingTab {
 
 	private normalizeFolderPath(value: string): string {
 		return value.trim().replace(/^\/+|\/+$/g, '');
+	}
+
+	private getEditableVaultProfile(): VaultProfile {
+		if (isVaultProfile(this.plugin.settings.vaultProfile)) return this.plugin.settings.vaultProfile;
+		return createLegacyVaultProfile({
+			dailyNoteFolder: this.plugin.settings.dailyNoteFolder,
+			inboxFolder: this.plugin.settings.inboxFolder,
+			atomicsFolder: this.plugin.settings.atomicsFolder,
+			outputFolder: this.plugin.settings.outputFolder
+		});
+	}
+
+	private getManualPeriodicConfig(): ManualPeriodicConfig {
+		return this.plugin.settings.manualPeriodic || createDefaultManualPeriodicConfig(this.plugin.settings.dailyNoteFolder);
+	}
+
+	private async saveManualPeriodicConfig(config: ManualPeriodicConfig): Promise<void> {
+		this.plugin.settings.manualPeriodic = config;
+		await this.plugin.saveSettings();
+		this.refreshDashboardView();
+	}
+
+	private async saveProfileRule(scope: EditableProfileScope, rule: ScopeRule, rerenderSettings = false): Promise<void> {
+		const profile = this.getEditableVaultProfile();
+		this.plugin.settings.vaultProfile = { ...profile, [scope]: rule };
+		await this.plugin.saveSettings();
+		if (rerenderSettings) this.display();
+	}
+
+	private renderScopeRuleEditor(
+		container: HTMLElement,
+		name: string,
+		description: string,
+		rule: ScopeRule | undefined,
+		onSave: (rule: ScopeRule, rerenderSettings?: boolean) => Promise<void>
+	): void {
+		if (!rule || rule.type === 'compound') {
+			this.createNote(
+				container,
+				`${name}当前使用未配置或组合规则。组合规则会被保留；如切换下方识别方式，将以新的基础规则替换它。`,
+				'vo-settings-note-subtle'
+			);
+		}
+
+		const ruleType = rule && rule.type !== 'compound' ? rule.type : 'folder';
+		new Setting(container)
+			.setName(`${name}识别方式`)
+			.setDesc(description)
+			.addDropdown(dropdown => dropdown
+				.addOption('folder', '文件夹')
+				.addOption('tag', '标签')
+				.addOption('property', '属性')
+				.addOption('all-markdown', '整个仓库')
+				.setValue(ruleType)
+				.onChange(async value => {
+					if (value === 'tag') await onSave({ type: 'tag', tags: [] }, true);
+					else if (value === 'property') await onSave({ type: 'property', key: '', values: [] }, true);
+					else if (value === 'all-markdown') await onSave({ type: 'all-markdown' }, true);
+					else await onSave({ type: 'folder', paths: [], recursive: true }, true);
+				}));
+
+		if (rule?.type === 'folder') {
+			new Setting(container)
+				.setName(`${name}文件夹`)
+				.setDesc('使用逗号分隔多个路径，例如 Inbox, Capture。')
+				.addText(text => text
+					.setPlaceholder('例如：Inbox, Capture')
+					.setValue(rule.paths.join(', '))
+					.onChange(async value => {
+						const paths = value.split(',').map(path => this.normalizeFolderPath(path)).filter(Boolean);
+						await onSave({ type: 'folder', paths, recursive: rule.recursive !== false });
+					}));
+			new Setting(container)
+				.setName('包含子文件夹')
+				.setDesc('关闭后，只匹配该目录的直接 Markdown 文件。')
+				.addToggle(toggle => toggle
+					.setValue(rule.recursive !== false)
+					.onChange(async value => {
+						await onSave({ type: 'folder', paths: rule.paths, recursive: value });
+					}));
+		} else if (rule?.type === 'tag') {
+			new Setting(container)
+				.setName(`${name}标签`)
+				.setDesc('使用逗号分隔多个标签，任一标签匹配即可。')
+				.addText(text => text
+					.setPlaceholder('inbox, capture')
+					.setValue(rule.tags.join(', '))
+					.onChange(async value => {
+						const tags = value.split(',').map(tag => tag.trim()).filter(Boolean);
+						await onSave({ type: 'tag', tags });
+					}));
+		} else if (rule?.type === 'property') {
+			new Setting(container)
+				.setName('属性名称')
+				.setDesc('例如 status、type 或 workflow。')
+				.addText(text => text
+					.setPlaceholder('status')
+					.setValue(rule.key)
+					.onChange(async value => {
+						await onSave({ type: 'property', key: value.trim(), values: rule.values });
+					}));
+			new Setting(container)
+				.setName('属性值')
+				.setDesc('使用逗号分隔多个匹配值。')
+				.addText(text => text
+					.setPlaceholder('inbox, captured')
+					.setValue(rule.values.join(', '))
+					.onChange(async value => {
+						const values = value.split(',').map(item => item.trim()).filter(Boolean);
+						await onSave({ type: 'property', key: rule.key, values });
+					}));
+		}
+	}
+
+	private renderVaultProfileSettings(container: HTMLElement): void {
+		const isConfigured = isVaultProfile(this.plugin.settings.vaultProfile);
+		const profile = this.getEditableVaultProfile();
+
+		this.createNote(
+			container,
+			'仓库规则把“日记、收件箱、知识范围”等语义和具体目录分开。兼容模式继续使用下方旧路径；启用自定义规则后，插件会按规则识别文件，不要求复制作者目录。'
+		);
+
+		if (!isConfigured) {
+			new Setting(container)
+				.setName('当前模式：兼容现有路径')
+				.setDesc(`收件箱当前按 ${this.plugin.settings.inboxFolder || '未配置路径'} 的直接 Markdown 文件统计。启用后会将现有路径保存为可编辑配置档案。`)
+				.addButton(button => button
+					.setButtonText('启用可配置仓库规则')
+					.setCta()
+					.onClick(async () => {
+						this.plugin.settings.vaultProfile = profile;
+						await this.plugin.saveSettings();
+						this.display();
+					}));
+		}
+
+		const discoveryResults = container.createDiv({ cls: 'vo-settings-note-subtle' });
+		new Setting(container)
+			.setName('检测现有收件箱规则')
+			.setDesc('只读扫描文件路径、标签和 frontmatter，生成候选与证据；不会自动保存或修改任何笔记。')
+			.addButton(button => button
+				.setButtonText('扫描候选规则')
+				.onClick(() => {
+					button.setDisabled(true);
+					discoveryResults.empty();
+					const candidates = new VaultProfileDiscoveryService(this.app).discoverInboxScopeCandidates();
+					if (candidates.length === 0) {
+						discoveryResults.createEl('p', { text: '没有发现可信候选。请使用下方规则手动配置。' });
+					} else {
+						discoveryResults.createEl('p', { text: '以下为只读候选。点击“使用此规则”后才会写入插件设置。' });
+						for (const candidate of candidates) {
+							const row = discoveryResults.createDiv({ attr: { style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0;' } });
+							const description = row.createDiv();
+							description.createDiv({ text: candidate.label });
+							description.createDiv({ text: candidate.evidence, cls: 'setting-item-description' });
+							const useButton = row.createEl('button', { text: '使用此规则' });
+							useButton.addEventListener('click', () => {
+								void this.saveProfileRule('inbox', candidate.rule, true);
+							});
+						}
+					}
+					button.setDisabled(false);
+				}));
+
+		if (!isConfigured) return;
+
+		this.renderScopeRuleEditor(
+			container,
+			'收件箱范围',
+			'影响 Inbox 积压和死链来源；不会移动、修改或创建文件。',
+			profile.inbox,
+			(rule, rerenderSettings) => this.saveProfileRule('inbox', rule, rerenderSettings)
+		);
+		this.renderScopeRuleEditor(
+			container,
+			'知识范围',
+			'影响孤儿候选和死链来源。',
+			profile.knowledge,
+			(rule, rerenderSettings) => this.saveProfileRule('knowledge', rule, rerenderSettings)
+		);
+		this.renderScopeRuleEditor(
+			container,
+			'输出范围',
+			'影响死链与孤儿的链接证据来源。',
+			profile.outputs,
+			(rule, rerenderSettings) => this.saveProfileRule('outputs', rule, rerenderSettings)
+		);
+
+		this.createNote(
+			container,
+			`当前有 ${profile.exclusions.length} 条全局排除规则。组合条件和排除规则编辑器将在下一阶段加入；当前规则不会修改仓库内容。`,
+			'vo-settings-note-subtle'
+		);
 	}
 
 	private createNote(container: HTMLElement, text: string, extraClass?: string): void {
@@ -282,6 +494,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			prompt: '',
 			requireInput: false,
 			enabled: true,
+			showOnHome: true,
 			inputPlaceholder: ''
 		};
 	}
@@ -316,7 +529,8 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			enabled: true,
 			description: '',
 			inputPlaceholder: '',
-			...action
+			...action,
+			showOnHome: action.requireInput ? false : action.showOnHome !== false
 		};
 	}
 
@@ -408,7 +622,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			const textWrap = left.createDiv({ cls: 'vo-actions-compact-text' });
 			textWrap.createDiv({ text: action.label || `指令 ${index + 1}`, cls: 'vo-actions-compact-title' });
 			textWrap.createDiv({
-				text: (action.description || '').trim() || (action.requireInput ? '带输入框的智能指令' : '纯按钮智能指令'),
+				text: (action.description || '').trim() || (action.requireInput ? '需要输入，仅在体检页执行' : action.showOnHome === false ? '不在首页显示' : '首页直接执行'),
 				cls: 'vo-actions-compact-desc'
 			});
 
@@ -456,7 +670,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		const enabledActions = (this.plugin.settings.claudianActions || [])
 			.map(action => this.normalizeAction(action))
 			.filter(action => action.enabled !== false);
-		const iconOnlyActions = enabledActions.filter(action => !action.requireInput);
+		const iconOnlyActions = enabledActions.filter(action => !action.requireInput && action.showOnHome !== false);
 		const inputActions = enabledActions.filter(action => action.requireInput);
 
 		const previewSection = sectionContent.createDiv({ cls: 'vo-actions-preview-section' });
@@ -511,6 +725,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 
 		createTabBtn('general', '看板基础设置', 'layout');
 		createTabBtn('paths', '知识库路径', 'folder');
+		createTabBtn('profile', '仓库规则', 'sliders-horizontal');
 		createTabBtn('mcp', 'TickTick 连接', 'cpu');
 		createTabBtn('actions', '智能指令', 'bot');
 
@@ -551,6 +766,10 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			return;
 
 		} else if (this.activeTab === 'paths') {
+			const manualPeriodic = this.getManualPeriodicConfig();
+			const periodicNames: Record<PeriodicCycle, string> = {
+				day: '日记', week: '周记', month: '月记', quarter: '季记', year: '年记'
+			};
 			this.createNote(
 				sectionContent,
 				'这里不是随便填路径，而是在定义整个插件的数据口径。日记就是“日记文件夹里的全部内容”；巡检核心就是“原子笔记文件夹里的全部内容”；项目则由项目文件夹和 Base 文件共同决定。'
@@ -567,6 +786,59 @@ export class VaultOsSettingTab extends PluginSettingTab {
 						await this.plugin.saveSettings();
 						this.refreshDashboardView();
 					}));
+
+			new Setting(sectionContent)
+				.setName('周期笔记 Provider')
+				.setDesc('自动模式兼容已安装的 Notebook Navigator；选择内置手动规则后，周期创建完全使用本插件的配置。')
+				.addDropdown(dropdown => dropdown
+					.addOption('auto', '自动（兼容第三方）')
+					.addOption('manual', '内置手动规则')
+					.addOption('notebook-navigator', 'Notebook Navigator 优先')
+					.setValue(this.plugin.settings.periodicProvider || 'auto')
+					.onChange(async value => {
+						this.plugin.settings.periodicProvider = value === 'manual' || value === 'notebook-navigator' ? value : 'auto';
+						await this.plugin.saveSettings();
+						this.refreshDashboardView();
+					}));
+
+			new Setting(sectionContent)
+				.setName('内置周期笔记根目录')
+				.setDesc('仅在选择“内置手动规则”或第三方不可用时使用。首次修改会保存独立配置，不再跟随旧日记路径。')
+				.addText(text => text
+					.setPlaceholder('例如：Journal')
+					.setValue(manualPeriodic.rootFolder)
+					.onChange(async value => {
+						const config = this.getManualPeriodicConfig();
+						await this.saveManualPeriodicConfig({ ...config, rootFolder: this.normalizeFolderPath(value) });
+					}));
+
+			for (const cycle of ['day', 'week', 'month', 'quarter', 'year'] as const) {
+				new Setting(sectionContent)
+					.setName(`${periodicNames[cycle]}文件模式`)
+					.setDesc('可包含子目录，例如 YYYY/MM/YYYY-MM-DD；使用 Moment 格式。')
+					.addText(text => text
+						.setValue(manualPeriodic.patterns[cycle])
+						.onChange(async value => {
+							const config = this.getManualPeriodicConfig();
+							await this.saveManualPeriodicConfig({
+								...config,
+								patterns: { ...config.patterns, [cycle]: value.trim() || config.patterns[cycle] }
+							});
+						}));
+				new Setting(sectionContent)
+					.setName(`${periodicNames[cycle]}模板路径`)
+					.setDesc('可选。未配置或文件不可用时，将创建带基础元数据的默认笔记。')
+					.addText(text => text
+						.setPlaceholder('例如：Templates/Daily.md')
+						.setValue(manualPeriodic.templates[cycle])
+						.onChange(async value => {
+							const config = this.getManualPeriodicConfig();
+							await this.saveManualPeriodicConfig({
+								...config,
+								templates: { ...config.templates, [cycle]: this.normalizeFolderPath(value) }
+							});
+						}));
+			}
 
 			new Setting(sectionContent)
 				.setName('收件箱文件夹路径')
@@ -592,29 +864,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 						this.refreshDashboardView();
 					}));
 
-			new Setting(sectionContent)
-				.setName('项目管理文件夹路径')
-				.setDesc('项目页会结合这个文件夹与下方 Base 文件一起生成项目概览。')
-				.addText(text => text
-					.setPlaceholder('例如: 03 Projects')
-					.setValue(this.plugin.settings.projectsFolder)
-					.onChange(async (value) => {
-						this.plugin.settings.projectsFolder = this.normalizeFolderPath(value);
-						await this.plugin.saveSettings();
-						this.refreshDashboardView();
-					}));
 
-			new Setting(sectionContent)
-				.setName('项目数据库文件 (Base)')
-				.setDesc('项目页读取的 Base 文件路径，例如 03 Projects/Projects.base。')
-				.addText(text => text
-					.setPlaceholder('03 Projects/Projects.base')
-					.setValue(this.plugin.settings.projectBaseFilePath)
-					.onChange(async (value) => {
-						this.plugin.settings.projectBaseFilePath = value.trim();
-						await this.plugin.saveSettings();
-						this.refreshDashboardView();
-					}));
 
 			new Setting(sectionContent)
 				.setName('数据归档文件夹路径')
@@ -646,7 +896,11 @@ export class VaultOsSettingTab extends PluginSettingTab {
 				'vo-settings-note-subtle'
 			);
 
-		} else if (this.activeTab === 'mcp') {
+			} else if (this.activeTab === 'profile') {
+				this.renderVaultProfileSettings(sectionContent);
+				return;
+
+			} else if (this.activeTab === 'mcp') {
 			this.createNote(
 				sectionContent,
 				'TickTick 连接现在由本插件独立管理，不再和其他插件共用 MCP 配置文件。这里保留的都是当前真正会影响连接结果的字段。'
@@ -722,7 +976,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			);
 			this.createNote(
 				sectionContent,
-				'需要用户临时输入内容时，请在模板里使用 {{input}}。如果你改了上面的日记 / Inbox / 项目等路径，这里的 {{daily_path}}、{{inbox_path}}、{{projects_path}} 也会自动跟着替换。',
+				'需要用户临时输入内容时，请在模板里使用 {{input}}。如果你改了上面的日记 / Inbox / 项目等路径，这里的 {{daily_path}}、{{inbox_path}} 也会自动跟着替换。',
 				'vo-settings-note-subtle'
 			);
 			this.createLucideNote(sectionContent);
