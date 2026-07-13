@@ -3,6 +3,7 @@ import VaultOsPlugin from './main';
 import { createLegacyVaultProfile, isVaultProfile, type ScopeRule, type VaultProfile } from './domain/vault-profile';
 import { VaultProfileDiscoveryService } from './services/VaultProfileDiscoveryService';
 import { createDefaultManualPeriodicConfig, type ManualPeriodicConfig, type PeriodicCycle } from './domain/periodic-note';
+import { DEFAULT_DAILY_CONTEXT_SETTINGS, type DailyContextSettings } from './domain/daily-context';
 
 function stringifyHeaderLines(headers: Record<string, string>): string {
 	return Object.entries(headers)
@@ -34,7 +35,6 @@ export interface ClaudianAction {
 	prompt: string;
 	requireInput: boolean;
 	enabled?: boolean;
-	showOnHome?: boolean;
 	inputPlaceholder?: string;
 }
 
@@ -73,6 +73,8 @@ export interface VaultOsSettings {
 	heatmapDoubleCellSize: number;
 	heatmapDoubleCellGap: number;
 	containerMaxWidth: number;
+	readingReflectionScope?: ScopeRule;
+	dailyContext?: DailyContextSettings;
 }
 
 type SettingsTabId = 'general' | 'paths' | 'profile' | 'mcp' | 'actions';
@@ -117,7 +119,8 @@ export const DEFAULT_SETTINGS: VaultOsSettings = {
 	heatmapCellGap: 3,
 	heatmapDoubleCellSize: 9,
 	heatmapDoubleCellGap: 2,
-	containerMaxWidth: 100
+	containerMaxWidth: 100,
+	dailyContext: { ...DEFAULT_DAILY_CONTEXT_SETTINGS }
 };
 
 class ClaudianActionEditModal extends Modal {
@@ -139,8 +142,7 @@ class ClaudianActionEditModal extends Modal {
 
 		let draft: ClaudianAction = {
 			enabled: true,
-			...this.originalAction,
-			showOnHome: this.originalAction.requireInput ? false : this.originalAction.showOnHome !== false
+			...this.originalAction
 		};
 
 		contentEl.createEl('h2', { text: 'Edit Smart Action' });
@@ -181,22 +183,12 @@ class ClaudianActionEditModal extends Modal {
 			.addToggle(toggle => toggle
 				.setValue(!!draft.requireInput)
 				.onChange((value) => {
-					draft = {
-						...draft,
-						requireInput: value,
-						showOnHome: value ? false : draft.showOnHome,
-						inputPlaceholder: value ? (draft.inputPlaceholder || '') : ''
-					};
-				}));
-
-		new Setting(contentEl)
-			.setName('在首页显示')
-			.setDesc('仅适用于不需要输入的指令。关闭后，该指令仍可在体检页使用。')
-			.addToggle(toggle => toggle
-				.setValue(!draft.requireInput && draft.showOnHome !== false)
-				.onChange((value) => {
-					draft = { ...draft, showOnHome: value };
-				}));
+						draft = {
+							...draft,
+							requireInput: value,
+							inputPlaceholder: value ? (draft.inputPlaceholder || '') : ''
+						};
+					}));
 
 		new Setting(contentEl)
 			.setName('输入框提示词')
@@ -242,7 +234,6 @@ class ClaudianActionEditModal extends Modal {
 				description: (draft.description || '').trim(),
 				icon: draft.icon.trim(),
 				prompt: draft.prompt.trim(),
-				showOnHome: draft.requireInput ? false : draft.showOnHome !== false,
 				inputPlaceholder: draft.requireInput ? (draft.inputPlaceholder || '').trim() : ''
 			}).then(() => this.close());
 		});
@@ -293,6 +284,23 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		if (rerenderSettings) this.display();
 	}
 
+	private async saveReadingReflectionScope(rule: ScopeRule, rerenderSettings = false): Promise<void> {
+		this.plugin.settings.readingReflectionScope = rule;
+		await this.plugin.saveSettings();
+		this.refreshDashboardView();
+		if (rerenderSettings) this.display();
+	}
+
+	private getDailyContextSettings(): DailyContextSettings {
+		return { ...DEFAULT_DAILY_CONTEXT_SETTINGS, ...this.plugin.settings.dailyContext };
+	}
+
+	private async saveDailyContextSettings(next: DailyContextSettings): Promise<void> {
+		this.plugin.settings.dailyContext = next;
+		await this.plugin.saveSettings();
+		this.refreshDashboardView();
+	}
+
 	private renderScopeRuleEditor(
 		container: HTMLElement,
 		name: string,
@@ -308,7 +316,8 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			);
 		}
 
-		const ruleType = rule && rule.type !== 'compound' ? rule.type : 'folder';
+		const editableRule = rule && rule.type !== 'compound' ? rule : { type: 'folder', paths: [], recursive: true } satisfies ScopeRule;
+		const ruleType = editableRule.type;
 		new Setting(container)
 			.setName(`${name}识别方式`)
 			.setDesc(description)
@@ -325,55 +334,55 @@ export class VaultOsSettingTab extends PluginSettingTab {
 					else await onSave({ type: 'folder', paths: [], recursive: true }, true);
 				}));
 
-		if (rule?.type === 'folder') {
+		if (editableRule.type === 'folder') {
 			new Setting(container)
 				.setName(`${name}文件夹`)
 				.setDesc('使用逗号分隔多个路径，例如 Inbox, Capture。')
 				.addText(text => text
 					.setPlaceholder('例如：Inbox, Capture')
-					.setValue(rule.paths.join(', '))
+					.setValue(editableRule.paths.join(', '))
 					.onChange(async value => {
 						const paths = value.split(',').map(path => this.normalizeFolderPath(path)).filter(Boolean);
-						await onSave({ type: 'folder', paths, recursive: rule.recursive !== false });
+						await onSave({ type: 'folder', paths, recursive: editableRule.recursive !== false });
 					}));
 			new Setting(container)
 				.setName('包含子文件夹')
 				.setDesc('关闭后，只匹配该目录的直接 Markdown 文件。')
 				.addToggle(toggle => toggle
-					.setValue(rule.recursive !== false)
+					.setValue(editableRule.recursive !== false)
 					.onChange(async value => {
-						await onSave({ type: 'folder', paths: rule.paths, recursive: value });
+						await onSave({ type: 'folder', paths: editableRule.paths, recursive: value });
 					}));
-		} else if (rule?.type === 'tag') {
+		} else if (editableRule.type === 'tag') {
 			new Setting(container)
 				.setName(`${name}标签`)
 				.setDesc('使用逗号分隔多个标签，任一标签匹配即可。')
 				.addText(text => text
 					.setPlaceholder('inbox, capture')
-					.setValue(rule.tags.join(', '))
+					.setValue(editableRule.tags.join(', '))
 					.onChange(async value => {
 						const tags = value.split(',').map(tag => tag.trim()).filter(Boolean);
 						await onSave({ type: 'tag', tags });
 					}));
-		} else if (rule?.type === 'property') {
+		} else if (editableRule.type === 'property') {
 			new Setting(container)
 				.setName('属性名称')
 				.setDesc('例如 status、type 或 workflow。')
 				.addText(text => text
 					.setPlaceholder('status')
-					.setValue(rule.key)
+					.setValue(editableRule.key)
 					.onChange(async value => {
-						await onSave({ type: 'property', key: value.trim(), values: rule.values });
+						await onSave({ type: 'property', key: value.trim(), values: editableRule.values });
 					}));
 			new Setting(container)
 				.setName('属性值')
 				.setDesc('使用逗号分隔多个匹配值。')
 				.addText(text => text
 					.setPlaceholder('inbox, captured')
-					.setValue(rule.values.join(', '))
+					.setValue(editableRule.values.join(', '))
 					.onChange(async value => {
 						const values = value.split(',').map(item => item.trim()).filter(Boolean);
-						await onSave({ type: 'property', key: rule.key, values });
+						await onSave({ type: 'property', key: editableRule.key, values });
 					}));
 		}
 	}
@@ -494,7 +503,6 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			prompt: '',
 			requireInput: false,
 			enabled: true,
-			showOnHome: true,
 			inputPlaceholder: ''
 		};
 	}
@@ -525,12 +533,13 @@ export class VaultOsSettingTab extends PluginSettingTab {
 	}
 
 	private normalizeAction(action: ClaudianAction): ClaudianAction {
+		const normalizedAction = { ...action } as ClaudianAction & { showOnHome?: boolean };
+		delete normalizedAction.showOnHome;
 		return {
 			enabled: true,
 			description: '',
 			inputPlaceholder: '',
-			...action,
-			showOnHome: action.requireInput ? false : action.showOnHome !== false
+			...normalizedAction
 		};
 	}
 
@@ -622,7 +631,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			const textWrap = left.createDiv({ cls: 'vo-actions-compact-text' });
 			textWrap.createDiv({ text: action.label || `指令 ${index + 1}`, cls: 'vo-actions-compact-title' });
 			textWrap.createDiv({
-				text: (action.description || '').trim() || (action.requireInput ? '需要输入，仅在体检页执行' : action.showOnHome === false ? '不在首页显示' : '首页直接执行'),
+				text: (action.description || '').trim() || (action.requireInput ? '需要输入，仅在体检页执行' : '体检页直接执行'),
 				cls: 'vo-actions-compact-desc'
 			});
 
@@ -663,43 +672,6 @@ export class VaultOsSettingTab extends PluginSettingTab {
 					await this.saveAction(index, { ...action, enabled: !(action.enabled !== false) });
 				});
 			});
-		});
-	}
-
-	private renderActionPreview(sectionContent: HTMLElement): void {
-		const enabledActions = (this.plugin.settings.claudianActions || [])
-			.map(action => this.normalizeAction(action))
-			.filter(action => action.enabled !== false);
-		const iconOnlyActions = enabledActions.filter(action => !action.requireInput && action.showOnHome !== false);
-		const inputActions = enabledActions.filter(action => action.requireInput);
-
-		const previewSection = sectionContent.createDiv({ cls: 'vo-actions-preview-section' });
-		this.createSectionHeading(previewSection, '面板预览');
-
-		const iconCard = previewSection.createDiv({ cls: 'vo-actions-preview-card' });
-		iconCard.createDiv({ text: '纯按钮区', cls: 'vo-actions-preview-label' });
-		const iconGrid = iconCard.createDiv({ cls: 'vo-actions-preview-grid vo-actions-preview-grid-four' });
-		iconOnlyActions.forEach(action => {
-			const btn = iconGrid.createDiv({ cls: 'vo-actions-preview-button' });
-			const iconWrap = btn.createDiv({ cls: 'vo-actions-preview-button-icon' });
-			setIcon(iconWrap, action.icon || 'bot');
-			btn.createSpan({ text: action.label });
-		});
-
-		const inputCard = previewSection.createDiv({ cls: 'vo-actions-preview-card' });
-		inputCard.createDiv({ text: '输入框区', cls: 'vo-actions-preview-label' });
-		const inputGrid = inputCard.createDiv({ cls: 'vo-actions-preview-grid vo-actions-preview-grid-two' });
-		inputActions.forEach(action => {
-			const row = inputGrid.createDiv({ cls: 'vo-actions-preview-input-row' });
-			row.createEl('input', {
-				type: 'text',
-				placeholder: action.inputPlaceholder || '',
-				attr: { disabled: 'true' }
-			});
-			const btn = row.createDiv({ cls: 'vo-actions-preview-input-button' });
-			const iconWrap = btn.createDiv({ cls: 'vo-actions-preview-button-icon' });
-			setIcon(iconWrap, action.icon || 'bot');
-			btn.createSpan({ text: action.label });
 		});
 	}
 
@@ -761,6 +733,56 @@ export class VaultOsSettingTab extends PluginSettingTab {
 						this.plugin.settings.containerMaxWidth = value;
 						await this.plugin.saveSettings();
 						this.refreshDashboardView();
+					}));
+
+			this.createSectionHeading(sectionContent, '每日阅读回看');
+			this.createNote(
+				sectionContent,
+				'首页会从此范围的 Markdown 块引用中读取带“想法、笔记或感想”的内容，每天稳定随机展示一条。读取只发生在本地，不依赖 Jarvis Reader 的私有数据。'
+			);
+			this.renderScopeRuleEditor(
+				sectionContent,
+				'阅读回看范围',
+				'建议选择你的读书笔记文件夹；也可按标签或属性筛选。未配置时首页不会扫描整个仓库。',
+				this.plugin.settings.readingReflectionScope,
+				(rule, rerenderSettings) => this.saveReadingReflectionScope(rule, rerenderSettings)
+			);
+
+			const dailyContext = this.getDailyContextSettings();
+			this.createSectionHeading(sectionContent, '天气与外部每日一句');
+			this.createNote(
+				sectionContent,
+				'两项默认关闭。开启天气后会将城市名称发送给 Open-Meteo；开启每日一句后会请求一言或 ZenQuotes。每项每天最多更新一次，离线时保留最近缓存。'
+			);
+			new Setting(sectionContent)
+				.setName('显示天气')
+				.setDesc('仅使用你填写的城市名，不请求设备定位。')
+				.addToggle(toggle => toggle.setValue(dailyContext.weatherEnabled).onChange(async value => {
+					await this.saveDailyContextSettings({ ...this.getDailyContextSettings(), weatherEnabled: value });
+				}));
+			new Setting(sectionContent)
+				.setName('天气城市')
+				.setDesc('例如：北京、上海、London。仅在开启天气后用于查询。')
+				.addText(text => text.setPlaceholder('输入城市').setValue(dailyContext.weatherCity).onChange(async value => {
+					await this.saveDailyContextSettings({ ...this.getDailyContextSettings(), weatherCity: value.trim(), cache: undefined });
+				}));
+			new Setting(sectionContent)
+				.setName('显示外部每日一句')
+				.setDesc('与个人阅读回看并列为小型补充，保留原始来源与作者。')
+				.addToggle(toggle => toggle.setValue(dailyContext.quoteEnabled).onChange(async value => {
+					await this.saveDailyContextSettings({ ...this.getDailyContextSettings(), quoteEnabled: value });
+				}));
+			new Setting(sectionContent)
+				.setName('每日一句语言')
+				.setDesc('中文来自一言，英文来自 ZenQuotes；中英随机按日期稳定选择。')
+				.addDropdown(dropdown => dropdown
+					.addOption('zh', '中文')
+					.addOption('en', '英文')
+					.addOption('mixed', '中英随机')
+					.setValue(dailyContext.quoteLanguage)
+					.onChange(async value => {
+						const quoteLanguage = value === 'en' || value === 'mixed' ? value : 'zh';
+						await this.saveDailyContextSettings({ ...this.getDailyContextSettings(), quoteLanguage, cache: undefined });
 					}));
 
 			return;

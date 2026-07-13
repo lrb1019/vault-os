@@ -1,15 +1,16 @@
 import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, } from 'obsidian';
 import { Setting } from 'obsidian';
 import VaultOsPlugin from './main';
-import { ReadingService } from './services/ReadingService';
 import { DiaryService } from './services/DiaryService';
 import { TaskService, CompletedTaskItem, HabitCheckinItem, FocusItem, HabitItem } from './services/TaskService';
 import { VaultFileOperationService } from './services/VaultFileOperationService';
 import { VaultHealthReportService } from './services/VaultHealthReportService';
 import { ClaudianActionService } from './services/ClaudianActionService';
+import { DailyReadingReflectionService } from './services/DailyReadingReflectionService';
+import { DailyContextService } from './services/DailyContextService';
 import { VaultService, VaultOverviewStats } from './services/VaultService';
 import { buildMonthlyHealthReport, getMonthlyHealthReportFileName } from './domain/health-report';
-import { shouldShowActionOnHome } from './domain/action-visibility';
+import { chooseDailyReadingReflection } from './domain/daily-reflection';
 
 interface ScanResultCategory {
 	count: number;
@@ -598,25 +599,28 @@ export class VaultOsView extends ItemView {
 	}
 
 	// 服务实例
-	private readingService: ReadingService;
 	private diaryService: DiaryService;
 	private taskService: TaskService;
 	private vaultService: VaultService;
 	private fileOperations: VaultFileOperationService;
 	private healthReports: VaultHealthReportService;
 	private claudianActions: ClaudianActionService;
+	private dailyReflections: DailyReadingReflectionService;
+	private dailyContext: DailyContextService;
+	private dailyReflectionOffset = 0;
 
 	constructor(leaf: WorkspaceLeaf, plugin: VaultOsPlugin) {
 		super(leaf);
 		this.plugin = plugin;
 		
-		this.readingService = new ReadingService(this.app);
 		this.diaryService = new DiaryService(this.plugin);
 		this.taskService = new TaskService(this.plugin);
 		this.vaultService = new VaultService(this.plugin);
 		this.fileOperations = new VaultFileOperationService(this.app);
 		this.healthReports = new VaultHealthReportService(this.app);
 		this.claudianActions = new ClaudianActionService(this.app);
+		this.dailyReflections = new DailyReadingReflectionService(this.app);
+		this.dailyContext = new DailyContextService(this.plugin);
 	}
 
 	private calculateLintHealthScore(scanData: ScanData): number {
@@ -812,7 +816,7 @@ export class VaultOsView extends ItemView {
 	private renderTopTelemetry(parent: Element): void {
 		const telemetry = parent.createDiv({ 
 			cls: 'vo-top-telemetry', 
-			attr: { style: 'border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent); padding-bottom: 8px; margin-bottom: 12px;' } 
+			attr: { style: 'border-bottom: 1px solid color-mix(in srgb, var(--background-modifier-border) 40%, transparent); padding-bottom: 10px; margin-bottom: 14px;' }
 		});
 		
 		// Three-column layout
@@ -827,7 +831,7 @@ export class VaultOsView extends ItemView {
 		const centerCol = headerRow.createDiv({ attr: { style: 'display: flex; justify-content: center; align-items: center; flex: 2;' } });
 		centerCol.createEl('h1', { 
 			text: this.plugin.settings.dashboardTitle || 'Vault OS', 
-			attr: { style: 'font-size: 22px; font-weight: 600 !important; margin: 0; color: var(--text-normal); letter-spacing: 0.14em; font-family: var(--font-interface);' }
+			attr: { style: 'font-size: 26px; font-weight: 600 !important; margin: 0; color: var(--text-normal); letter-spacing: 0.12em; font-family: var(--font-interface);' }
 		});
 		
 		// 3. Right column: Metadata (uptime, version)
@@ -992,18 +996,19 @@ export class VaultOsView extends ItemView {
 		const today = moment();
 		const header = container.createDiv({ cls: 'vo-home-hero' });
 		const headerCopy = header.createDiv({ cls: 'vo-home-hero-copy' });
-		headerCopy.createDiv({ text: 'VAULT OS / DAILY CONSOLE', cls: 'vo-home-eyebrow' });
-		headerCopy.createEl('h2', { text: '今天从哪里开始？', cls: 'vo-home-title' });
-		headerCopy.createDiv({ text: '记录、复盘、体检和个人智能指令集中在这里。', cls: 'vo-home-subtitle' });
-		const dateBadge = header.createDiv({ cls: 'vo-home-date-badge' });
+		headerCopy.createDiv({ text: 'DAILY QUOTE / 今日引言', cls: 'vo-home-eyebrow' });
+		const dateContext = header.createDiv({ cls: 'vo-home-date-context' });
+		const dateBadge = dateContext.createDiv({ cls: 'vo-home-date-badge' });
 		dateBadge.createDiv({ text: today.format('ddd').toUpperCase(), cls: 'vo-home-date-weekday' });
 		dateBadge.createDiv({ text: today.format('DD'), cls: 'vo-home-date-day' });
 		dateBadge.createDiv({ text: today.format('YYYY.MM'), cls: 'vo-home-date-month' });
+		this.renderHomeExternalContext(headerCopy, dateContext);
 
-		const grid = container.createDiv({ cls: 'vo-home-overview-grid' });
+		const startSection = container.createDiv({ cls: 'vo-home-start-section' });
+		const grid = startSection.createDiv({ cls: 'vo-home-start-grid' });
 		const periodCard = grid.createDiv({ cls: 'vo-home-card vo-home-card-period' });
 		const periodTopline = periodCard.createDiv({ cls: 'vo-home-card-topline' });
-		periodTopline.createDiv({ text: '当前周期', cls: 'vo-home-card-label' });
+		periodTopline.createDiv({ text: '今日记录', cls: 'vo-home-card-label' });
 		const periodIcon = periodTopline.createDiv({ cls: 'vo-home-card-icon' });
 		setIcon(periodIcon, 'notebook-pen');
 		const dailyTarget = this.diaryService.resolvePeriodicNotePath(today, 'day');
@@ -1029,68 +1034,136 @@ export class VaultOsView extends ItemView {
 			})();
 		});
 
-		const healthCard = grid.createDiv({ cls: 'vo-home-card' });
-		const healthTopline = healthCard.createDiv({ cls: 'vo-home-card-topline' });
-		healthTopline.createDiv({ text: '知识库体检', cls: 'vo-home-card-label' });
-		const healthIcon = healthTopline.createDiv({ cls: 'vo-home-card-icon vo-home-card-icon-health' });
-		setIcon(healthIcon, 'shield-check');
-		const healthMetrics = healthCard.createDiv({ cls: 'vo-home-metrics' });
-		const inboxMetric = this.createHomeMetric(healthMetrics, 'Inbox');
-		const deadLinkMetric = this.createHomeMetric(healthMetrics, '死链');
-		const emptyMetric = this.createHomeMetric(healthMetrics, '空白');
-		const healthButton = healthCard.createEl('button', { text: '打开体检', cls: 'vo-btn vo-btn-secondary vo-home-card-action' });
-		healthButton.addEventListener('click', () => {
-			this.activeMainTab = 'lint';
+		const reviewCard = grid.createDiv({ cls: 'vo-home-card' });
+		const reviewTopline = reviewCard.createDiv({ cls: 'vo-home-card-topline' });
+		reviewTopline.createDiv({ text: '周期复盘', cls: 'vo-home-card-label' });
+		const reviewIcon = reviewTopline.createDiv({ cls: 'vo-home-card-icon' });
+		setIcon(reviewIcon, 'calendar-days');
+		reviewCard.createDiv({ text: '回到本周，整理已发生的事。', cls: 'vo-home-card-title' });
+		reviewCard.createDiv({ text: '日 / 周 / 月 / 季 / 年记', cls: 'vo-home-card-detail' });
+		const reviewButton = reviewCard.createEl('button', { text: '进入周期复盘', cls: 'vo-btn vo-btn-secondary vo-home-card-action' });
+		reviewButton.addEventListener('click', () => {
+			this.activeMainTab = 'diary';
+			this.periodicTab = 'week';
 			this.render();
 		});
+
+		const attentionCard = grid.createDiv({ cls: 'vo-home-card vo-home-attention-card' });
+		this.renderHomeAttentionCard(attentionCard);
+
+		this.renderDailyReflectionCard(container, today.format('YYYY-MM-DD'));
+	}
+
+	private renderHomeExternalContext(quoteParent: HTMLElement, weatherParent: HTMLElement): void {
+		const settings = this.dailyContext.getSettings();
+		if (!settings.weatherEnabled && !settings.quoteEnabled) return;
+		if (settings.weatherEnabled && settings.weatherCity.trim()) {
+			const weather = weatherParent.createDiv({ cls: 'vo-home-context-weather' });
+			weather.createSpan({ text: '天气加载中…' });
+			void this.dailyContext.getWeather().then(result => {
+				if (!weather.isConnected || !result) return;
+				weather.empty();
+				const icon = weather.createSpan({ cls: 'vo-home-context-icon' });
+				setIcon(icon, result.icon);
+				weather.createSpan({ text: `${result.city} · ${result.condition} · ${result.temperature}°` });
+			}).catch(() => {
+				if (weather.isConnected) weather.setText('天气暂不可用');
+			});
+		}
+		if (settings.quoteEnabled) {
+			const quote = quoteParent.createDiv({ cls: 'vo-home-context-quote' });
+			quote.createSpan({ text: '每日一句加载中…' });
+			void this.dailyContext.getQuote().then(result => {
+				if (!quote.isConnected || !result) return;
+				quote.empty();
+				quote.createDiv({ text: `“${result.text}”`, cls: 'vo-home-context-quote-text' });
+				const attribution = quote.createDiv({ cls: 'vo-home-context-quote-attribution' });
+				attribution.createSpan({ text: `— ${result.author}` });
+				const source = attribution.createEl('a', { text: result.provider, href: result.url, cls: 'external-link', attr: { target: '_blank', rel: 'noopener noreferrer' } });
+				source.setAttr('aria-label', `${result.provider} 来源`);
+			}).catch(() => {
+				if (quote.isConnected) quote.setText('每日一句暂不可用');
+			});
+		}
+	}
+
+	private renderDailyReflectionCard(parent: HTMLElement, dayKey: string): void {
+		const card = parent.createDiv({ cls: 'vo-home-reflection-card' });
+		const header = card.createDiv({ cls: 'vo-home-reflection-header' });
+		const label = header.createDiv({ cls: 'vo-home-reflection-label' });
+		const icon = label.createDiv({ cls: 'vo-home-card-icon' });
+		setIcon(icon, 'quote');
+		label.createDiv({ text: '每日阅读回看', cls: 'vo-home-section-title' });
+		const controls = header.createDiv({ cls: 'vo-home-reflection-controls' });
+		const rotateButton = controls.createEl('button', { text: '换一条', cls: 'vo-btn vo-btn-secondary vo-home-reflection-rotate' });
+		rotateButton.disabled = !this.plugin.settings.readingReflectionScope;
+		const body = card.createDiv({ cls: 'vo-home-reflection-body' });
+
+		if (!this.plugin.settings.readingReflectionScope) {
+			body.createDiv({ text: '尚未配置阅读回看范围。请在设置的“看板基础设置”中选择读书笔记文件夹、标签或属性规则。', cls: 'vo-home-empty-state' });
+			return;
+		}
+		body.createDiv({ text: '正在读取你的阅读感想…', cls: 'vo-home-empty-state' });
+		const renderReflection = () => {
+			void this.dailyReflections.getReflections(this.plugin.settings.readingReflectionScope).then(reflections => {
+				if (!body.isConnected) return;
+				body.empty();
+				const reflection = chooseDailyReadingReflection(reflections, dayKey, this.dailyReflectionOffset);
+				if (!reflection) {
+					body.createDiv({ text: '此范围内还没有带个人想法、笔记或感想的阅读块。纯划线会保持安静，不进入每日回看。', cls: 'vo-home-empty-state' });
+					return;
+				}
+				body.createDiv({ text: reflection.reflection, cls: 'vo-home-reflection-text' });
+				if (reflection.quote) body.createDiv({ text: reflection.quote, cls: 'vo-home-reflection-quote' });
+				const meta = body.createDiv({ cls: 'vo-home-reflection-meta' });
+				meta.createSpan({ text: reflection.bookTitle });
+				meta.createSpan({ text: reflection.chapterTitle });
+				if (reflection.createdAt) meta.createSpan({ text: reflection.createdAt });
+				const openButton = body.createEl('button', { text: '回到原文', cls: 'vo-btn vo-btn-secondary vo-home-reflection-open' });
+				openButton.addEventListener('click', () => this.dailyReflections.openReflection(reflection));
+			}).catch(() => {
+				if (!body.isConnected) return;
+				body.empty();
+				body.createDiv({ text: '无法读取阅读回看内容，请检查范围与 Markdown 格式。', cls: 'vo-home-empty-state' });
+			});
+		};
+		rotateButton.addEventListener('click', () => {
+			this.dailyReflectionOffset++;
+			renderReflection();
+		});
+		renderReflection();
+	}
+
+	private renderHomeAttentionCard(card: HTMLElement): void {
+		const header = card.createDiv({ cls: 'vo-home-card-topline' });
+		header.createDiv({ text: '需要注意', cls: 'vo-home-card-label' });
+		const icon = header.createDiv({ cls: 'vo-home-card-icon' });
+		setIcon(icon, 'shield-check');
+		const content = card.createDiv({ cls: 'vo-home-attention-content' });
+		content.createDiv({ text: '正在检查…', cls: 'vo-home-card-detail' });
 		void Promise.all([
 			this.vaultService.getInboxBacklog(),
 			this.vaultService.getDeadLinkCount(),
 			this.vaultService.getEmptyNotesCount()
 		]).then(([inbox, deadLinks, empty]) => {
-			inboxMetric.setText(String(inbox.count));
-			deadLinkMetric.setText(String(deadLinks.count));
-			emptyMetric.setText(String(empty.count));
-		}).catch(() => {
-			inboxMetric.setText('—');
-			deadLinkMetric.setText('—');
-			emptyMetric.setText('—');
-		});
-
-		const tickTickCard = grid.createDiv({ cls: 'vo-home-card' });
-		const tickTickTopline = tickTickCard.createDiv({ cls: 'vo-home-card-topline' });
-		tickTickTopline.createDiv({ text: '时间回顾', cls: 'vo-home-card-label' });
-		const tickTickIcon = tickTickTopline.createDiv({ cls: 'vo-home-card-icon vo-home-card-icon-time' });
-		setIcon(tickTickIcon, 'timer-reset');
-		const taskStats = this.taskService.getCache();
-		const taskMetrics = tickTickCard.createDiv({ cls: 'vo-home-metrics' });
-		this.createHomeMetric(taskMetrics, '待办').setText(String(taskStats.todayCount));
-		this.createHomeMetric(taskMetrics, '完成').setText(String(taskStats.completedCount));
-		this.createHomeMetric(taskMetrics, '逾期').setText(String(taskStats.overdueCount));
-		const syncButton = tickTickCard.createEl('button', { text: '同步 TickTick 摘要', cls: 'vo-btn vo-btn-secondary vo-home-card-action' });
-		syncButton.disabled = this.taskService.getSyncStatus().state === 'syncing';
-		syncButton.addEventListener('click', () => this.triggerTickTickSync());
-
-		const actionCard = container.createDiv({ cls: 'vo-home-actions' });
-		const actionHeader = actionCard.createDiv({ cls: 'vo-home-actions-header' });
-		actionHeader.createDiv({ text: '个人智能指令', cls: 'vo-home-section-title' });
-		const actions = (this.plugin.settings.claudianActions || []).filter(shouldShowActionOnHome);
-		actionHeader.createDiv({ text: `主页直达 ${actions.length} 项`, cls: 'vo-home-section-note' });
-		const actionGrid = actionCard.createDiv({ cls: 'vo-home-action-grid' });
-		for (const action of actions) {
-			const button = actionGrid.createEl('button', { cls: 'vo-home-action-button' });
-			const actionIcon = button.createSpan({ cls: 'vo-home-action-icon' });
-			setIcon(actionIcon, action.icon || 'sparkles');
-			const actionText = button.createSpan({ cls: 'vo-home-action-copy' });
-			actionText.createSpan({ text: action.label, cls: 'vo-home-action-label' });
-			actionText.createSpan({ text: action.description || '立即发送到 Claudian', cls: 'vo-home-action-description' });
+			if (!content.isConnected) return;
+			content.empty();
+			const messages = [
+				inbox.count > 0 ? `Inbox 待处理 ${inbox.count} 项` : '',
+				deadLinks.count > 0 ? `死链 ${deadLinks.count} 项` : '',
+				empty.count > 0 ? `空白笔记 ${empty.count} 项` : ''
+			].filter(Boolean);
+			content.createDiv({ text: messages.length ? messages.join(' · ') : '当前没有需要立即处理的体检问题。', cls: 'vo-home-card-title' });
+			const button = card.createEl('button', { text: messages.length ? '查看体检问题' : '打开知识库体检', cls: 'vo-btn vo-btn-secondary vo-home-card-action' });
 			button.addEventListener('click', () => {
-				this.triggerClaudianPrompt(action.prompt);
+				this.activeMainTab = 'lint';
+				this.render();
 			});
-		}
-		if (actions.length === 0) {
-			actionGrid.createSpan({ text: '没有可在首页直接执行的指令。请在设置中启用“在首页显示”，或到体检页执行需要输入参数的指令。', cls: 'vo-home-empty-state' });
-		}
+		}).catch(() => {
+			if (!content.isConnected) return;
+			content.empty();
+			content.createDiv({ text: '体检摘要暂不可用。', cls: 'vo-home-card-title' });
+		});
 	}
 
 	private createHomeMetric(parent: HTMLElement, label: string): HTMLElement {

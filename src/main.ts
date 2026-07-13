@@ -4,6 +4,7 @@ import { VaultOsSettings, DEFAULT_SETTINGS, VaultOsSettingTab } from './settings
 
 export default class VaultOsPlugin extends Plugin {
 	settings!: VaultOsSettings;
+	private settingsWriteQueue: Promise<void> = Promise.resolve();
 
 	async onload() {
 		await this.loadSettings();
@@ -36,13 +37,17 @@ export default class VaultOsPlugin extends Plugin {
 	}
 
 	async saveSettings() {
-		await this.saveData(this.settings);
-		const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_VAULT_OS);
-		for (const leaf of leaves) {
-			if (leaf.view instanceof VaultOsView) {
-				leaf.view.render();
+		const write = this.settingsWriteQueue.catch(() => undefined).then(async () => {
+			await this.saveData(this.settings);
+			const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_VAULT_OS);
+			for (const leaf of leaves) {
+				if (leaf.view instanceof VaultOsView) {
+					leaf.view.render();
+				}
 			}
-		}
+		});
+		this.settingsWriteQueue = write;
+		return write;
 	}
 
 	async activateView() {
