@@ -9,10 +9,6 @@
 	scrollbar-gutter: stable;
 }
 
-.vo-ticktick-wrapper {
-	min-height: 0;
-}
-
 /* 细线圆角框与底部轻微阴影 (参考 jarvis reader) */
 .vo-card, 
 .vo-tech-card,
@@ -77,6 +73,11 @@
 	padding: 14px 24px;
 	margin-bottom: 24px;
 	box-sizing: border-box;
+}
+
+.vo-lint-metric-item {
+	display: flex;
+	gap: 12px;
 }
 
 /* 仓库容量条 (Vault Telemetry Bar) */
@@ -1338,102 +1339,6 @@
 	height: 10px;
 	border-radius: 2px;
 	background-color: color-mix(in srgb, var(--background-modifier-border) 40%, transparent);
-}
-
-/* 今日待办与今日习惯打卡大屏布局 */
-.vo-tasks-wrapper {
-	width: 100%;
-	display: flex;
-	flex-direction: column;
-	gap: 20px;
-}
-
-.vo-habit-list {
-	display: flex;
-	flex-direction: column;
-	gap: 12px;
-	margin-top: 12px;
-}
-
-.vo-habit-item {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	padding: 8px 12px;
-	border-radius: 8px;
-	background: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border);
-	transition: all 0.2s ease;
-}
-
-.vo-habit-item:hover {
-	background: var(--background-modifier-hover);
-}
-
-.vo-habit-check-btn {
-	transition: all 0.2s ease;
-}
-
-.vo-habit-check-btn:hover {
-	transform: scale(1.1);
-}
-
-.vo-habit-check-btn.is-completed {
-	background: var(--interactive-accent) !important;
-	border-color: var(--interactive-accent) !important;
-	color: var(--text-on-accent) !important;
-}
-
-/* Today's Tasks Styling */
-.vo-task-list {
-	margin-top: 16px;
-}
-
-.vo-task-item {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	padding: 8px 12px;
-	border-radius: 8px;
-	background: var(--background-secondary);
-	border: 1px solid var(--background-modifier-border);
-	transition: all 0.2s ease;
-	margin-bottom: 8px;
-}
-
-.vo-task-item:hover {
-	background: var(--background-modifier-hover);
-}
-
-.vo-task-check-btn {
-	border-radius: 50%;
-	width: 24px;
-	height: 24px;
-	padding: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	border: 1px solid var(--background-modifier-border);
-	background: transparent;
-	color: transparent;
-	transition: all 0.2s ease;
-}
-
-.vo-task-check-btn:hover {
-	transform: scale(1.1);
-}
-
-.vo-task-check-btn.is-completed {
-	border: 1px solid var(--text-success) !important;
-	background: transparent !important;
-	color: var(--text-success) !important;
-	cursor: not-allowed;
-}
-
-.vo-task-text.is-completed {
-	text-decoration: line-through;
-	color: var(--text-muted);
 }
 
 /* Custom Dropdown select menu styling to match Obsidian theme background */

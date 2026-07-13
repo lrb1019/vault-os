@@ -5,28 +5,6 @@ import { VaultProfileDiscoveryService } from './services/VaultProfileDiscoverySe
 import { createDefaultManualPeriodicConfig, type ManualPeriodicConfig, type PeriodicCycle } from './domain/periodic-note';
 import { DEFAULT_DAILY_CONTEXT_SETTINGS, type DailyContextSettings } from './domain/daily-context';
 
-function stringifyHeaderLines(headers: Record<string, string>): string {
-	return Object.entries(headers)
-		.map(([key, value]) => `${key}=${value}`)
-		.join('\n');
-}
-
-function parseHeaderLines(raw: string): Record<string, string> {
-	const headers: Record<string, string> = {};
-	for (const line of raw.split(/\r?\n/)) {
-		const trimmed = line.trim();
-		if (!trimmed) continue;
-		const separatorIndex = trimmed.indexOf('=');
-		if (separatorIndex <= 0) continue;
-		const key = trimmed.slice(0, separatorIndex).trim();
-		const value = trimmed.slice(separatorIndex + 1).trim();
-		if (key) {
-			headers[key] = value;
-		}
-	}
-	return headers;
-}
-
 export interface ClaudianAction {
 	id: string;
 	label: string;
@@ -36,14 +14,6 @@ export interface ClaudianAction {
 	requireInput: boolean;
 	enabled?: boolean;
 	inputPlaceholder?: string;
-}
-
-export interface TickTickMcpConfig {
-	enabled: boolean;
-	serviceName: string;
-	type: 'http';
-	url: string;
-	headers: Record<string, string>;
 }
 
 export interface VaultOsSettings {
@@ -61,12 +31,6 @@ export interface VaultOsSettings {
 	outputFolder: string;
 	atomicsFolder: string;
 	
-	// Legacy import path for migration / optional fallback
-	mcpConfigPath: string;
-	ticktickMcp: TickTickMcpConfig;
-	ticktickCachePath: string;
-	ticktickSyncDebounce: number;
-	
 	// Heatmap & Scale settings (new settings)
 	heatmapCellSize: number;
 	heatmapCellGap: number;
@@ -77,7 +41,7 @@ export interface VaultOsSettings {
 	dailyContext?: DailyContextSettings;
 }
 
-type SettingsTabId = 'general' | 'paths' | 'profile' | 'mcp' | 'actions';
+type SettingsTabId = 'general' | 'paths' | 'profile' | 'actions';
 type EditableProfileScope = 'inbox' | 'knowledge' | 'outputs';
 
 export const DEFAULT_SETTINGS: VaultOsSettings = {
@@ -105,16 +69,6 @@ export const DEFAULT_SETTINGS: VaultOsSettings = {
 	archiveFolder: "06 Archive",
 	outputFolder: "05 Output",
 	atomicsFolder: "04 Atomics",
-	mcpConfigPath: ".claude/mcp.json",
-	ticktickMcp: {
-		enabled: true,
-		serviceName: "ticktick",
-		type: "http",
-		url: "",
-		headers: {}
-	},
-	ticktickCachePath: "07 Jarvis/ticktick-cache.json",
-	ticktickSyncDebounce: 2000,
 	heatmapCellSize: 12,
 	heatmapCellGap: 3,
 	heatmapDoubleCellSize: 9,
@@ -698,7 +652,6 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		createTabBtn('general', '看板基础设置', 'layout');
 		createTabBtn('paths', '知识库路径', 'folder');
 		createTabBtn('profile', '仓库规则', 'sliders-horizontal');
-		createTabBtn('mcp', 'TickTick 连接', 'cpu');
 		createTabBtn('actions', '智能指令', 'bot');
 
 		// Render active tab content
@@ -922,74 +875,6 @@ export class VaultOsSettingTab extends PluginSettingTab {
 				this.renderVaultProfileSettings(sectionContent);
 				return;
 
-			} else if (this.activeTab === 'mcp') {
-			this.createNote(
-				sectionContent,
-				'TickTick 连接现在由本插件独立管理，不再和其他插件共用 MCP 配置文件。这里保留的都是当前真正会影响连接结果的字段。'
-			);
-			this.createNote(
-				sectionContent,
-				'本地缓存文件由插件内部自动读写，不需要再单独暴露给设置页。只有在你明确知道自己要改什么时，才需要动下面的高级字段。',
-				'vo-settings-note-subtle'
-			);
-
-			new Setting(sectionContent)
-				.setName('TickTick 连接启用状态')
-				.setDesc('关闭后，面板将不再尝试请求 TickTick MCP 接口。')
-				.addToggle(toggle => toggle
-					.setValue(this.plugin.settings.ticktickMcp.enabled)
-					.onChange(async (value) => {
-						this.plugin.settings.ticktickMcp.enabled = value;
-						await this.plugin.saveSettings();
-					}));
-
-			new Setting(sectionContent)
-				.setName('TickTick 接口地址')
-				.setDesc('HTTP 类型 MCP 端点地址，例如 https://mcp.ticktick.com')
-				.addText(text => text
-					.setPlaceholder('https://mcp.ticktick.com')
-					.setValue(this.plugin.settings.ticktickMcp.url)
-					.onChange(async (value) => {
-						this.plugin.settings.ticktickMcp.url = value.trim();
-						await this.plugin.saveSettings();
-					}));
-
-			new Setting(sectionContent)
-				.setName('TickTick 请求头')
-				.setDesc('每行一个 key=value，例如 Authorization=Bearer ...')
-				.addTextArea(text => text
-					.setPlaceholder('Authorization=Bearer ...')
-					.setValue(stringifyHeaderLines(this.plugin.settings.ticktickMcp.headers))
-					.onChange(async (value) => {
-						this.plugin.settings.ticktickMcp.headers = parseHeaderLines(value);
-						await this.plugin.saveSettings();
-					}));
-
-			new Setting(sectionContent)
-				.setName('TickTick 服务标识符')
-				.setDesc('高级项。用于插件内部识别该连接，通常保持 ticktick 即可。')
-				.addText(text => text
-					.setPlaceholder('ticktick')
-					.setValue(this.plugin.settings.ticktickMcp.serviceName)
-					.onChange(async (value) => {
-						this.plugin.settings.ticktickMcp.serviceName = value.trim() || 'ticktick';
-						await this.plugin.saveSettings();
-					}));
-
-			new Setting(sectionContent)
-				.setName('同步防抖延迟 (毫秒)')
-				.setDesc('打卡后触发 TickTick 二次同步前的等待时长，避免接口延迟覆盖最新状态。')
-				.addText(text => text
-					.setPlaceholder('2000')
-					.setValue(String(this.plugin.settings.ticktickSyncDebounce))
-					.onChange(async (value) => {
-						const num = parseInt(value);
-						if (!isNaN(num)) {
-							this.plugin.settings.ticktickSyncDebounce = num;
-							await this.plugin.saveSettings();
-						}
-					}));
-			return;
 
 		} else if (this.activeTab === 'actions') {
 			this.createNote(

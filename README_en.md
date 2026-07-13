@@ -1,16 +1,16 @@
 # Vault OS
 
-Vault OS is an Obsidian home surface for personal knowledge work. It brings daily capture, periodic review, vault health checks, personal AI actions, and TickTick summary data into one custom view.
+Vault OS is an Obsidian home surface for personal knowledge work. It brings daily capture, periodic review, vault health checks, personal AI actions, and daily reading reflection into one custom view.
 
 ## Current Scope
 
 The primary navigation has three entries:
 
-- **Home**: today's journal, health summary, TickTick summary, and user-configured AI actions.
+- **Home**: daily quote, today's journal, review and health entry points, and daily reading reflection.
 - **Periodic Review**: open, create, and revisit daily, weekly, monthly, quarterly, and yearly notes.
 - **Vault Health**: inbox backlog, un-ingested diaries, orphan candidates, dead links, and empty notes.
 
-Vault OS does not duplicate a full task manager or project manager. TickTick remains the execution system; Vault OS only shows review-oriented summary data. Use Obsidian Bases or project notes for project management.
+Vault OS does not duplicate a task manager or project manager. Time-bound execution remains in dedicated tools; Vault OS focuses on knowledge capture, review, and maintenance.
 
 ## Install
 
@@ -24,7 +24,6 @@ Vault OS does not duplicate a full task manager or project manager. TickTick rem
 2. An existing vault can scan Inbox candidates in `Vault Rules`. Candidate detection reads paths, tags, and frontmatter only; it is saved only after your confirmation.
 3. Configure `Notebook Navigator` and `Templater` if you want template-driven periodic notes. Without them, Vault OS falls back to manual periodic names.
 4. Install `realclaudian` and define your own actions in Settings if you want AI actions.
-5. Configure the endpoint and headers under `TickTick connection` if you want time summaries.
 
 ## Vault Rules
 
@@ -79,12 +78,6 @@ Supported variables:
 - `{{output_path}}`
 
 Vault OS handles template rendering, Claudian availability checks, and result feedback. The unstable Claudian plugin object and DOM hand-off are isolated; an unavailable plugin reports a clear message and does not discard your configuration.
-
-## TickTick Summary
-
-Home shows pending, completed, and overdue summary counts. A remote request is only made after the user clicks sync.
-
-Remote sync and local cache state are separate. If remote data succeeds but the local cache write fails, the interface reports the missing cache instead of claiming a fully successful sync. Headers and tokens are not written to logs, reports, or the repository.
 
 ## Development
 

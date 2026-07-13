@@ -2,6 +2,13 @@ import { Plugin } from 'obsidian';
 import { VaultOsView, VIEW_TYPE_VAULT_OS } from './DashboardView';
 import { VaultOsSettings, DEFAULT_SETTINGS, VaultOsSettingTab } from './settings';
 
+type LegacyTickTickSettings = VaultOsSettings & {
+	mcpConfigPath?: unknown;
+	ticktickMcp?: unknown;
+	ticktickCachePath?: unknown;
+	ticktickSyncDebounce?: unknown;
+};
+
 export default class VaultOsPlugin extends Plugin {
 	settings!: VaultOsSettings;
 	private settingsWriteQueue: Promise<void> = Promise.resolve();
@@ -34,6 +41,14 @@ export default class VaultOsPlugin extends Plugin {
 
 	async loadSettings() {
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, (await this.loadData()) as Record<string, unknown> | null);
+		const legacySettings = this.settings as LegacyTickTickSettings;
+		const hasLegacyTickTickSettings = ['mcpConfigPath', 'ticktickMcp', 'ticktickCachePath', 'ticktickSyncDebounce']
+			.some(key => Object.prototype.hasOwnProperty.call(legacySettings, key));
+		delete legacySettings.mcpConfigPath;
+		delete legacySettings.ticktickMcp;
+		delete legacySettings.ticktickCachePath;
+		delete legacySettings.ticktickSyncDebounce;
+		if (hasLegacyTickTickSettings) await this.saveData(this.settings);
 	}
 
 	async saveSettings() {

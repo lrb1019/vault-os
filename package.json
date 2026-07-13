@@ -1,7 +1,7 @@
 {
 	"name": "vault-os",
-	"version": "1.5.1",
-	"description": "A unified Obsidian operating surface for vault stats, diaries, lint, TickTick, projects, and custom AI actions.",
+	"version": "1.6.0",
+	"description": "A focused Obsidian workspace for journals, periodic review, vault health, and custom AI actions.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
