@@ -1055,11 +1055,245 @@
 }
 
 .vo-lint-workspace {
+	display: flex;
+	flex: 1 1 auto;
+	flex-direction: column;
+	min-height: 0;
 	gap: 14px;
+	padding: 0 2px 12px 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scrollbar-gutter: stable;
+}
+
+.vo-workflow-diagnostics-card {
+	padding: 10px;
+	margin-bottom: 10px;
+	background: color-mix(in srgb, var(--vo-workspace-accent) 5%, var(--vo-workspace-surface));
+	overflow: visible;
+}
+
+.vo-workflow-diagnostics-card .vo-workspace-card-header {
+	width: 100%;
+}
+
+.vo-workflow-diagnostics-controls {
+	display: flex;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 8px;
+	min-width: 0;
+	margin-left: auto;
+}
+
+.vo-workflow-diagnostics-trend {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--vo-workspace-muted);
+	font-size: 11px;
+	text-align: right;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vo-workflow-snapshot-button {
+	flex: 0 0 auto;
+	padding: 5px 9px;
+	font-size: 11px;
+}
+
+.vo-workflow-diagnostics-content {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 8px;
+	margin-top: 8px;
+}
+
+.vo-workflow-diagnostics-group {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	gap: 5px;
+	min-width: 0;
+	padding: 8px;
+	border: 1px solid var(--vo-workspace-line);
+	border-radius: 10px;
+	background: color-mix(in srgb, var(--background-secondary) 22%, transparent);
+}
+
+.vo-workflow-diagnostics-group-title-line {
+	display: flex;
+	align-items: baseline;
+	gap: 6px;
+	min-width: 0;
+	white-space: nowrap;
+}
+
+.vo-workflow-diagnostics-group-title {
+	flex: 0 0 auto;
+	font-size: 12px;
+	font-weight: 700;
+	color: var(--text-normal);
+}
+
+
+.vo-workflow-diagnostics-group-relation {
+	overflow: hidden;
+	color: var(--vo-workspace-muted);
+	font-size: 10px;
+	letter-spacing: 0.04em;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vo-workflow-diagnostics-item {
+	padding: 7px 9px;
+	border: 1px solid color-mix(in srgb, var(--vo-workspace-line) 84%, transparent);
+	border-radius: 10px;
+	font-size: 12px;
+}
+
+.vo-workflow-diagnostics-button {
+	width: 100%;
+	min-width: 0;
+	color: var(--text-normal);
+	background: color-mix(in srgb, var(--background-secondary) 34%, transparent);
+	cursor: pointer;
+	text-align: left;
+}
+
+.vo-workflow-diagnostics-button:hover {
+	border-color: var(--vo-workspace-accent);
+	background: var(--vo-workspace-accent-soft);
+	color: var(--text-normal);
+}
+
+.vo-workflow-diagnostics-content .setting-item-description {
+	grid-column: 1 / -1;
+	margin: 0;
+}
+
+.vo-workflow-diagnostics-card.is-attention {
+	border-color: color-mix(in srgb, var(--vo-workspace-accent) 64%, var(--vo-workspace-line));
 }
 
 .vo-lint-overview-grid {
 	gap: 14px !important;
+}
+
+.vo-commands-workspace {
+	overflow-y: auto;
+	padding-right: 2px;
+}
+
+.vo-commands-intro {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 16px;
+	background: linear-gradient(120deg, color-mix(in srgb, var(--vo-workspace-accent) 10%, var(--vo-workspace-surface)), var(--vo-workspace-surface) 62%) !important;
+}
+
+.vo-commands-intro-copy {
+	min-width: 0;
+}
+
+.vo-commands-title,
+.vo-command-category-title {
+	font-weight: 700;
+	color: var(--text-normal);
+}
+
+.vo-commands-description,
+.vo-command-category-description {
+	margin-top: 3px;
+	color: var(--vo-workspace-muted);
+	font-size: 12px;
+	line-height: 1.45;
+}
+
+.vo-commands-category-grid {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.vo-command-category-card {
+	display: grid;
+	grid-template-columns: minmax(180px, 240px) minmax(0, 1fr);
+	align-items: start;
+	gap: 18px;
+	padding: 12px 14px;
+}
+
+.vo-command-category-header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.vo-command-category-actions {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+	gap: 8px;
+	align-content: start;
+}
+
+.vo-command-action-button {
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	min-height: 54px;
+	gap: 8px;
+	padding: 9px !important;
+	text-align: left;
+}
+
+.vo-command-action-copy {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.vo-command-action-label {
+	overflow: hidden;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vo-command-action-description {
+	overflow: hidden;
+	color: var(--vo-workspace-muted);
+	font-size: 11px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vo-smart-action-input {
+	box-sizing: border-box;
+	width: 100%;
+	height: 38px;
+	margin-top: 12px;
+	padding: 0 10px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 8px;
+	background: var(--background-primary);
+	color: var(--text-normal);
+}
+
+.vo-smart-action-input-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	margin-top: 16px;
+}
+
+.vo-commands-empty {
+	grid-column: 1 / -1;
+	padding: 22px;
+	color: var(--vo-workspace-muted);
+	text-align: center;
 }
 
 .vo-lint-health-card {
@@ -1164,6 +1398,28 @@
 		grid-template-rows: none !important;
 		height: auto !important;
 		overflow: visible !important;
+	}
+
+	.vo-workflow-diagnostics-content {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.vo-command-category-card,
+	.vo-command-category-actions {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.vo-workflow-diagnostics-card .vo-workspace-card-header {
+		align-items: flex-start;
+	}
+
+	.vo-workflow-diagnostics-controls {
+		align-items: flex-end;
+		flex-direction: column;
+	}
+
+	.vo-workflow-diagnostics-trend {
+		max-width: 180px;
 	}
 }
 
@@ -1565,6 +1821,80 @@ select.dropdown option {
 	text-decoration: underline;
 }
 
+.vo-settings-quickstart,
+.vo-settings-collapsible-section {
+	margin: 14px 0;
+	padding: 14px 16px;
+	border: 1px solid var(--background-modifier-border);
+	border-radius: 12px;
+	background: color-mix(in srgb, var(--background-secondary) 34%, transparent);
+}
+
+.vo-settings-quickstart {
+	border-color: color-mix(in srgb, var(--interactive-accent) 38%, var(--background-modifier-border));
+	background: color-mix(in srgb, var(--interactive-accent) 6%, var(--background-secondary));
+}
+
+.vo-settings-quickstart-title {
+	margin-bottom: 4px;
+	font-size: 15px;
+	font-weight: 700;
+}
+
+.vo-settings-quickstart .setting-item,
+.vo-settings-collapsible-content > .setting-item {
+	padding: 12px 0;
+}
+
+.vo-settings-collapsible-section {
+	padding: 0;
+}
+
+.vo-settings-collapsible-section > summary {
+	display: flex;
+	align-items: baseline;
+	gap: 8px;
+	padding: 14px 16px;
+	cursor: pointer;
+	list-style: none;
+}
+
+.vo-settings-collapsible-section > summary::-webkit-details-marker {
+	display: none;
+}
+
+.vo-settings-collapsible-section > summary::before {
+	width: 10px;
+	content: '›';
+	color: var(--interactive-accent);
+	font-size: 18px;
+	line-height: 1;
+	transition: transform 160ms ease;
+}
+
+.vo-settings-collapsible-section[open] > summary::before {
+	transform: rotate(90deg);
+}
+
+.vo-settings-collapsible-title {
+	font-weight: 700;
+	color: var(--text-normal);
+}
+
+.vo-settings-collapsible-description {
+	min-width: 0;
+	overflow: hidden;
+	color: var(--text-muted);
+	font-size: 12px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vo-settings-collapsible-content {
+	padding: 0 16px 8px;
+	border-top: 1px solid var(--background-modifier-border);
+}
+
 .vo-setting-action-item {
 	border: 1px solid var(--background-modifier-border);
 	border-radius: 8px;
@@ -1675,6 +2005,19 @@ select.dropdown option {
 	align-items: center;
 	gap: 6px;
 	flex-shrink: 0;
+}
+
+.vo-action-category-list {
+	margin-top: 8px;
+	margin-bottom: 10px;
+}
+
+.vo-action-category-row {
+	min-height: 76px;
+}
+
+.vo-action-category-add {
+	margin-bottom: 18px;
 }
 
 @media (max-width: 900px) {

@@ -1,6 +1,7 @@
 import { App, TFile } from 'obsidian';
 import VaultOsPlugin from '../main';
 import { createLegacyVaultProfile, isVaultProfile, resolveScope, unionScopeRules, type ScopeRule, type VaultProfile } from '../domain/vault-profile';
+import { assessWorkflowInspectionSecurity, isExcludedBeforeMetadataRead } from '../domain/workflow-inspection-security';
 
 export interface InboxBacklogInfo {
 	count: number;
@@ -52,7 +53,12 @@ export class VaultService {
 	}
 
 	private getMarkdownDescriptors(): Array<{ file: TFile; path: string; tags: string[]; properties: Record<string, unknown> | undefined }> {
-		return this.app.vault.getMarkdownFiles().map(file => {
+		const profile = this.getVaultProfile();
+		const security = assessWorkflowInspectionSecurity(profile.exclusions);
+		if (security.status === 'blocked') return [];
+		return this.app.vault.getMarkdownFiles()
+			.filter(file => !isExcludedBeforeMetadataRead({ path: file.path }, security.pathSafeExclusions))
+			.map(file => {
 			const cache = this.app.metadataCache.getFileCache(file);
 			return {
 				file,
@@ -60,7 +66,15 @@ export class VaultService {
 				tags: cache?.tags?.map(tag => tag.tag) || [],
 				properties: cache?.frontmatter
 			};
-		});
+			});
+	}
+
+	private getSafeMarkdownFiles(): TFile[] {
+		const profile = this.getVaultProfile();
+		const security = assessWorkflowInspectionSecurity(profile.exclusions);
+		if (security.status === 'blocked') return [];
+		return this.app.vault.getMarkdownFiles()
+			.filter(file => !isExcludedBeforeMetadataRead({ path: file.path }, security.pathSafeExclusions));
 	}
 
 	private resolveMarkdownFiles(scope: ScopeRule): TFile[] {
@@ -137,7 +151,7 @@ export class VaultService {
 	}
 
 	getVaultLifetimeDays(): number {
-		const files = this.app.vault.getMarkdownFiles().filter(file => !file.path.includes('.trash') && !file.path.startsWith('.'));
+		const files = this.getSafeMarkdownFiles().filter(file => !file.path.includes('.trash') && !file.path.startsWith('.'));
 		if (files.length === 0) {
 			return 0;
 		}
@@ -197,16 +211,13 @@ export class VaultService {
 				profile.outputs,
 				this.getJournalDailyScope(profile)
 			]).map(file => file.path));
-			const resolvedLinks = this.app.metadataCache.resolvedLinks;
-			
 			const linkedFiles = new Set<string>();
-			for (const sourcePath of Object.keys(resolvedLinks)) {
+			for (const sourcePath of linkSourcePaths) {
 				// Exclude generated indexes and reports from the configured link evidence scope.
 				if (sourcePath.includes('Index')) continue;
 				if (sourcePath.includes('体检报告')) continue;
-				if (!linkSourcePaths.has(sourcePath)) continue;
 
-				const targets = resolvedLinks[sourcePath];
+				const targets = this.app.metadataCache.resolvedLinks[sourcePath];
 				if (targets) {
 					for (const targetPath of Object.keys(targets)) {
 						linkedFiles.add(targetPath);
@@ -241,13 +252,11 @@ export class VaultService {
 				profile.outputs,
 				profile.inbox
 			]).map(file => file.path));
-			const unresolvedLinks = this.app.metadataCache.unresolvedLinks;
 			let deadLinksCount = 0;
 			const deadLinksList: string[] = [];
 			
-			for (const sourcePath of Object.keys(unresolvedLinks)) {
-				if (!linkSourcePaths.has(sourcePath)) continue;
-				const targets = unresolvedLinks[sourcePath];
+			for (const sourcePath of linkSourcePaths) {
+				const targets = this.app.metadataCache.unresolvedLinks[sourcePath];
 				if (targets) {
 					for (const target of Object.keys(targets)) {
 						deadLinksCount++;
@@ -273,7 +282,7 @@ export class VaultService {
 		const dateMap: Record<string, number> = {};
 
 		try {
-			const files = this.app.vault.getMarkdownFiles();
+			const files = this.getSafeMarkdownFiles();
 			files.forEach(file => {
 				const dateString = this.formatLocalDate(this.resolveLogicalCreatedAt(file));
 				if (dateString) {
@@ -376,20 +385,18 @@ export class VaultService {
 		const dateCounts = new Map<string, number>();
 
 		try {
-			let files = this.app.vault.getMarkdownFiles();
+			let files = this.getSafeMarkdownFiles();
 			files = files.filter(f => !f.path.includes('.trash') && !f.path.startsWith('.'));
 			stats.totalMdFiles = files.length;
 			if (stats.totalMdFiles === 0) return { stats, dateCounts };
 
 			// Orphan detection: uses resolvedLinks (single object access, no per-file cache)
-			const resolvedLinks = this.app.metadataCache.resolvedLinks;
 			const linkedFiles = new Set<string>();
-			for (const sourcePath of Object.keys(resolvedLinks)) {
+			const profile = this.getVaultProfile();
+			const linkSourcePaths = this.resolveMarkdownFilesForScopes([profile.knowledge, profile.outputs, this.getJournalDailyScope(profile)]).map(file => file.path);
+			for (const sourcePath of linkSourcePaths) {
 				if (sourcePath.includes('Index') || sourcePath.includes('体检报告')) continue;
-				if (!sourcePath.startsWith(this.plugin.settings.atomicsFolder) &&
-					!sourcePath.startsWith(this.plugin.settings.outputFolder) &&
-					!sourcePath.startsWith(this.plugin.settings.dailyNoteFolder)) continue;
-				const targets = resolvedLinks[sourcePath];
+				const targets = this.app.metadataCache.resolvedLinks[sourcePath];
 				if (targets) for (const t of Object.keys(targets)) linkedFiles.add(t);
 			}
 

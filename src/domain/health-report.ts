@@ -7,9 +7,6 @@ export interface MonthlyHealthReportData {
 	orphanCount: number;
 	deadLinkCount: number;
 	emptyNoteCount: number;
-	ingestedCount: number;
-	fixedLinkCount: number;
-	cleanedEmptyCount: number;
 }
 
 function formatDate(date: Date): string {
@@ -47,11 +44,6 @@ type: "report"
 - **孤儿笔记 (Orphans)**: ${data.orphanCount} 篇
 - **失效死链 (Dead Links)**: ${data.deadLinkCount} 处
 - **空白笔记 (Empty Notes)**: ${data.emptyNoteCount} 篇
-
-## 本次工作流处理统计
-- **已分类入库 (Ingested)**: ${data.ingestedCount} 篇
-- **已修复死链 (Fixed Links)**: ${data.fixedLinkCount} 处
-- **已清理空白笔记 (Cleaned Empty)**: ${data.cleanedEmptyCount} 篇
 
 ## 优化建议
 ${advice}

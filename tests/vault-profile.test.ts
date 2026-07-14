@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { discoverInboxScopeCandidates } from '../src/domain/vault-profile-discovery.ts';
-import { createLegacyVaultProfile, matchesScopeRule, resolveScope, unionScopeRules, type VaultFileDescriptor } from '../src/domain/vault-profile.ts';
+import { createLegacyVaultProfile, isVaultProfile, matchesScopeRule, resolveScope, unionScopeRules, type VaultFileDescriptor, type VaultProfile } from '../src/domain/vault-profile.ts';
+import { CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT } from '../src/domain/knowledge-entity-contract.ts';
 
 const dailyFile: VaultFileDescriptor = { path: 'Journal/2026-07-12.md', tags: ['daily'], properties: { type: 'daily', visibility: 'personal' } };
 const atomicFile: VaultFileDescriptor = { path: 'Knowledge/Atomic note.md', tags: ['knowledge', '#evergreen'], properties: { type: 'atomic', topics: ['ai', 'writing'] } };
@@ -20,6 +21,12 @@ void test('matches tags and scalar or array frontmatter values', () => {
 	assert.equal(matchesScopeRule(atomicFile, { type: 'property', key: 'topics', values: ['writing'] }), true);
 	assert.equal(matchesScopeRule(dailyFile, { type: 'property', key: 'visibility', values: ['PERSONAL'] }), true);
 	assert.equal(matchesScopeRule(inboxFile, { type: 'property', key: 'status', values: ['active'] }), false);
+});
+
+void test('matches frontmatter values with YAML-style outer quotes', () => {
+	const quotedFile: VaultFileDescriptor = { path: 'Knowledge/Quoted.md', properties: { type: '"Claim"', card_type: "'claim'" } };
+	assert.equal(matchesScopeRule(quotedFile, { type: 'property', key: 'type', values: ['Claim'] }), true);
+	assert.equal(matchesScopeRule(quotedFile, { type: 'property', key: 'card_type', values: ['claim'] }), true);
 });
 
 void test('resolves compound rules and exclusions without hard-coded vault folders', () => {
@@ -101,4 +108,20 @@ void test('discovers inbox candidates from names, tags, and properties without s
 		'标签：#inbox'
 	]);
 	assert.equal(candidates.every(candidate => candidate.matchedCount === 2), true);
+});
+
+void test('accepts a declared knowledge entity contract and rejects unsupported relation modes', () => {
+	const profile: VaultProfile = {
+		schemaVersion: 1,
+		id: 'test',
+		label: 'Test',
+		journal: { provider: 'unconfigured' },
+		exclusions: [{ type: 'folder', paths: ['Private'] }],
+		knowledgeEntities: CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT
+	};
+	assert.equal(isVaultProfile(profile), true);
+	assert.equal(isVaultProfile({
+		...profile,
+		knowledgeEntities: { ...CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT, evidenceClaimRelation: 'body-link' }
+	}), false);
 });

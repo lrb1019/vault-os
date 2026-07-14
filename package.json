@@ -1,6 +1,6 @@
 {
 	"name": "vault-os",
-	"version": "1.6.0",
+	"version": "1.7.0",
 	"description": "A focused Obsidian workspace for journals, periodic review, vault health, and custom AI actions.",
 	"main": "main.js",
 	"type": "module",

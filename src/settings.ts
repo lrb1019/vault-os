@@ -1,31 +1,28 @@
 import { App, Modal, PluginSettingTab, Setting, setIcon } from 'obsidian';
 import VaultOsPlugin from './main';
 import { createLegacyVaultProfile, isVaultProfile, type ScopeRule, type VaultProfile } from './domain/vault-profile';
+import { type ProjectStatusAliases } from './domain/project-status';
 import { VaultProfileDiscoveryService } from './services/VaultProfileDiscoveryService';
 import { createDefaultManualPeriodicConfig, type ManualPeriodicConfig, type PeriodicCycle } from './domain/periodic-note';
 import { DEFAULT_DAILY_CONTEXT_SETTINGS, type DailyContextSettings } from './domain/daily-context';
+import { CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT, isKnowledgeEntityContractConfigured, type KnowledgeEntityContract, type KnowledgeEntityKind } from './domain/knowledge-entity-contract';
+import { DEFAULT_SMART_ACTION_CATEGORIES, normalizeSmartActionCategories, resolveSmartActionCategoryId, type SmartAction, type SmartActionCategory } from './domain/smart-action';
 
-export interface ClaudianAction {
-	id: string;
-	label: string;
-	description?: string;
-	icon: string;
-	prompt: string;
-	requireInput: boolean;
-	enabled?: boolean;
-	inputPlaceholder?: string;
-}
+export type ClaudianAction = SmartAction;
 
 export interface VaultOsSettings {
 	dashboardTitle: string;
 	enabledShortcuts: Record<string, boolean>;
 	claudianActions: ClaudianAction[];
+	claudianActionCategories?: SmartActionCategory[];
+	p0EvidenceDebtActionInstalled?: boolean;
 	
 	dailyNoteFolder: string;
 	manualPeriodic?: ManualPeriodicConfig;
 	periodicProvider?: 'auto' | 'manual' | 'notebook-navigator';
 	inboxFolder: string;
 	vaultProfile?: VaultProfile;
+	workflowInspectionSnapshot?: import('./domain/workflow-inspection-snapshot').WorkflowInspectionSnapshot;
 
 	archiveFolder: string;
 	outputFolder: string;
@@ -42,7 +39,7 @@ export interface VaultOsSettings {
 }
 
 type SettingsTabId = 'general' | 'paths' | 'profile' | 'actions';
-type EditableProfileScope = 'inbox' | 'knowledge' | 'outputs';
+type EditableProfileScope = 'inbox' | 'knowledge' | 'outputs' | 'projects' | 'projectEntries' | 'outputEntries' | 'p0ClaimRule';
 
 export const DEFAULT_SETTINGS: VaultOsSettings = {
 	dashboardTitle: "Vault OS",
@@ -56,13 +53,14 @@ export const DEFAULT_SETTINGS: VaultOsSettings = {
 		"research": true
 	},
 	claudianActions: [
-		{ id: 'action-1', label: '快捷入库 (Ingest)', icon: 'bot', prompt: '@skills/ingest 请帮我整理并分类 {{daily_path}} 中的未入库日记。注意：在生成双向链接时，请只保留文件名，严禁包含前面的文件夹路径（例如，必须是 [[笔记名字]]，绝对不能是 [[{{daily_path}}/笔记名字]] 或 [[{{inbox_path}}/笔记名字]]），否则移动到归档后双链会失效！', requireInput: false },
-		{ id: 'action-2', label: '全面体检 (Lint)', icon: 'bot', prompt: '@skills/lint 请帮我扫描并体检整个知识库，找出孤儿笔记与死链并协助修复', requireInput: false },
-		{ id: 'action-3', label: '清理空白 (Clean)', icon: 'bot', prompt: '@skills/lint 请帮我清理库中的所有空白笔记', requireInput: false },
-		{ id: 'action-4', label: '文档审计 (Review)', icon: 'bot', prompt: '@skills/research 请对当前项目与知识库进行全面审计并输出优化意见', requireInput: false },
-		{ id: 'action-5', label: '检索', icon: 'bot', prompt: '@skills/query 请帮我检索关于“{{input}}”的内容', requireInput: true, inputPlaceholder: '输入要查询的知识主题...' },
-		{ id: 'action-6', label: '研究', icon: 'bot', prompt: '@skills/research 请针对“{{input}}”这一主题开展深度主题研究', requireInput: true, inputPlaceholder: '输入要研究的主题/方向...' }
+		{ id: 'action-1', label: '快捷入库 (Ingest)', icon: 'bot', prompt: '@skills/ingest 请帮我整理并分类 {{daily_path}} 中的未入库日记。注意：在生成双向链接时，请只保留文件名，严禁包含前面的文件夹路径（例如，必须是 [[笔记名字]]，绝对不能是 [[{{daily_path}}/笔记名字]] 或 [[{{inbox_path}}/笔记名字]]），否则移动到归档后双链会失效！', requireInput: false, categoryId: 'workflow' },
+		{ id: 'action-2', label: '全面体检 (Lint)', icon: 'bot', prompt: '@skills/lint 请帮我扫描并体检整个知识库，找出孤儿笔记与死链并协助修复', requireInput: false, categoryId: 'maintenance' },
+		{ id: 'action-3', label: '清理空白 (Clean)', icon: 'bot', prompt: '@skills/lint 请帮我清理库中的所有空白笔记', requireInput: false, categoryId: 'maintenance' },
+		{ id: 'action-4', label: '文档审计 (Review)', icon: 'bot', prompt: '@skills/research 请对当前项目与知识库进行全面审计并输出优化意见', requireInput: false, categoryId: 'maintenance' },
+		{ id: 'action-5', label: '检索', icon: 'bot', prompt: '@skills/query 请帮我检索关于“{{input}}”的内容', requireInput: true, inputPlaceholder: '输入要查询的知识主题...', categoryId: 'research' },
+		{ id: 'action-6', label: '研究', icon: 'bot', prompt: '@skills/research 请针对“{{input}}”这一主题开展深度主题研究', requireInput: true, inputPlaceholder: '输入要研究的主题/方向...', categoryId: 'research' }
 	],
+	claudianActionCategories: DEFAULT_SMART_ACTION_CATEGORIES.map(category => ({ ...category })),
 	dailyNoteFolder: "01 Daily",
 	inboxFolder: "02 Inbox",
 
@@ -81,10 +79,12 @@ class ClaudianActionEditModal extends Modal {
 	private readonly originalAction: ClaudianAction;
 	private readonly onSaveAction: (action: ClaudianAction) => Promise<void>;
 	private readonly onDeleteAction?: () => Promise<void>;
+	private readonly categories: readonly SmartActionCategory[];
 
-	constructor(app: App, action: ClaudianAction, onSaveAction: (action: ClaudianAction) => Promise<void>, onDeleteAction?: () => Promise<void>) {
+	constructor(app: App, action: ClaudianAction, categories: readonly SmartActionCategory[], onSaveAction: (action: ClaudianAction) => Promise<void>, onDeleteAction?: () => Promise<void>) {
 		super(app);
 		this.originalAction = { ...action };
+		this.categories = categories;
 		this.onSaveAction = onSaveAction;
 		this.onDeleteAction = onDeleteAction;
 	}
@@ -122,6 +122,16 @@ class ClaudianActionEditModal extends Modal {
 				}));
 
 		new Setting(contentEl)
+			.setName('所属分类')
+			.setDesc('决定它显示在哪个智能指令面板中。')
+			.addDropdown(dropdown => {
+				for (const category of this.categories) dropdown.addOption(category.id, category.label);
+				dropdown.setValue(resolveSmartActionCategoryId(draft, this.categories)).onChange(value => {
+					draft = { ...draft, categoryId: value };
+				});
+			});
+
+		new Setting(contentEl)
 			.setName('图标名称')
 			.setDesc('填写 Lucide 图标名称，例如 sprout、book-open、rss')
 			.addText(text => text
@@ -133,7 +143,7 @@ class ClaudianActionEditModal extends Modal {
 
 		new Setting(contentEl)
 			.setName('启用独立输入框')
-			.setDesc('开启后只能在体检页的参数区执行，不会直接显示在首页。')
+			.setDesc('开启后，点击智能指令卡片会先弹出输入窗口；关闭后，点击会直接发送。')
 			.addToggle(toggle => toggle
 				.setValue(!!draft.requireInput)
 				.onChange((value) => {
@@ -146,7 +156,7 @@ class ClaudianActionEditModal extends Modal {
 
 		new Setting(contentEl)
 			.setName('输入框提示词')
-			.setDesc('只在启用独立输入框时生效')
+			.setDesc('只在启用独立输入框时生效，会显示在弹出的输入窗口中。')
 			.addText(text => text
 				.setPlaceholder('例如：输入一个概念或一句灵感')
 				.setValue(draft.inputPlaceholder || '')
@@ -198,6 +208,33 @@ class ClaudianActionEditModal extends Modal {
 	}
 }
 
+class SmartActionCategoryEditModal extends Modal {
+	private readonly category: SmartActionCategory;
+	private readonly onSaveCategory: (category: SmartActionCategory) => Promise<void>;
+
+	constructor(app: App, category: SmartActionCategory, onSaveCategory: (category: SmartActionCategory) => Promise<void>) {
+		super(app);
+		this.category = { ...category };
+		this.onSaveCategory = onSaveCategory;
+	}
+
+	onOpen(): void {
+		this.contentEl.empty();
+		let draft = { ...this.category };
+		this.contentEl.createEl('h2', { text: '编辑智能指令分类' });
+		new Setting(this.contentEl).setName('分类名称').addText(text => text.setValue(draft.label).onChange(value => { draft = { ...draft, label: value }; }));
+		new Setting(this.contentEl).setName('分类说明').addText(text => text.setValue(draft.description || '').onChange(value => { draft = { ...draft, description: value }; }));
+		new Setting(this.contentEl).setName('图标名称').addText(text => text.setValue(draft.icon).onChange(value => { draft = { ...draft, icon: value }; }));
+		const footer = this.contentEl.createDiv({ cls: 'vo-action-modal-footer' });
+		const cancel = footer.createEl('button', { text: '取消' });
+		const save = footer.createEl('button', { text: '保存', cls: 'mod-cta' });
+		cancel.addEventListener('click', () => this.close());
+		save.addEventListener('click', () => {
+			void this.onSaveCategory({ ...draft, label: draft.label.trim() || '新分类', description: (draft.description || '').trim(), icon: draft.icon.trim() || 'folder-open' }).then(() => this.close());
+		});
+	}
+}
+
 export class VaultOsSettingTab extends PluginSettingTab {
 	plugin: VaultOsPlugin;
 	private activeTab: SettingsTabId = 'general';
@@ -236,6 +273,64 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		this.plugin.settings.vaultProfile = { ...profile, [scope]: rule };
 		await this.plugin.saveSettings();
 		if (rerenderSettings) this.display();
+	}
+
+	private async saveKnowledgeEntityRule(kind: KnowledgeEntityKind, rule: ScopeRule, rerenderSettings = false): Promise<void> {
+		const profile = this.getEditableVaultProfile();
+		const current = profile.knowledgeEntities || CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT;
+		const propertyByKind: Record<KnowledgeEntityKind, keyof Pick<KnowledgeEntityContract, 'questions' | 'claims' | 'evidence'>> = {
+			question: 'questions',
+			claim: 'claims',
+			evidence: 'evidence'
+		};
+		await this.saveVaultProfile({
+			...profile,
+			knowledgeEntities: { ...current, [propertyByKind[kind]]: rule }
+		}, rerenderSettings);
+	}
+
+	private async saveVaultProfile(profile: VaultProfile, rerenderSettings = false): Promise<void> {
+		this.plugin.settings.vaultProfile = profile;
+		await this.plugin.saveSettings();
+		if (rerenderSettings) this.display();
+	}
+
+	private createCollapsibleSection(container: HTMLElement, title: string, description: string, open = false): HTMLElement {
+		const details = container.createEl('details', { cls: 'vo-settings-collapsible-section' });
+		if (open) details.setAttr('open', '');
+		const summary = details.createEl('summary');
+		summary.createSpan({ text: title, cls: 'vo-settings-collapsible-title' });
+		summary.createSpan({ text: description, cls: 'vo-settings-collapsible-description' });
+		return details.createDiv({ cls: 'vo-settings-collapsible-content' });
+	}
+
+	private getActionCategories(): SmartActionCategory[] {
+		return normalizeSmartActionCategories(this.plugin.settings.claudianActionCategories);
+	}
+
+	private async saveActionCategories(categories: SmartActionCategory[]): Promise<void> {
+		this.plugin.settings.claudianActionCategories = normalizeSmartActionCategories(categories);
+		await this.plugin.saveSettings();
+		this.display();
+		this.refreshDashboardView();
+	}
+
+	private async applyCurrentVaultWorkflowPreset(): Promise<void> {
+		const profile = this.getEditableVaultProfile();
+		await this.saveVaultProfile({
+			...profile,
+			outputEntries: { type: 'property', key: 'layer', values: ['output'] },
+			knowledgeEntities: CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT,
+			projectStatusAliases: {
+				pending: ['ready', '初版', '待审核', '框架待审'],
+				active: ['🟢 Active', 'active'],
+				completed: ['🔵 Completed']
+			}
+		}, true);
+	}
+
+	private parseCommaSeparated(value: string): string[] {
+		return value.split(',').map(item => item.trim()).filter(Boolean);
 	}
 
 	private async saveReadingReflectionScope(rule: ScopeRule, rerenderSettings = false): Promise<void> {
@@ -347,35 +442,82 @@ export class VaultOsSettingTab extends PluginSettingTab {
 
 		this.createNote(
 			container,
-			'仓库规则把“日记、收件箱、知识范围”等语义和具体目录分开。兼容模式继续使用下方旧路径；启用自定义规则后，插件会按规则识别文件，不要求复制作者目录。'
+			'这里决定“知识库体检”看哪些笔记，以及哪些私人目录永远不读取。对当前仓库，大多数情况下只需确认下方两项，无需理解或修改高级规则。'
 		);
 
 		if (!isConfigured) {
 			new Setting(container)
-				.setName('当前模式：兼容现有路径')
-				.setDesc(`收件箱当前按 ${this.plugin.settings.inboxFolder || '未配置路径'} 的直接 Markdown 文件统计。启用后会将现有路径保存为可编辑配置档案。`)
+				.setName('启用工作流巡检')
+				.setDesc('将当前已有目录保存为插件规则。不会修改你的笔记；启用后可继续使用下方的简化设置。')
 				.addButton(button => button
-					.setButtonText('启用可配置仓库规则')
+					.setButtonText('开始设置')
 					.setCta()
 					.onClick(async () => {
 						this.plugin.settings.vaultProfile = profile;
 						await this.plugin.saveSettings();
 						this.display();
 					}));
+			return;
 		}
 
-		const discoveryResults = container.createDiv({ cls: 'vo-settings-note-subtle' });
-		new Setting(container)
-			.setName('检测现有收件箱规则')
-			.setDesc('只读扫描文件路径、标签和 frontmatter，生成候选与证据；不会自动保存或修改任何笔记。')
+		const quickStart = container.createDiv({ cls: 'vo-settings-quickstart' });
+		quickStart.createDiv({ text: '现在只需要确认两件事', cls: 'vo-settings-quickstart-title' });
+		quickStart.createEl('p', {
+			text: '不需要理解底层术语。下面的操作只会保存 Vault OS 如何识别笔记，不会修改笔记内容。',
+			cls: 'setting-item-description'
+		});
+		const workflowEnabled = isKnowledgeEntityContractConfigured(profile.knowledgeEntities);
+		new Setting(quickStart)
+			.setName(workflowEnabled ? '工作流巡检：已启用' : '工作流巡检：尚未启用')
+			.setDesc(workflowEnabled
+				? 'Vault OS 已能识别项目、判断、证据和输出之间的关系。除非笔记结构变化，否则无需再次操作。'
+				: '点击后，Vault OS 会按当前仓库已有的笔记标记识别项目、判断、证据和输出之间的关系。')
 			.addButton(button => button
-				.setButtonText('扫描候选规则')
+				.setButtonText(workflowEnabled ? '重新应用' : '启用工作流巡检')
+				.setCta()
+				.onClick(() => {
+					void this.applyCurrentVaultWorkflowPreset();
+				}));
+
+		const safeFolderCount = profile.exclusions.filter(rule => rule.type === 'folder').flatMap(rule => rule.paths).length;
+		new Setting(quickStart)
+			.setName(safeFolderCount > 0 ? '隐私保护：已启用' : '隐私保护：需要设置')
+			.setDesc(safeFolderCount > 0
+				? `巡检会在读取前跳过 ${safeFolderCount} 个受保护目录。当前无需修改。`
+				: '巡检需要先知道哪些目录绝不读取。请在下方“暂时不用”的高级规则中补充。');
+
+		const advanced = this.createCollapsibleSection(
+			container,
+			'暂时不用',
+			'只有仓库结构变化、要设置 P0，或要管理 Output 发布/复盘时才打开。'
+		);
+
+		new Setting(advanced)
+			.setName('全局安全排除文件夹')
+			.setDesc('逗号分隔。巡检会在读取 frontmatter、链接或正文之前跳过这些路径；留空时，工作流诊断将安全停止。')
+			.addText(text => text
+				.setPlaceholder('例如：Private, Data/Secrets')
+				.setValue(profile.exclusions.filter(rule => rule.type === 'folder').flatMap(rule => rule.paths).join(', '))
+				.onChange(async value => {
+					const currentProfile = this.getEditableVaultProfile();
+					const folderRule: ScopeRule = { type: 'folder', paths: this.parseCommaSeparated(value).map(path => this.normalizeFolderPath(path)), recursive: true };
+					const nonFolderRules = currentProfile.exclusions.filter(rule => rule.type !== 'folder');
+					await this.saveVaultProfile({ ...currentProfile, exclusions: folderRule.paths.length > 0 ? [...nonFolderRules, folderRule] : nonFolderRules });
+				}));
+
+
+		const discoveryResults = advanced.createDiv({ cls: 'vo-settings-note-subtle' });
+		new Setting(advanced)
+			.setName('重新识别收件箱')
+			.setDesc('仅当你调整了收件箱结构时使用。它只读扫描候选，不会修改任何笔记。')
+			.addButton(button => button
+				.setButtonText('扫描候选')
 				.onClick(() => {
 					button.setDisabled(true);
 					discoveryResults.empty();
-					const candidates = new VaultProfileDiscoveryService(this.app).discoverInboxScopeCandidates();
+					const candidates = new VaultProfileDiscoveryService(this.app).discoverInboxScopeCandidates(this.getEditableVaultProfile().exclusions);
 					if (candidates.length === 0) {
-						discoveryResults.createEl('p', { text: '没有发现可信候选。请使用下方规则手动配置。' });
+						discoveryResults.createEl('p', { text: '没有发现可信候选。可继续沿用当前收件箱设置。' });
 					} else {
 						discoveryResults.createEl('p', { text: '以下为只读候选。点击“使用此规则”后才会写入插件设置。' });
 						for (const candidate of candidates) {
@@ -392,32 +534,152 @@ export class VaultOsSettingTab extends PluginSettingTab {
 					button.setDisabled(false);
 				}));
 
-		if (!isConfigured) return;
-
 		this.renderScopeRuleEditor(
-			container,
+			advanced,
 			'收件箱范围',
 			'影响 Inbox 积压和死链来源；不会移动、修改或创建文件。',
 			profile.inbox,
 			(rule, rerenderSettings) => this.saveProfileRule('inbox', rule, rerenderSettings)
 		);
 		this.renderScopeRuleEditor(
-			container,
+			advanced,
 			'知识范围',
 			'影响孤儿候选和死链来源。',
 			profile.knowledge,
 			(rule, rerenderSettings) => this.saveProfileRule('knowledge', rule, rerenderSettings)
 		);
 		this.renderScopeRuleEditor(
-			container,
+			advanced,
 			'输出范围',
 			'影响死链与孤儿的链接证据来源。',
 			profile.outputs,
 			(rule, rerenderSettings) => this.saveProfileRule('outputs', rule, rerenderSettings)
 		);
+		this.renderScopeRuleEditor(
+			advanced,
+			'Projects 范围',
+			'限定项目工作区；范围内的文件不会自动成为 Project 实体。',
+			profile.projects,
+			(rule, rerenderSettings) => this.saveProfileRule('projects', rule, rerenderSettings)
+		);
+		new Setting(advanced)
+			.setName('启用自定义 Project 实体入口')
+			.setDesc('高级选项。默认已通过 layer: project 和文件夹同名主页识别项目；只有项目主页不满足这两种结构时才需要启用。')
+			.addToggle(toggle => toggle
+				.setValue(profile.projectEntries !== undefined)
+				.onChange(async enabled => {
+					const currentProfile = this.getEditableVaultProfile();
+					if (enabled) {
+						await this.saveVaultProfile({ ...currentProfile, projectEntries: { type: 'folder', paths: [], recursive: true } }, true);
+						return;
+					}
+					const withoutProjectEntries = { ...currentProfile };
+					delete withoutProjectEntries.projectEntries;
+					await this.saveVaultProfile(withoutProjectEntries, true);
+				}));
+		if (profile.projectEntries !== undefined) {
+			this.renderScopeRuleEditor(
+				advanced,
+				'Project 实体入口',
+				'仅用于补充识别特殊结构的项目主页；不会把整个 Projects 范围自动当作实体。',
+				profile.projectEntries,
+				(rule, rerenderSettings) => this.saveProfileRule('projectEntries', rule, rerenderSettings)
+			);
+		}
+		this.renderScopeRuleEditor(
+			advanced,
+			'Output 实体入口',
+			'仅命中此规则的 Output 才能作为 Claim 的真实使用来源。',
+			profile.outputEntries,
+			(rule, rerenderSettings) => this.saveProfileRule('outputEntries', rule, rerenderSettings)
+		);
+		this.renderScopeRuleEditor(
+			advanced,
+			'P0 Claim 识别规则',
+			'只有同时满足 Claim 类型和本规则的笔记，才会进入“缺少 Evidence”的工作流诊断。未配置时该项保持不可判定。',
+			profile.p0ClaimRule,
+			(rule, rerenderSettings) => this.saveProfileRule('p0ClaimRule', rule, rerenderSettings)
+		);
+
+		const entityContract = profile.knowledgeEntities;
+		new Setting(advanced)
+			.setName('知识实体契约')
+			.setDesc(isKnowledgeEntityContractConfigured(entityContract)
+				? '已配置。Question 与 Claim 使用双链关联；Output 以出链关联 Claim；Evidence 仅以 supports 属性支持 Claim。'
+				: '未配置。为避免将普通 Markdown 或双链误判为知识实体，Question、Claim、Evidence 诊断当前不会运行。')
+			.addButton(button => button
+				.setButtonText(isKnowledgeEntityContractConfigured(entityContract) ? '恢复当前仓库兼容契约' : '应用当前仓库兼容契约')
+				.onClick(() => {
+					void this.saveVaultProfile({ ...this.getEditableVaultProfile(), knowledgeEntities: CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT }, true);
+				}));
+		if (isKnowledgeEntityContractConfigured(entityContract)) {
+			this.renderScopeRuleEditor(
+				advanced,
+				'Question 实体',
+				'只匹配真正的问题卡片。与 Claim 的双向链接仅作为关联候选，不等同于已回答。',
+				entityContract.questions,
+				(rule, rerenderSettings) => this.saveKnowledgeEntityRule('question', rule, rerenderSettings)
+			);
+			this.renderScopeRuleEditor(
+				advanced,
+				'Claim 实体',
+				'只匹配可被 Evidence.supports 指向的判断卡片；普通笔记不会进入证据债务。',
+				entityContract.claims,
+				(rule, rerenderSettings) => this.saveKnowledgeEntityRule('claim', rule, rerenderSettings)
+			);
+			this.renderScopeRuleEditor(
+				advanced,
+				'Evidence 实体',
+				'只匹配证据卡片。缺少 supports 时显示结构候选，不会自动补充或改写笔记。',
+				entityContract.evidence,
+				(rule, rerenderSettings) => this.saveKnowledgeEntityRule('evidence', rule, rerenderSettings)
+			);
+		}
+
+		const aliases = profile.projectStatusAliases || {};
+		new Setting(advanced)
+			.setName('Project 状态兼容映射')
+			.setDesc('将当前仓库的显示状态映射为稳定状态。格式：completed=已完成|Done；active=进行中。未配置的状态保持 unknown。')
+			.addTextArea(text => text
+				.setPlaceholder('completed=已完成|Done\nactive=进行中\non-hold=暂停')
+				.setValue(Object.entries(aliases).map(([status, values]) => `${status}=${values.join('|')}`).join('\n'))
+				.onChange(async value => {
+					const currentProfile = this.getEditableVaultProfile();
+					const next: ProjectStatusAliases = {};
+					for (const line of value.split('\n')) {
+						const [rawStatus, rawValues] = line.split('=', 2);
+						const status = rawStatus?.trim() as keyof ProjectStatusAliases | undefined;
+						if (!status || !rawValues || !['pending', 'active', 'on-hold', 'blocked', 'completed', 'cancelled'].includes(status)) continue;
+						next[status] = rawValues.split('|').map(item => item.trim()).filter(Boolean);
+					}
+					await this.saveVaultProfile({ ...currentProfile, projectStatusAliases: next });
+				}));
+
+		new Setting(advanced)
+			.setName('Output 生命周期：已发布状态')
+			.setDesc('按 Output 的 status 属性判断。与“已复盘状态”同时配置后才会进行判断。')
+			.addText(text => text
+				.setPlaceholder('例如：published, 已发布')
+				.setValue(profile.outputLifecycle?.published.join(', ') || '')
+				.onChange(async value => {
+					const currentProfile = this.getEditableVaultProfile();
+					const reviewed = currentProfile.outputLifecycle?.reviewed || [];
+					await this.saveVaultProfile({ ...currentProfile, outputLifecycle: { published: this.parseCommaSeparated(value), reviewed } });
+				}));
+		new Setting(advanced)
+			.setName('Output 生命周期：已复盘状态')
+			.setDesc('仅作为“已发布但未复盘”的排除状态，不会自动修改任何 Output。')
+			.addText(text => text
+				.setPlaceholder('例如：reviewed, 已复盘')
+				.setValue(profile.outputLifecycle?.reviewed.join(', ') || '')
+				.onChange(async value => {
+					const currentProfile = this.getEditableVaultProfile();
+					const published = currentProfile.outputLifecycle?.published || [];
+					await this.saveVaultProfile({ ...currentProfile, outputLifecycle: { published, reviewed: this.parseCommaSeparated(value) } });
+				}));
 
 		this.createNote(
-			container,
+			advanced,
 			`当前有 ${profile.exclusions.length} 条全局排除规则。组合条件和排除规则编辑器将在下一阶段加入；当前规则不会修改仓库内容。`,
 			'vo-settings-note-subtle'
 		);
@@ -457,7 +719,8 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			prompt: '',
 			requireInput: false,
 			enabled: true,
-			inputPlaceholder: ''
+			inputPlaceholder: '',
+			categoryId: 'unclassified'
 		};
 	}
 
@@ -493,8 +756,49 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			enabled: true,
 			description: '',
 			inputPlaceholder: '',
-			...normalizedAction
+			...normalizedAction,
+			categoryId: resolveSmartActionCategoryId(normalizedAction, this.getActionCategories())
 		};
+	}
+
+	private renderActionCategories(sectionContent: HTMLElement): void {
+		this.createSectionHeading(sectionContent, '分类面板');
+		this.createNote(sectionContent, '分类决定“智能指令”主界面的分组。编辑分类只改变展示；删除分类会把其中指令移到“未分类”。', 'vo-settings-note-subtle');
+		const list = sectionContent.createDiv({ cls: 'vo-actions-compact-list vo-action-category-list' });
+		for (const category of this.getActionCategories()) {
+			const row = list.createDiv({ cls: 'vo-actions-compact-row vo-action-category-row' });
+			const main = row.createDiv({ cls: 'vo-actions-compact-main' });
+			const iconWrap = main.createDiv({ cls: 'vo-actions-compact-icon' });
+			setIcon(iconWrap, category.icon || 'folder-open');
+			const text = main.createDiv({ cls: 'vo-actions-compact-text' });
+			text.createDiv({ text: category.label, cls: 'vo-actions-compact-title' });
+			text.createDiv({ text: category.description || '未填写分类说明', cls: 'vo-actions-compact-desc' });
+			const controls = row.createDiv({ cls: 'vo-actions-compact-controls' });
+			const edit = controls.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': '编辑分类' } });
+			setIcon(edit, 'pencil');
+			edit.addEventListener('click', () => {
+				new SmartActionCategoryEditModal(this.app, category, async next => {
+					await this.saveActionCategories(this.getActionCategories().map(item => item.id === category.id ? next : item));
+				}).open();
+			});
+			if (category.id !== 'unclassified') {
+				const remove = controls.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': '删除分类' } });
+				setIcon(remove, 'trash-2');
+				remove.addEventListener('click', () => {
+					this.runAsyncTask(async () => {
+						this.plugin.settings.claudianActions = this.plugin.settings.claudianActions.map(action => action.categoryId === category.id ? { ...action, categoryId: 'unclassified' } : action);
+						await this.saveActionCategories(this.getActionCategories().filter(item => item.id !== category.id));
+					});
+				});
+			}
+		}
+		const add = sectionContent.createEl('button', { text: '+ 新增分类', cls: 'vo-btn vo-btn-secondary vo-action-category-add' });
+		add.addEventListener('click', () => {
+			const category: SmartActionCategory = { id: `category-${Date.now()}`, label: '新分类', description: '', icon: 'folder-open' };
+			new SmartActionCategoryEditModal(this.app, category, async next => {
+				await this.saveActionCategories([...this.getActionCategories(), next]);
+			}).open();
+		});
 	}
 
 	private getActionSummary(action: ClaudianAction): string {
@@ -553,7 +857,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			const editBtn = controls.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': '编辑指令' } });
 			setIcon(editBtn, 'pencil');
 			editBtn.addEventListener('click', () => {
-				new ClaudianActionEditModal(this.app, action, async (nextAction) => {
+				new ClaudianActionEditModal(this.app, action, this.getActionCategories(), async (nextAction) => {
 					await this.saveAction(index, nextAction);
 				}).open();
 			});
@@ -585,7 +889,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			const textWrap = left.createDiv({ cls: 'vo-actions-compact-text' });
 			textWrap.createDiv({ text: action.label || `指令 ${index + 1}`, cls: 'vo-actions-compact-title' });
 			textWrap.createDiv({
-				text: (action.description || '').trim() || (action.requireInput ? '需要输入，仅在体检页执行' : '体检页直接执行'),
+				text: (action.description || '').trim() || (action.requireInput ? '需要输入，在智能指令页执行' : '智能指令页直接执行'),
 				cls: 'vo-actions-compact-desc'
 			});
 
@@ -596,6 +900,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 				new ClaudianActionEditModal(
 					this.app,
 					action,
+					this.getActionCategories(),
 					async (nextAction) => {
 						await this.saveAction(index, nextAction);
 					},
@@ -651,7 +956,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 
 		createTabBtn('general', '看板基础设置', 'layout');
 		createTabBtn('paths', '知识库路径', 'folder');
-		createTabBtn('profile', '仓库规则', 'sliders-horizontal');
+		createTabBtn('profile', '巡检设置', 'sliders-horizontal');
 		createTabBtn('actions', '智能指令', 'bot');
 
 		// Render active tab content
@@ -879,7 +1184,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		} else if (this.activeTab === 'actions') {
 			this.createNote(
 				sectionContent,
-				'这里配置的是巡检页底部的自定义 Skill 按钮。它们不会自己执行内容，而是把你写好的指令模板转交给 Claudian（realclaudian）插件。'
+				'这里配置的是“智能指令”主界面的自定义面板与 Skill。它们不会自己执行内容，而是把你写好的指令模板转交给 Claudian（realclaudian）插件。'
 			);
 			this.createNote(
 				sectionContent,
@@ -887,6 +1192,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 				'vo-settings-note-subtle'
 			);
 			this.createLucideNote(sectionContent);
+			this.renderActionCategories(sectionContent);
 			this.renderActionListCompact(sectionContent);
 			return;
 

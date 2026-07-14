@@ -1,6 +1,7 @@
 import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, } from 'obsidian';
 import { Setting } from 'obsidian';
 import VaultOsPlugin from './main';
+import type { ClaudianAction } from './settings';
 import { DiaryService } from './services/DiaryService';
 import { VaultFileOperationService } from './services/VaultFileOperationService';
 import { VaultHealthReportService } from './services/VaultHealthReportService';
@@ -8,7 +9,12 @@ import { ClaudianActionService } from './services/ClaudianActionService';
 import { DailyReadingReflectionService } from './services/DailyReadingReflectionService';
 import { DailyContextService } from './services/DailyContextService';
 import { VaultService, VaultOverviewStats } from './services/VaultService';
+import { WorkflowInspectionService } from './services/WorkflowInspectionService';
+import { ObsidianWorkflowInspectionAdapter } from './adapters/ObsidianWorkflowInspectionAdapter';
 import { buildMonthlyHealthReport, getMonthlyHealthReportFileName } from './domain/health-report';
+import { createLegacyVaultProfile, isVaultProfile } from './domain/vault-profile';
+import { isWorkflowInspectionSnapshot } from './domain/workflow-inspection-snapshot';
+import { normalizeSmartActionCategories, requiresSmartActionInput, resolveSmartActionCategoryId } from './domain/smart-action';
 import { chooseDailyReadingReflection } from './domain/daily-reflection';
 
 interface ScanResultCategory {
@@ -26,11 +32,18 @@ interface ScanData {
 
 export const VIEW_TYPE_VAULT_OS = 'vault-os-view';
 
+interface DiagnosticListItem {
+	path: string;
+	detail?: string;
+}
+
+type ListModalItem = string | DiagnosticListItem;
+
 class SimpleListModal extends Modal {
 	private titleText: string;
-	private items: string[];
+	private items: ListModalItem[];
 	
-	constructor(app: App, titleText: string, items: string[]) {
+	constructor(app: App, titleText: string, items: ListModalItem[]) {
 		super(app);
 		this.titleText = titleText;
 		this.items = items;
@@ -51,15 +64,17 @@ class SimpleListModal extends Modal {
 			const ul = listContainer.createEl('ul', { attr: { style: 'margin: 0; padding-left: 20px;' } });
 			this.items.forEach(item => {
 				const li = ul.createEl('li', { attr: { style: 'margin-bottom: 4px;' } });
+				const path = typeof item === 'string' ? item : item.path;
+				const detail = typeof item === 'string' ? undefined : item.detail;
 				
-				let filePath = item;
-				const match = item.match(/ in (.*)$/);
+				let filePath = path;
+				const match = path.match(/ in (.*)$/);
 				if (match && match[1]) {
 					filePath = match[1];
 				}
 
-				const a = li.createEl('a', { 
-					text: item, 
+				const a = li.createEl('a', {
+					text: path,
 					cls: 'internal-link',
 					attr: { style: 'cursor: pointer; color: var(--text-accent); text-decoration: underline;' } 
 				});
@@ -67,6 +82,7 @@ class SimpleListModal extends Modal {
 					void this.app.workspace.openLinkText(filePath, '', true);
 					this.close();
 				};
+				if (detail) li.createDiv({ text: detail, cls: 'setting-item-description' });
 			});
 		}
 		
@@ -75,6 +91,60 @@ class SimpleListModal extends Modal {
 	}
 
 	onClose() {
+		this.contentEl.empty();
+	}
+}
+
+class SmartActionInputModal extends Modal {
+	constructor(
+		app: App,
+		private readonly action: ClaudianAction,
+		private readonly onSubmit: (input: string) => void
+	) {
+		super(app);
+	}
+
+	onOpen(): void {
+		const { contentEl, modalEl } = this;
+		modalEl.addClass('vo-smart-action-input-modal');
+		contentEl.empty();
+		contentEl.createEl('h2', { text: this.action.label });
+		if (this.action.description) {
+			contentEl.createEl('p', { text: this.action.description, cls: 'setting-item-description' });
+		}
+		contentEl.createEl('p', {
+			text: '填写本次所需信息后，Vault OS 会将完整指令交给 Claudian。',
+			cls: 'setting-item-description'
+		});
+
+		const input = contentEl.createEl('input', {
+			type: 'text',
+			placeholder: this.action.inputPlaceholder || '输入本次参数',
+			cls: 'vo-smart-action-input'
+		});
+		const footer = contentEl.createDiv({ cls: 'vo-smart-action-input-footer' });
+		const cancel = footer.createEl('button', { text: '取消' });
+		const submit = footer.createEl('button', { text: '发送指令', cls: 'mod-cta' });
+		const execute = () => {
+			const value = input.value.trim();
+			if (!value) {
+				new Notice(this.action.inputPlaceholder ? `请先${this.action.inputPlaceholder}` : '请输入内容');
+				input.focus();
+				return;
+			}
+			this.onSubmit(value);
+			this.close();
+		};
+
+		cancel.addEventListener('click', () => this.close());
+		submit.addEventListener('click', execute);
+		input.addEventListener('keydown', event => {
+			if (event.key === 'Enter') execute();
+		});
+		window.setTimeout(() => input.focus(), 0);
+	}
+
+	onClose(): void {
 		this.contentEl.empty();
 	}
 }
@@ -507,7 +577,7 @@ export class VaultOsView extends ItemView {
 	plugin: VaultOsPlugin;
 	
 	// Primary workflow: start work, review periods, maintain the vault.
-	private activeMainTab: 'home' | 'diary' | 'lint' = 'home';
+	private activeMainTab: 'home' | 'diary' | 'lint' | 'commands' = 'home';
 	
 	private statsTab: 'week' | 'month' | 'year' | 'all' = 'week';
 	private statsChartType: 'bar' | 'calendar' | 'heatmap' = 'bar';
@@ -516,7 +586,6 @@ export class VaultOsView extends ItemView {
 	private selectedPeriodicDate = moment();
 	private lastScanTime = '尚未进行体检';
 	private isScanning = false;
-	private historyStats = { ingested: 12, fixedLinks: 47, cleanedEmpty: 9 };
 	private currentScanData: ScanData | null = null;
 
 	private cachedVaultOverviewStats: VaultOverviewStats | null = null;
@@ -542,6 +611,7 @@ export class VaultOsView extends ItemView {
 	private claudianActions: ClaudianActionService;
 	private dailyReflections: DailyReadingReflectionService;
 	private dailyContext: DailyContextService;
+	private workflowInspection: WorkflowInspectionService;
 	private dailyReflectionOffset = 0;
 
 	constructor(leaf: WorkspaceLeaf, plugin: VaultOsPlugin) {
@@ -555,17 +625,14 @@ export class VaultOsView extends ItemView {
 		this.claudianActions = new ClaudianActionService(this.app);
 		this.dailyReflections = new DailyReadingReflectionService(this.app);
 		this.dailyContext = new DailyContextService(this.plugin);
+		this.workflowInspection = new WorkflowInspectionService(this.plugin, new ObsidianWorkflowInspectionAdapter(this.app));
 	}
 
 	private calculateLintHealthScore(scanData: ScanData): number {
-		const knowledgeCount = Math.max(
-			1,
-			this.app.vault.getMarkdownFiles().filter(file => file.path.startsWith(this.plugin.settings.atomicsFolder)).length
-		);
 		const inboxDeduct = Math.min(25, scanData.inbox.count * 3);
 		const diaryDeduct = Math.min(20, scanData.uningested.count * 2);
 		const emptyDeduct = Math.min(15, scanData.empty.count * 2);
-		const orphanDeduct = Math.min(25, (scanData.orphans.count / knowledgeCount) * 50 + Math.min(10, scanData.orphans.count * 0.1));
+		const orphanDeduct = Math.min(25, Math.sqrt(scanData.orphans.count) * 4);
 		const deadLinkDeduct = Math.min(15, Math.log10(scanData.deadLinks.count + 1) * 5);
 
 		let score = Math.round(100 - (inboxDeduct + diaryDeduct + emptyDeduct + orphanDeduct + deadLinkDeduct));
@@ -852,7 +919,8 @@ export class VaultOsView extends ItemView {
 		const mainTabs = [
 			{ id: 'home', label: '首页', icon: 'home' },
 			{ id: 'diary', label: '周期复盘', icon: 'calendar' },
-			{ id: 'lint', label: '知识库体检', icon: 'shield-alert' }
+			{ id: 'lint', label: '知识库体检', icon: 'shield-alert' },
+			{ id: 'commands', label: '智能指令', icon: 'sparkles' }
 		] as const;
 
 		mainTabs.forEach(t => {
@@ -887,6 +955,8 @@ export class VaultOsView extends ItemView {
 			this.renderHomeDashboard(contentWrapper);
 		} else if (this.activeMainTab === 'diary') {
 			this.renderDiaryDashboard(contentWrapper);
+		} else if (this.activeMainTab === 'commands') {
+			this.renderSmartCommandsDashboard(contentWrapper);
 		} else {
 			this.renderLintDashboard(contentWrapper);
 		}
@@ -1006,7 +1076,10 @@ export class VaultOsView extends ItemView {
 		}
 		body.createDiv({ text: '正在读取你的阅读感想…', cls: 'vo-home-empty-state' });
 		const renderReflection = () => {
-			void this.dailyReflections.getReflections(this.plugin.settings.readingReflectionScope).then(reflections => {
+		const profile = isVaultProfile(this.plugin.settings.vaultProfile)
+			? this.plugin.settings.vaultProfile
+			: createLegacyVaultProfile(this.plugin.settings);
+		void this.dailyReflections.getReflections(this.plugin.settings.readingReflectionScope, profile.exclusions).then(reflections => {
 				if (!body.isConnected) return;
 				body.empty();
 				const reflection = chooseDailyReadingReflection(reflections, dayKey, this.dailyReflectionOffset);
@@ -1582,18 +1655,116 @@ export class VaultOsView extends ItemView {
 	private renderLintDashboard(parent: Element): void {
 		parent.empty();
 		parent.addClass('vo-workspace-dashboard', 'vo-lint-workspace');
-		parent.setAttr('style', 'display: flex; flex-direction: column; height: 100%; overflow: hidden;');
 
-		const grid = parent.createDiv({ cls: 'vo-middle-grid vo-lint-overview-grid', attr: { style: 'display: grid; grid-template-columns: 1fr 1.6fr; gap: 16px; margin-bottom: 12px;' } });
+		const workflowCard = parent.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-workflow-diagnostics-card' });
+		const workflowHeader = workflowCard.createDiv({ cls: 'vo-workspace-card-header' });
+		const workflowIcon = workflowHeader.createDiv({ cls: 'vo-workspace-card-icon' });
+		setIcon(workflowIcon, 'waypoints');
+		workflowHeader.createSpan({ text: '工作流诊断', cls: 'vo-workflow-diagnostics-title' });
+		const workflowControls = workflowHeader.createDiv({ cls: 'vo-workflow-diagnostics-controls' });
+		const workflowTrend = workflowControls.createSpan({ cls: 'vo-workflow-diagnostics-trend' });
+		const snapshotButton = workflowControls.createEl('button', { text: '保存当前基线', cls: 'vo-btn vo-btn-secondary vo-workspace-action vo-workflow-snapshot-button' });
+		const workflowContent = workflowCard.createDiv({ cls: 'vo-workflow-diagnostics-content', text: '正在确认安全范围与工作流状态…' });
+		const renderWorkflowInspection = () => {
+			const result = this.workflowInspection.inspect();
+			workflowContent.empty();
+			if (result.status === 'blocked') {
+				workflowCard.addClass('is-attention');
+				workflowTrend.setText('安全范围未确认');
+				snapshotButton.disabled = true;
+				workflowContent.createEl('p', { text: result.reason || '语义巡检已安全停止。' });
+				workflowContent.createEl('p', { text: '请在“仓库规则”中确认至少一个按文件夹排除的全局安全范围后再运行。', cls: 'setting-item-description' });
+				return;
+			}
+			workflowCard.removeClass('is-attention');
+			const savedSnapshot = this.plugin.settings.workflowInspectionSnapshot;
+			const snapshot = isWorkflowInspectionSnapshot(savedSnapshot) ? savedSnapshot : undefined;
+			const diff = this.workflowInspection.compareWithSnapshot(result, snapshot);
+			const trendText = !snapshot
+				? '暂无历史基线'
+				: !diff.comparable
+					? '当前诊断规则已变化，暂无可比历史基线'
+					: `相对 ${snapshot.capturedAt.slice(0, 16).replace('T', ' ')}：新增 ${diff.current.filter(issue => issue.status === 'new').length} · 持续 ${diff.current.filter(issue => issue.status === 'persistent').length} · 已解决 ${diff.resolved.length}`;
+			workflowTrend.setText(trendText);
+			snapshotButton.setText(snapshot ? '更新基线' : '保存基线');
+			snapshotButton.disabled = false;
+			const knowledgeGraphConfigured = result.knowledgeGraph.status === 'configured';
+			const groups: Array<{ title: string; description: string; items: Array<{ label: string; title: string; entries: DiagnosticListItem[]; emptyMessage: string }> }> = [
+				{
+					title: '问题与判断', description: 'Question → Claim', items: !knowledgeGraphConfigured ? [
+						{ label: '知识实体契约：未配置', title: 'Question、Claim、Evidence 的识别规则', entries: [], emptyMessage: '请在“仓库规则”中应用当前仓库的工作流兼容映射，或配置自己的知识实体契约。' }
+					] : [
+						{ label: `Question 关联候选：${result.knowledgeGraph.questionsWithoutClaimLinks.length} 项`, title: '尚未与 Claim 建立双链的 Question（候选）', entries: result.knowledgeGraph.questionsWithoutClaimLinks.map(path => ({ path, detail: '未发现该 Question 指向 Claim，或任一 Claim 指回该 Question。' })), emptyMessage: '当前所有 Question 都已与至少一个 Claim 建立双链。' },
+						{ label: `活跃 Claim 待证：${result.activeClaimEvidenceDebt.length} 项`, title: '被 Project 或 Output 使用、但缺少 Evidence 的 Claim', entries: result.activeClaimEvidenceDebt.map(issue => ({ path: issue.claimPath, detail: `使用来源：${issue.usagePaths.join('、')}；未发现 Evidence.supports 指向此 Claim。` })), emptyMessage: '当前所有活跃 Claim 都已有结构化 Evidence。' }
+					]
+				},
+				{
+					title: '证据与输出', description: 'Evidence → Output', items: !knowledgeGraphConfigured ? [
+						{ label: '证据与输出：等待实体契约', title: 'Evidence 与 Output 的关系规则', entries: [], emptyMessage: '请先配置 Question、Claim、Evidence 的实体契约后再查看知识链路诊断。' }
+					] : [
+						{ label: `Evidence 未挂接：${result.knowledgeGraph.evidenceWithoutSupports.length} 项`, title: '缺少 supports 的 Evidence', entries: result.knowledgeGraph.evidenceWithoutSupports.map(path => ({ path, detail: 'Evidence 未声明 supports；此为结构候选，不评价证据质量。' })), emptyMessage: '当前所有 Evidence 都已声明 supports。' },
+						{ label: `Evidence supports 格式异常：${result.knowledgeGraph.evidenceWithInvalidSupports.length} 项`, title: 'supports 格式无效的 Evidence', entries: result.knowledgeGraph.evidenceWithInvalidSupports.map(path => ({ path, detail: 'supports 必须是 Wiki 链接字符串或字符串数组；当前值无法被安全解析。' })), emptyMessage: '当前没有格式无效的 supports。' },
+						{ label: `Evidence supports 失效：${result.knowledgeGraph.evidenceWithUnresolvedSupports.length} 项`, title: 'supports 指向不存在目标的 Evidence', entries: result.knowledgeGraph.evidenceWithUnresolvedSupports.map(path => ({ path, detail: 'supports 中至少一个 Wiki 链接无法解析到现有文件。' })), emptyMessage: '当前所有 declared supports 都能解析到现有文件。' },
+						{ label: `Evidence supports 非 Claim：${result.knowledgeGraph.evidenceWithNonClaimSupports.length} 项`, title: 'supports 指向非 Claim 的 Evidence', entries: result.knowledgeGraph.evidenceWithNonClaimSupports.map(issue => ({ path: issue.evidencePath, detail: `supports 只能指向 Claim；当前目标：${issue.targets.map(target => {
+							const kind = target.kind === 'outside-knowledge' ? '不在知识范围' : target.kind === 'unclassified' ? '未分类' : target.kind;
+							const properties = [target.entityProperties?.type && `type=${target.entityProperties.type}`, target.entityProperties?.cardType && `card_type=${target.entityProperties.cardType}`].filter(Boolean).join('，');
+							return `${target.path}（${kind}${properties ? `；读取到 ${properties}` : ''}）`;
+						}).join('、')}。` })), emptyMessage: '当前所有 supports 目标都是 Claim。' },
+						{ label: `Output 论证候选：${result.knowledgeGraph.outputsWithoutClaimLinks.length} 项`, title: '尚未链接 Claim 的 Output（候选）', entries: result.knowledgeGraph.outputsWithoutClaimLinks.map(path => ({ path, detail: '未发现该 Output 出链至已配置的 Claim 实体。' })), emptyMessage: '当前所有 Output 实体都已链接至少一个 Claim。' }
+					]
+				},
+				{
+					title: '项目与回流', description: 'Project → Review', items: [
+						{ label: `已完成但仍在 Projects：${result.completedProjectPaths.length} 项`, title: '待确认回流或归档的 Project', entries: result.completedProjectPaths.map(path => ({ path, detail: '已识别为 Project 实体，状态已归一化为 completed，仍位于已配置的 Projects 范围。' })), emptyMessage: '当前没有待确认回流或归档的 Project。' },
+						{
+							label: result.p0ClaimEvidence === 'unconfigured' ? 'P0 Claim 优先级：未配置' : `P0 Claim 待证：${result.p0ClaimDebt.length} 项`,
+							title: '需要补齐 Evidence 的 P0 Claim', entries: result.p0ClaimDebt.map(issue => ({ path: issue.claimPath, detail: `使用来源：${issue.usagePaths.join('、')}；符合 P0 规则，且未发现 Evidence.supports。` })),
+							emptyMessage: result.p0ClaimEvidence === 'unconfigured' ? '请先在“仓库规则”中定义哪些 Claim 属于 P0，再启用优先级队列。' : '当前所有 P0 Claim 都已有结构化 Evidence。'
+						},
+						{
+							label: result.outputLifecycle === 'unconfigured' ? 'Output 生命周期：不可判定（未配置）' : `已发布但未复盘的 Output：${result.publishedUnreviewedOutputPaths.length} 项`,
+							title: '待复盘的 Output', entries: result.publishedUnreviewedOutputPaths.map(path => ({ path, detail: 'Output 状态命中“已发布”，未命中“已复盘”状态。' })),
+							emptyMessage: result.outputLifecycle === 'unconfigured' ? '请先配置 Output 实体入口、已发布状态和已复盘状态。' : '当前没有待复盘的 Output。'
+						}
+					]
+				}
+			];
+			for (const group of groups) {
+				const groupEl = workflowContent.createDiv({ cls: 'vo-workflow-diagnostics-group' });
+				const groupTitleLine = groupEl.createDiv({ cls: 'vo-workflow-diagnostics-group-title-line' });
+				groupTitleLine.createSpan({ text: group.title, cls: 'vo-workflow-diagnostics-group-title' });
+				groupTitleLine.createSpan({ text: `(${group.description})`, cls: 'vo-workflow-diagnostics-group-relation' });
+				for (const item of group.items) {
+					const button = groupEl.createEl('button', { text: item.label, cls: 'vo-workflow-diagnostics-item vo-workflow-diagnostics-button' });
+					button.addEventListener('click', () => {
+						if (item.entries.length > 0) new SimpleListModal(this.app, item.title, item.entries).open();
+						else new Notice(item.emptyMessage);
+					});
+				}
+			}
+		};
+		snapshotButton.addEventListener('click', () => {
+			const result = this.workflowInspection.inspect();
+			if (result.status === 'blocked') return;
+			this.plugin.settings.workflowInspectionSnapshot = this.workflowInspection.captureSnapshot(result);
+			void this.plugin.saveSettings().then(() => {
+				renderWorkflowInspection();
+				new Notice('已保存工作流诊断快照。');
+			});
+		});
+		renderWorkflowInspection();
 
-		const leftCard = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-lint-health-card', attr: { style: 'text-align: center; display: flex; flex-direction: column; justify-content: space-between; padding: 12px; min-height: 280px;' } });
-		const microHeaderLeft = leftCard.createDiv({ cls: 'vo-workspace-card-header', attr: { style: 'display: flex; flex-direction: column; gap: 2px; text-align: left; align-self: flex-start; width: 100%; margin-bottom: 6px;' } });
+		const grid = parent.createDiv({ cls: 'vo-middle-grid vo-lint-overview-grid', attr: { style: 'display: grid; grid-template-columns: 1fr 1.6fr; align-items: stretch; gap: 16px; margin-bottom: 12px;' } });
+
+		const leftCard = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-lint-health-card', attr: { style: 'text-align: center; display: flex; flex-direction: column; align-items: stretch; padding: 10px; min-height: 0; gap: 6px;' } });
+		const microHeaderLeft = leftCard.createDiv({ cls: 'vo-workspace-card-header', attr: { style: 'display: flex; align-items: center; gap: 8px; text-align: left; align-self: flex-start; width: 100%; margin-bottom: 0;' } });
 		const healthHeaderIcon = microHeaderLeft.createDiv({ cls: 'vo-workspace-card-icon' });
 		setIcon(healthHeaderIcon, 'shield-check');
-		microHeaderLeft.createSpan({ text: '仓库健康度 (HEALTH)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px;' } });
-		microHeaderLeft.createSpan({ text: '基于 Inbox、死链、孤儿和空白笔记综合评估', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.6;' } });
+		const healthHeaderText = microHeaderLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 1px; min-width: 0;' } });
+		healthHeaderText.createSpan({ text: '仓库健康度 (HEALTH)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px;' } });
+		healthHeaderText.createSpan({ text: '基于 Inbox、死链、孤儿和空白笔记综合评估', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.6;' } });
 
-		const ringContainer = leftCard.createDiv({ cls: 'vo-progress-ring-container', attr: { style: 'margin: 15px auto; position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center;' } });
+		const ringContainer = leftCard.createDiv({ cls: 'vo-progress-ring-container', attr: { style: 'margin: 8px auto; position: relative; width: 120px; height: 120px; display: flex; align-items: center; justify-content: center;' } });
 		const svg = ringContainer.createSvg('svg', { cls: 'vo-progress-ring', attr: { width: '120', height: '120', style: 'position: absolute; top: 0; left: 0; transform: rotate(-90deg);' } });
 		svg.createSvg('circle', {
 			cls: 'vo-progress-ring-circle-bg',
@@ -1605,14 +1776,14 @@ export class VaultOsView extends ItemView {
 		});
 		const textPercentage = ringContainer.createDiv({ cls: 'vo-progress-ring-text', text: '--%', attr: { style: 'font-size: 20px; font-weight: bold; z-index: 1;' } });
 
-		const statusInfoDiv = leftCard.createDiv({ attr: { style: 'margin: 10px 0; font-size: 11px; color: var(--text-muted); font-family: var(--font-monospace);' } });
+		const statusInfoDiv = leftCard.createDiv({ attr: { style: 'margin: 2px 0; font-size: 11px; color: var(--text-muted); font-family: var(--font-monospace);' } });
 		const scanTimeSpan = statusInfoDiv.createDiv({ text: `上次体检: ${this.lastScanTime}` });
 		const statusText = leftCard.createEl('p', {
 			text: this.isScanning ? '正在体检中...' : '检测就绪，建议定期巡检优化。',
-			attr: { style: 'font-size: 12px; color: var(--text-muted);' }
+			attr: { style: 'font-size: 12px; color: var(--text-muted); margin: 2px 0;' }
 		});
 
-		const btnGroup = leftCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 10px;' } });
+		const btnGroup = leftCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 8px; width: 100%; margin-top: 2px;' } });
 		const runBtn = btnGroup.createEl('button', {
 			cls: 'vo-btn vo-btn-secondary vo-workspace-action',
 			attr: { style: 'width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;' }
@@ -1620,7 +1791,7 @@ export class VaultOsView extends ItemView {
 		setIcon(runBtn, 'play');
 		runBtn.createSpan({ text: '开始体检' });
 
-		const rightCard = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-lint-diagnostics-card', attr: { style: 'padding: 12px; display: flex; flex-direction: column; justify-content: flex-start; min-height: 280px; gap: 10px;' } });
+		const rightCard = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-lint-diagnostics-card', attr: { style: 'padding: 10px; display: flex; flex-direction: column; justify-content: flex-start; min-height: 280px; gap: 8px;' } });
 		
 		const rightCardHeader = rightCard.createDiv({ cls: 'vo-workspace-card-header', attr: { style: 'display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin: 0;' } });
 		const diagnosticsHeaderIcon = rightCardHeader.createDiv({ cls: 'vo-workspace-card-icon' });
@@ -1650,7 +1821,7 @@ export class VaultOsView extends ItemView {
 		});
 		
 		// Log layout (compressed)
-		const topLogContainer = rightCard.createDiv({ cls: 'vo-lint-metric-grid', attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; flex-shrink: 0;' } });
+		const topLogContainer = rightCard.createDiv({ cls: 'vo-lint-metric-grid', attr: { style: 'display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; flex-shrink: 0;' } });
 		
 		const inboxItem = topLogContainer.createDiv({ cls: 'vo-lint-metric-item', attr: { style: 'justify-content: space-between; align-items: center; cursor: pointer; padding: 6px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
 		const inboxLeft = inboxItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 6px;' } });
@@ -1667,28 +1838,28 @@ export class VaultOsView extends ItemView {
 		const diaryDesc = diaryTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 10px; color: var(--text-muted);' } });
 
 		// Inspect layout (expanded)
-		const bottomInspectContainer = rightCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 10px; flex-grow: 1; overflow-y: auto;' } });
+		const bottomInspectContainer = rightCard.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 8px;' } });
 		
-		const orphanItem = bottomInspectContainer.createDiv({ cls: 'vo-lint-metric-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
-		const orphanLeft = orphanItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
+		const orphanItem = bottomInspectContainer.createDiv({ cls: 'vo-lint-metric-item', attr: { style: 'justify-content: flex-start; align-items: center; cursor: pointer; padding: 8px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const orphanLeft = orphanItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 10px;' } });
 		const orphanIconEl = orphanLeft.createDiv(); setIcon(orphanIconEl, 'compass');
-		const orphanTextWrap = orphanLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
-		orphanTextWrap.createSpan({ text: '孤儿笔记 (Orphans)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
-		const orphanDesc = orphanTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
+		const orphanTextWrap = orphanLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px;' } });
+		orphanTextWrap.createSpan({ text: '孤儿笔记 (Orphans)', attr: { style: 'font-weight: 600; font-size: 12px;' } });
+		const orphanDesc = orphanTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 10px; color: var(--text-muted);' } });
 
-		const deadLinkItem = bottomInspectContainer.createDiv({ cls: 'vo-lint-metric-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
-		const deadLinkLeft = deadLinkItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
+		const deadLinkItem = bottomInspectContainer.createDiv({ cls: 'vo-lint-metric-item', attr: { style: 'justify-content: flex-start; align-items: center; cursor: pointer; padding: 8px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const deadLinkLeft = deadLinkItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 10px;' } });
 		const deadLinkIconEl = deadLinkLeft.createDiv(); setIcon(deadLinkIconEl, 'link');
-		const deadLinkTextWrap = deadLinkLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
-		deadLinkTextWrap.createSpan({ text: '未解析死链 (Dead Links)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
-		const deadLinkDesc = deadLinkTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
+		const deadLinkTextWrap = deadLinkLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px;' } });
+		deadLinkTextWrap.createSpan({ text: '未解析死链 (Dead Links)', attr: { style: 'font-weight: 600; font-size: 12px;' } });
+		const deadLinkDesc = deadLinkTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 10px; color: var(--text-muted);' } });
 
-		const emptyNoteItem = bottomInspectContainer.createDiv({ cls: 'vo-lint-metric-item', attr: { style: 'flex-grow: 1; justify-content: flex-start; align-items: center; cursor: pointer; padding: 12px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
-		const emptyNoteLeft = emptyNoteItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 12px;' } });
+		const emptyNoteItem = bottomInspectContainer.createDiv({ cls: 'vo-lint-metric-item', attr: { style: 'justify-content: flex-start; align-items: center; cursor: pointer; padding: 8px 10px; background: var(--background-primary); border-radius: 6px; border: 1px dashed var(--background-modifier-border); transition: border-color 0.2s;' } });
+		const emptyNoteLeft = emptyNoteItem.createDiv({ attr: { style: 'display: flex; align-items: center; gap: 10px;' } });
 		const emptyNoteIconEl = emptyNoteLeft.createDiv(); setIcon(emptyNoteIconEl, 'file-text');
-		const emptyNoteTextWrap = emptyNoteLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 4px;' } });
-		emptyNoteTextWrap.createSpan({ text: '空白笔记 (Empty Notes)', attr: { style: 'font-weight: 600; font-size: 13px;' } });
-		const emptyNoteDesc = emptyNoteTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 11px; color: var(--text-muted);' } });
+		const emptyNoteTextWrap = emptyNoteLeft.createDiv({ attr: { style: 'display: flex; flex-direction: column; gap: 2px;' } });
+		emptyNoteTextWrap.createSpan({ text: '空白笔记 (Empty Notes)', attr: { style: 'font-weight: 600; font-size: 12px;' } });
+		const emptyNoteDesc = emptyNoteTextWrap.createSpan({ text: '检测中...', attr: { style: 'font-size: 10px; color: var(--text-muted);' } });
 
 		
 		inboxItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.inbox.files) new SimpleListModal(this.app, '待分类文件 (Inbox Backlog)', this.currentScanData.inbox.files).open(); });
@@ -1696,57 +1867,6 @@ export class VaultOsView extends ItemView {
 		orphanItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.orphans.files) new SimpleListModal(this.app, '孤儿笔记 (Orphans)', this.currentScanData.orphans.files).open(); });
 		deadLinkItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.deadLinks.files) new SimpleListModal(this.app, '未解析死链 (Dead Links)', this.currentScanData.deadLinks.files).open(); });
 		emptyNoteItem.addEventListener('click', () => { if (this.currentScanData && this.currentScanData.empty.files) new SimpleListModal(this.app, '空白笔记 (Empty Notes)', this.currentScanData.empty.files).open(); });
-
-		// Bottom Console: claudian Skill Panel
-		const consoleCard = parent.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-lint-commands-card', attr: { style: 'flex-grow: 1; overflow-y: auto; padding: 10px 12px;' } });
-		consoleCard.createSpan({ text: '智能指令 (COMMANDS)', attr: { style: 'font-size: 10px; color: var(--text-muted); opacity: 0.8; font-weight: 600; letter-spacing: 0.5px; margin-bottom: 6px; display: block;' } });
-
-		const consoleLayout = consoleCard.createDiv({ cls: 'vo-console-layout', attr: { style: 'display: flex; flex-direction: column; gap: 8px;' } });
-		
-		// Dynamic Claudian Actions from Settings
-		const presetsCard = consoleLayout.createDiv({ attr: { style: 'border: 1px dashed var(--background-modifier-border); border-radius: 8px; padding: 8px; background: var(--background-primary);' } });
-		const presetsGrid = presetsCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px;' } });
-		
-		const inputsCard = consoleLayout.createDiv({ attr: { style: 'border: 1px dashed var(--background-modifier-border); border-radius: 8px; padding: 8px; background: var(--background-primary);' } });
-		const inputsDiv = inputsCard.createDiv({ attr: { style: 'display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px 12px;' } });
-
-		const actions = (this.plugin.settings.claudianActions || [])
-			.map(action => ({
-				enabled: true,
-				...action
-			}))
-			.filter(action => action.enabled !== false);
-
-		actions.forEach(action => {
-			if (!action.requireInput) {
-				const btn = presetsGrid.createEl('button', { cls: 'vo-btn vo-btn-secondary vo-lint-command-button', attr: { style: 'justify-content: flex-start; gap: 6px; font-size: 11px; padding: 8px;' } });
-				const iconWrap = btn.createSpan({ cls: 'vo-lint-command-icon' });
-				setIcon(iconWrap, action.icon || 'sparkles');
-				btn.createSpan({ text: action.label });
-				btn.addEventListener('click', () => {
-					new Notice(`已触发: ${action.label}`);
-					this.triggerClaudianPrompt(action.prompt);
-				});
-			} else {
-				const group = inputsDiv.createDiv({ attr: { style: 'display: flex; gap: 6px; align-items: center; min-width: 0;' } });
-				const input = group.createEl('input', { type: 'text', placeholder: action.inputPlaceholder || '', attr: { style: 'flex-grow: 1; min-width: 0; height: 30px; font-size: 12px; padding: 0 8px; border: 1px solid var(--background-modifier-border); border-radius: 4px; background: var(--background-primary); color: var(--text-normal);' } });
-				const btn = group.createEl('button', { cls: 'vo-btn vo-btn-primary vo-lint-command-button', attr: { style: 'height: 30px; min-width: 96px; justify-content: flex-start; gap: 4px; font-size: 11px; white-space: nowrap; flex-shrink: 0;' } });
-				const iconWrap = btn.createSpan({ cls: 'vo-lint-command-icon' });
-				setIcon(iconWrap, action.icon || 'sparkles');
-				btn.createSpan({ text: action.label });
-				btn.addEventListener('click', () => {
-					const val = input.value.trim();
-					if (val) {
-						this.triggerClaudianPrompt(action.prompt, val);
-						input.value = '';
-					} else {
-						new Notice(action.inputPlaceholder ? `请先${action.inputPlaceholder}` : '请输入内容');
-					}
-				});
-			}
-		});
-
-		// (Bottom Monthly Stats and Report Button removed and integrated above)
 
 		// Core calculations and sync updating logic
 		const runScan = () => {
@@ -1816,6 +1936,72 @@ export class VaultOsView extends ItemView {
 		// Bind trigger events
 		runBtn.addEventListener('click', runScan);
 	}
+
+	private renderSmartCommandsDashboard(parent: Element): void {
+		parent.empty();
+		parent.addClass('vo-workspace-dashboard', 'vo-commands-workspace');
+		const actions = (this.plugin.settings.claudianActions || [])
+			.map(action => ({ enabled: true, ...action }))
+			.filter(action => action.enabled !== false);
+		const categories = normalizeSmartActionCategories(this.plugin.settings.claudianActionCategories);
+		const grouped = new Map<string, ClaudianAction[]>();
+		for (const action of actions) {
+			const categoryId = resolveSmartActionCategoryId(action, categories);
+			const group = grouped.get(categoryId) || [];
+			group.push(action);
+			grouped.set(categoryId, group);
+		}
+
+		const intro = parent.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-commands-intro' });
+		const introIcon = intro.createDiv({ cls: 'vo-workspace-card-icon' });
+		setIcon(introIcon, 'sparkles');
+		const introCopy = intro.createDiv({ cls: 'vo-commands-intro-copy' });
+		introCopy.createDiv({ text: '个人智能指令', cls: 'vo-commands-title' });
+		introCopy.createDiv({ text: '按你的工作流分类。Vault OS 只提供输入与触发入口，具体处理仍由你配置的 Skill 完成。', cls: 'vo-commands-description' });
+
+		const grid = parent.createDiv({ cls: 'vo-commands-category-grid' });
+		let visibleCategoryCount = 0;
+		for (const category of categories) {
+			const categoryActions = grouped.get(category.id) || [];
+			if (categoryActions.length === 0) continue;
+			visibleCategoryCount++;
+			const card = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-command-category-card' });
+			const header = card.createDiv({ cls: 'vo-command-category-header' });
+			const icon = header.createDiv({ cls: 'vo-workspace-card-icon' });
+			setIcon(icon, category.icon || 'folder-open');
+			const copy = header.createDiv();
+			copy.createDiv({ text: category.label, cls: 'vo-command-category-title' });
+			if (category.description) copy.createDiv({ text: category.description, cls: 'vo-command-category-description' });
+			const actionsGrid = card.createDiv({ cls: 'vo-command-category-actions' });
+			for (const action of categoryActions) this.renderSmartCommandAction(actionsGrid, action);
+		}
+
+		if (visibleCategoryCount === 0) {
+			const empty = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-commands-empty' });
+			empty.createDiv({ text: '还没有启用的智能指令。请在设置中的“智能指令”里新增分类或启用现有指令。' });
+		}
+	}
+
+	private renderSmartCommandAction(parent: HTMLElement, action: ClaudianAction): void {
+		const button = parent.createEl('button', { cls: 'vo-btn vo-btn-secondary vo-workspace-action vo-command-action-button' });
+		const icon = button.createSpan({ cls: 'vo-lint-command-icon' });
+		setIcon(icon, action.icon || 'sparkles');
+		const copy = button.createSpan({ cls: 'vo-command-action-copy' });
+		copy.createSpan({ text: action.label, cls: 'vo-command-action-label' });
+		if (action.description) copy.createSpan({ text: action.description, cls: 'vo-command-action-description' });
+		button.addEventListener('click', () => {
+			if (requiresSmartActionInput(action)) {
+				new SmartActionInputModal(this.app, action, input => {
+					new Notice(`已触发: ${action.label}`);
+					this.triggerClaudianPrompt(action.prompt, input);
+				}).open();
+				return;
+			}
+			new Notice(`已触发: ${action.label}`);
+			this.triggerClaudianPrompt(action.prompt);
+		});
+	}
+
 	async generateMonthlyReport(): Promise<void> {
 		const [inbox, uningested, orphans, deadLinks, empty] = await Promise.all([
 			this.vaultService.getInboxBacklog(),
@@ -1835,9 +2021,6 @@ export class VaultOsView extends ItemView {
 			orphanCount: orphans.count,
 			deadLinkCount: deadLinks.count,
 			emptyNoteCount: empty.count,
-			ingestedCount: this.historyStats.ingested,
-			fixedLinkCount: this.historyStats.fixedLinks,
-			cleanedEmptyCount: this.historyStats.cleanedEmpty
 		});
 		const result = await this.healthReports.createReport(
 			this.plugin.settings.outputFolder,
@@ -1856,8 +2039,7 @@ export class VaultOsView extends ItemView {
 		new LintModal(this.app, this.vaultService, this.fileOperations, this).open();
 	}
 
-	updateCleanedEmpty(count: number): void {
-		this.historyStats.cleanedEmpty += count;
+	updateCleanedEmpty(_count: number): void {
 		this.render();
 	}
 
@@ -1870,33 +2052,8 @@ export class VaultOsView extends ItemView {
 			new Notice('没有发现孤儿笔记。');
 			return;
 		}
-		void this.vaultService.getOrphanCount().then(() => {
-			const resolvedLinks = this.app.metadataCache.resolvedLinks;
-			const linkedFiles = new Set<string>();
-			for (const sourcePath of Object.keys(resolvedLinks)) {
-				const targets = resolvedLinks[sourcePath];
-				if (targets) {
-					for (const targetPath of Object.keys(targets)) {
-						linkedFiles.add(targetPath);
-					}
-				}
-			}
-
-			const files = this.app.vault.getMarkdownFiles();
-			const orphans: string[] = [];
-			files.forEach(file => {
-				if (
-					!linkedFiles.has(file.path) && 
-					!file.path.startsWith(this.plugin.settings.dailyNoteFolder) && 
-					!file.path.includes('Dashboard') &&
-					!file.path.includes('templates') &&
-					!file.path.includes(this.app.vault.configDir)
-				) {
-					orphans.push(file.path);
-				}
-			});
-
-			new SimpleListModal(this.app, '孤儿文件列表 (Orphans)', orphans).open();
+		void this.vaultService.getOrphanCount().then(result => {
+			new SimpleListModal(this.app, '孤儿文件列表 (Orphans)', result.files).open();
 		});
 	}
 

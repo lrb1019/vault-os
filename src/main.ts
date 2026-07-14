@@ -48,7 +48,36 @@ export default class VaultOsPlugin extends Plugin {
 		delete legacySettings.ticktickMcp;
 		delete legacySettings.ticktickCachePath;
 		delete legacySettings.ticktickSyncDebounce;
-		if (hasLegacyTickTickSettings) await this.saveData(this.settings);
+		const addedP0EvidenceDebtAction = await this.installLocalP0EvidenceDebtAction();
+		if (hasLegacyTickTickSettings || addedP0EvidenceDebtAction) await this.saveData(this.settings);
+	}
+
+	private async installLocalP0EvidenceDebtAction(): Promise<boolean> {
+		if (this.settings.p0EvidenceDebtActionInstalled) return false;
+		this.settings.p0EvidenceDebtActionInstalled = true;
+
+		const skillPath = '.agents/skills/p0-evidence-debt/SKILL.md';
+		if (!await this.app.vault.adapter.exists(skillPath)) return true;
+
+		const actionId = 'p0-evidence-debt';
+		if (!(this.settings.claudianActions || []).some(action => action.id === actionId)) {
+			this.settings.claudianActions = [
+				...(this.settings.claudianActions || []),
+				{
+					id: actionId,
+					label: 'P0 Evidence 补链',
+					description: '核验指定 P0 Claim 的来源，先生成 Evidence 预览；确认后才写入。',
+					icon: 'waypoints',
+					prompt: '@skills/p0-evidence-debt\n请处理以下 P0 Claim（可提供一个或多个 Vault 相对路径）：\n{{input}}\n\n只执行来源核验与 Evidence 草稿预览。不得写入、修改 Claim 或批量扫描；请等待我明确确认后再创建 Evidence。',
+					requireInput: true,
+					inputPlaceholder: '粘贴 P0 Claim 路径，例如：04 Atomics/某个 Claim.md',
+					enabled: true,
+					categoryId: 'workflow'
+				}
+			];
+		}
+
+		return true;
 	}
 
 	async saveSettings() {

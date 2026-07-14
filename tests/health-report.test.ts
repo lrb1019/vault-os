@@ -13,13 +13,10 @@ void test('builds a deterministic monthly report name and content from scan data
 		uningestedCount: 1,
 		orphanCount: 4,
 		deadLinkCount: 5,
-		emptyNoteCount: 6,
-		ingestedCount: 7,
-		fixedLinkCount: 8,
-		cleanedEmptyCount: 9
+		emptyNoteCount: 6
 	});
 
 	assert.match(report, /# 2026-07 知识库巡检报告/);
 	assert.match(report, /\*\*当前得分\*\*: \*\*88 \/ 100\*\*/);
-	assert.match(report, /\*\*已清理空白笔记 \(Cleaned Empty\)\*\*: 9 篇/);
+	assert.doesNotMatch(report, /本次工作流处理统计/);
 });

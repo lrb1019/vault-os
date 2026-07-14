@@ -4,11 +4,12 @@ Vault OS is an Obsidian home surface for personal knowledge work. It brings dail
 
 ## Current Scope
 
-The primary navigation has three entries:
+The primary navigation has four entries:
 
 - **Home**: daily quote, today's journal, review and health entry points, and daily reading reflection.
 - **Periodic Review**: open, create, and revisit daily, weekly, monthly, quarterly, and yearly notes.
-- **Vault Health**: inbox backlog, un-ingested diaries, orphan candidates, dead links, and empty notes.
+- **Vault Health**: workflow diagnostics, inbox backlog, un-ingested diaries, orphan candidates, dead links, and empty notes.
+- **Smart Commands**: user-defined, category-based Skill launch panels.
 
 Vault OS does not duplicate a task manager or project manager. Time-bound execution remains in dedicated tools; Vault OS focuses on knowledge capture, review, and maintenance.
 
@@ -38,6 +39,10 @@ Inbox currently supports:
 
 Legacy path settings still produce a compatibility rule at runtime, so an existing vault keeps its previous direct-child Inbox scan until you explicitly choose a new rule.
 
+For a first setup, use the **Quick start** section to confirm a global safety exclusion and, when applicable, apply the current-vault recommended mapping. It enables the existing Project, Question, Claim, Evidence, and Output recognition without defining P0 priority or Output lifecycle states. The remaining rules stay collapsed under **Advanced rules** until the workflow needs them.
+
+Workflow diagnostics also use an explicit knowledge-entity contract. It separately identifies Question, Claim, and Evidence entities. Its relationship semantics are deliberately fixed: Question/Claim wiki-link association, Output outbound links to Claims, and Evidence `supports` links to Claims. Without a complete contract, knowledge-graph checks remain unconfigured rather than inferring entities from ordinary Markdown.
+
 ## Periodic Review
 
 The review page supports day, week, month, quarter, and year:
@@ -48,6 +53,12 @@ The review page supports day, week, month, quarter, and year:
 - The view provides current-period and previous-year entry points, but never writes your review conclusion automatically.
 
 ## Vault Health
+
+Workflow diagnostics are read-only. They show a knowledge-flow view: completed Project entities still in the Projects scope; active Claims used by a Project or Output without structured `Evidence.supports`; Evidence with no `supports`, malformed `supports`, or unresolved `supports` targets; and Question or Output link-gap candidates. Each result exposes its deterministic trigger evidence before opening the underlying note. Ordinary links only establish association, never an asserted answer or completed lifecycle. P0 Claim evidence debt remains unconfigured until the user defines an explicit P0 Claim rule.
+
+The smallest knowledge chain is: a `Question` wiki-links with a `Claim`; an `Evidence` declares `supports: "[[Claim]]"` (or a string array); and an `Output` links to the Claim it uses. Existing notes do not need migration: adopt this structure gradually for new research, projects, and outputs.
+
+Configure at least one global folder exclusion before semantic inspection. Without it, inspection fails closed before frontmatter, links, or note bodies are read. Excluded paths are also omitted from snapshots, reports, and issue lists. A snapshot is written only when you explicitly save a baseline; it contains issue identifiers, titles, and a timestamp, never note bodies. Changes to diagnostic rules invalidate comparisons with prior baselines.
 
 Universal checks:
 

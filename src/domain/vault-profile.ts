@@ -1,3 +1,5 @@
+import type { KnowledgeEntityContract } from './knowledge-entity-contract.ts';
+
 export interface VaultFileDescriptor {
 	path: string;
 	tags?: readonly string[];
@@ -27,6 +29,13 @@ export interface VaultProfile {
 	knowledge?: ScopeRule;
 	outputs?: ScopeRule;
 	projects?: ScopeRule;
+	projectEntries?: ScopeRule;
+	outputEntries?: ScopeRule;
+	p0ClaimRule?: ScopeRule;
+	knowledgeEntities?: KnowledgeEntityContract;
+	usageSourceExclusions?: readonly ScopeRule[];
+	projectStatusAliases?: Readonly<Record<string, readonly string[]>>;
+	outputLifecycle?: { published: readonly string[]; reviewed: readonly string[] };
 	exclusions: readonly ScopeRule[];
 }
 
@@ -54,6 +63,20 @@ function isStringArray(value: unknown): value is string[] {
 	return Array.isArray(value) && value.every(item => typeof item === 'string');
 }
 
+function isStringArrayRecord(value: unknown): value is Record<string, string[]> {
+	return Boolean(value)
+		&& typeof value === 'object'
+		&& Object.values(value as Record<string, unknown>).every(isStringArray);
+}
+
+function isOutputLifecycle(value: unknown): value is { published: readonly string[]; reviewed: readonly string[] } {
+	if (!value || typeof value !== 'object') return false;
+	return 'published' in value
+		&& 'reviewed' in value
+		&& isStringArray(value.published)
+		&& isStringArray(value.reviewed);
+}
+
 export function isScopeRule(value: unknown): value is ScopeRule {
 	if (!value || typeof value !== 'object' || !('type' in value) || typeof value.type !== 'string') return false;
 	if (value.type === 'all-markdown') return true;
@@ -72,6 +95,18 @@ export function isScopeRule(value: unknown): value is ScopeRule {
 	return false;
 }
 
+/** Keep persisted-profile validation here so the domain classifier has no runtime dependency cycle. */
+function isKnowledgeEntityContract(value: unknown): value is KnowledgeEntityContract {
+	if (!value || typeof value !== 'object') return false;
+	const candidate = value as KnowledgeEntityContract;
+	return (candidate.questions === undefined || isScopeRule(candidate.questions))
+		&& (candidate.claims === undefined || isScopeRule(candidate.claims))
+		&& (candidate.evidence === undefined || isScopeRule(candidate.evidence))
+		&& (candidate.questionClaimRelation === undefined || candidate.questionClaimRelation === 'bidirectional-wiki-link')
+		&& (candidate.outputClaimRelation === undefined || candidate.outputClaimRelation === 'outbound-wiki-link')
+		&& (candidate.evidenceClaimRelation === undefined || candidate.evidenceClaimRelation === 'supports');
+}
+
 export function isVaultProfile(value: unknown): value is VaultProfile {
 	if (!value || typeof value !== 'object') return false;
 	const candidate = value as Partial<VaultProfile>;
@@ -80,6 +115,14 @@ export function isVaultProfile(value: unknown): value is VaultProfile {
 		&& typeof candidate.label === 'string'
 		&& Array.isArray(candidate.exclusions)
 		&& candidate.exclusions.every(isScopeRule)
+		&& (candidate.projects === undefined || isScopeRule(candidate.projects))
+		&& (candidate.projectEntries === undefined || isScopeRule(candidate.projectEntries))
+		&& (candidate.outputEntries === undefined || isScopeRule(candidate.outputEntries))
+		&& (candidate.p0ClaimRule === undefined || isScopeRule(candidate.p0ClaimRule))
+		&& (candidate.knowledgeEntities === undefined || isKnowledgeEntityContract(candidate.knowledgeEntities))
+		&& (candidate.usageSourceExclusions === undefined || (Array.isArray(candidate.usageSourceExclusions) && candidate.usageSourceExclusions.every(isScopeRule)))
+		&& (candidate.projectStatusAliases === undefined || isStringArrayRecord(candidate.projectStatusAliases))
+		&& (candidate.outputLifecycle === undefined || isOutputLifecycle(candidate.outputLifecycle))
 		&& Boolean(candidate.journal);
 }
 
@@ -91,7 +134,7 @@ function folderRule(path: string, recursive = true): ScopeRule | undefined {
 /** Converts the pre-profile folder settings into a non-persisted compatibility profile. */
 export function createLegacyVaultProfile(paths: LegacyVaultPaths): VaultProfile {
 	const daily = folderRule(paths.dailyNoteFolder);
-	const exclusions = ['00Templates', '00 Templates', '09Books', '09 Books']
+	const exclusions = ['00Templates', '00 Templates', '09Books', '09 Books', '08 Data/Secrets']
 		.map(path => folderRule(path))
 		.filter((rule): rule is ScopeRule => rule !== undefined);
 	return {
@@ -102,15 +145,24 @@ export function createLegacyVaultProfile(paths: LegacyVaultPaths): VaultProfile 
 		inbox: folderRule(paths.inboxFolder, false),
 		knowledge: folderRule(paths.atomicsFolder),
 		outputs: folderRule(paths.outputFolder),
+		projects: folderRule('03 Projects'),
 		// Preserve the historical empty-note scan exclusions only for compatibility mode.
 		exclusions
 	};
 }
 
+function normalizePropertyValue(value: unknown): string {
+	const normalized = String(value).trim();
+	const hasMatchingQuotes = normalized.length >= 2
+		&& ((normalized.startsWith('"') && normalized.endsWith('"'))
+			|| (normalized.startsWith("'") && normalized.endsWith("'")));
+	return (hasMatchingQuotes ? normalized.slice(1, -1) : normalized).trim().toLocaleLowerCase();
+}
+
 function hasMatchingProperty(value: unknown, expectedValues: readonly string[]): boolean {
-	const expected = new Set(expectedValues.map(item => item.trim().toLocaleLowerCase()));
+	const expected = new Set(expectedValues.map(normalizePropertyValue));
 	const values = Array.isArray(value) ? value : [value];
-	return values.some(item => expected.has(String(item).trim().toLocaleLowerCase()));
+	return values.some(item => expected.has(normalizePropertyValue(item)));
 }
 
 export function matchesScopeRule(file: VaultFileDescriptor, rule: ScopeRule): boolean {
