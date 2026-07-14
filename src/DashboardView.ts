@@ -1085,9 +1085,11 @@ export class VaultOsView extends ItemView {
 				}
 				const reflectionContent = body.createDiv({ cls: 'vo-home-reflection-text markdown-rendered' });
 				await MarkdownRenderer.render(this.app, reflection.reflection, reflectionContent, reflection.filePath, this);
+				this.bindDailyReflectionLinks(reflectionContent, reflection.filePath);
 				if (reflection.quote) {
 					const quoteContent = body.createDiv({ cls: 'vo-home-reflection-quote markdown-rendered' });
 					await MarkdownRenderer.render(this.app, reflection.quote, quoteContent, reflection.filePath, this);
+					this.bindDailyReflectionLinks(quoteContent, reflection.filePath);
 				}
 				const meta = body.createDiv({ cls: 'vo-home-reflection-meta' });
 				meta.createSpan({ text: reflection.bookTitle });
@@ -1106,6 +1108,18 @@ export class VaultOsView extends ItemView {
 			renderReflection();
 		});
 		renderReflection();
+	}
+
+	private bindDailyReflectionLinks(container: HTMLElement, sourcePath: string): void {
+		container.querySelectorAll<HTMLAnchorElement>('a.internal-link').forEach(link => {
+			const target = link.getAttribute('data-href') || link.getAttribute('href');
+			if (!target) return;
+			link.addEventListener('click', event => {
+				event.preventDefault();
+				event.stopPropagation();
+				void this.app.workspace.openLinkText(target, sourcePath, event.metaKey || event.ctrlKey);
+			});
+		});
 	}
 
 	private renderHomeAttentionCard(card: HTMLElement): void {
