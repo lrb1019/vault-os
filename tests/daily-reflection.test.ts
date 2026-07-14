@@ -49,3 +49,9 @@ void test('selects a stable daily reflection and changes only when requested', (
 		chooseDailyReadingReflection(reflections, '2026-07-13', 1)?.blockId
 	);
 });
+
+void test('preserves Markdown formatting and wiki links for the renderer', () => {
+	const source = `> [!quote] Markdown\n>\n> 感想：**重点**是 [[Atomic action|下一步]]。\n^reflection-markdown`;
+	const reflection = parseDailyReadingReflections(source, 'Books/Example.md')[0];
+	assert.equal(reflection?.reflection, '**重点**是 [[Atomic action|下一步]]。');
+});

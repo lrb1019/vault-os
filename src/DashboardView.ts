@@ -1,4 +1,4 @@
-import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, TFile, TFolder, moment, Modal, App, MarkdownRenderer } from 'obsidian';
 import { Setting } from 'obsidian';
 import VaultOsPlugin from './main';
 import type { ClaudianAction } from './settings';
@@ -12,7 +12,6 @@ import { VaultService, VaultOverviewStats } from './services/VaultService';
 import { WorkflowInspectionService } from './services/WorkflowInspectionService';
 import { ObsidianWorkflowInspectionAdapter } from './adapters/ObsidianWorkflowInspectionAdapter';
 import { buildMonthlyHealthReport, getMonthlyHealthReportFileName } from './domain/health-report';
-import { createLegacyVaultProfile, isVaultProfile } from './domain/vault-profile';
 import { isWorkflowInspectionSnapshot } from './domain/workflow-inspection-snapshot';
 import { normalizeSmartActionCategories, requiresSmartActionInput, resolveSmartActionCategoryId } from './domain/smart-action';
 import { chooseDailyReadingReflection } from './domain/daily-reflection';
@@ -1076,10 +1075,7 @@ export class VaultOsView extends ItemView {
 		}
 		body.createDiv({ text: '正在读取你的阅读感想…', cls: 'vo-home-empty-state' });
 		const renderReflection = () => {
-		const profile = isVaultProfile(this.plugin.settings.vaultProfile)
-			? this.plugin.settings.vaultProfile
-			: createLegacyVaultProfile(this.plugin.settings);
-		void this.dailyReflections.getReflections(this.plugin.settings.readingReflectionScope, profile.exclusions).then(reflections => {
+		void this.dailyReflections.getReflections(this.plugin.settings.readingReflectionScope).then(async reflections => {
 				if (!body.isConnected) return;
 				body.empty();
 				const reflection = chooseDailyReadingReflection(reflections, dayKey, this.dailyReflectionOffset);
@@ -1087,8 +1083,12 @@ export class VaultOsView extends ItemView {
 					body.createDiv({ text: '此范围内还没有带个人想法、笔记或感想的阅读块。纯划线会保持安静，不进入每日回看。', cls: 'vo-home-empty-state' });
 					return;
 				}
-				body.createDiv({ text: reflection.reflection, cls: 'vo-home-reflection-text' });
-				if (reflection.quote) body.createDiv({ text: reflection.quote, cls: 'vo-home-reflection-quote' });
+				const reflectionContent = body.createDiv({ cls: 'vo-home-reflection-text markdown-rendered' });
+				await MarkdownRenderer.render(this.app, reflection.reflection, reflectionContent, reflection.filePath, this);
+				if (reflection.quote) {
+					const quoteContent = body.createDiv({ cls: 'vo-home-reflection-quote markdown-rendered' });
+					await MarkdownRenderer.render(this.app, reflection.quote, quoteContent, reflection.filePath, this);
+				}
 				const meta = body.createDiv({ cls: 'vo-home-reflection-meta' });
 				meta.createSpan({ text: reflection.bookTitle });
 				meta.createSpan({ text: reflection.chapterTitle });

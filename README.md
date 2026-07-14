@@ -125,6 +125,10 @@ npm run verify
 
 源码位于 `src/`，根目录 `main.js` 由构建生成，不应手工编辑。自动测试不能替代 Obsidian 隔离测试 Vault 的实机验收。
 
+## 发布资源标准
+
+每个正式 Release 必须同时提供四个独立附件：`main.js`、`manifest.json`、`styles.css` 与 `vault-os-v<version>.zip`。ZIP 的根目录只能包含前三项资源；缺少、为空或版本不一致时，`npm run package:release` 与标签 CI 必须失败，不能创建 Release。
+
 ## README 维护约定
 
 修改用户使用方式、设置、依赖、数据范围或安全行为时，必须同步更新本文件和 `README_en.md`。文档以已验证的真实行为为准，不描述计划中或已撤销的功能。
