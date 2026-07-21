@@ -100,9 +100,10 @@ class ClaudianActionEditModal extends Modal {
 			...this.originalAction
 		};
 
-		contentEl.createEl('h2', { text: 'Edit Smart Action' });
+		contentEl.createEl('h2', { text: '编辑智能指令', cls: 'vo-action-modal-title' });
+		const form = contentEl.createDiv({ cls: 'vo-action-modal-form' });
 
-		new Setting(contentEl)
+		new Setting(form)
 			.setName('按钮名称')
 			.setDesc('面板中显示的按钮文字')
 			.addText(text => text
@@ -112,7 +113,7 @@ class ClaudianActionEditModal extends Modal {
 					draft = { ...draft, label: value };
 				}));
 
-		new Setting(contentEl)
+		new Setting(form)
 			.setName('列表描述')
 			.setDesc('显示在外层列表里的一句简短说明')
 			.addText(text => text
@@ -122,7 +123,7 @@ class ClaudianActionEditModal extends Modal {
 					draft = { ...draft, description: value };
 				}));
 
-		new Setting(contentEl)
+		new Setting(form)
 			.setName('所属分类')
 			.setDesc('决定它显示在哪个智能指令面板中。')
 			.addDropdown(dropdown => {
@@ -132,7 +133,7 @@ class ClaudianActionEditModal extends Modal {
 				});
 			});
 
-		new Setting(contentEl)
+		new Setting(form)
 			.setName('图标名称')
 			.setDesc('填写 Lucide 图标名称，例如 sprout、book-open、rss')
 			.addText(text => text
@@ -142,7 +143,7 @@ class ClaudianActionEditModal extends Modal {
 					draft = { ...draft, icon: value };
 				}));
 
-		new Setting(contentEl)
+		new Setting(form)
 			.setName('启用独立输入框')
 			.setDesc('开启后，点击智能指令卡片会先弹出输入窗口；关闭后，点击会直接发送。')
 			.addToggle(toggle => toggle
@@ -155,7 +156,7 @@ class ClaudianActionEditModal extends Modal {
 						};
 					}));
 
-		new Setting(contentEl)
+		new Setting(form)
 			.setName('输入框提示词')
 			.setDesc('只在启用独立输入框时生效，会显示在弹出的输入窗口中。')
 			.addText(text => text
@@ -165,7 +166,7 @@ class ClaudianActionEditModal extends Modal {
 					draft = { ...draft, inputPlaceholder: value };
 				}));
 
-		new Setting(contentEl)
+		new Setting(form)
 			.setName('指令模板')
 			.setDesc('点击后发送给 Claudian 的完整内容，可使用 {{input}}、{{daily_path}}、{{inbox_path}}')
 			.addTextArea(text => {
@@ -182,13 +183,13 @@ class ClaudianActionEditModal extends Modal {
 		const leftActions = footer.createDiv({ cls: 'vo-action-modal-footer-left' });
 		const rightActions = footer.createDiv({ cls: 'vo-action-modal-footer-right' });
 		if (this.onDeleteAction) {
-			const deleteBtn = leftActions.createEl('button', { text: 'Delete', cls: 'mod-warning' });
+			const deleteBtn = leftActions.createEl('button', { text: '删除', cls: 'mod-warning' });
 			deleteBtn.addEventListener('click', () => {
 				void this.onDeleteAction?.().then(() => this.close());
 			});
 		}
-		const cancelBtn = rightActions.createEl('button', { text: 'Cancel' });
-		const saveBtn = rightActions.createEl('button', { text: 'Save', cls: 'mod-cta' });
+		const cancelBtn = rightActions.createEl('button', { text: '取消' });
+		const saveBtn = rightActions.createEl('button', { text: '保存', cls: 'mod-cta' });
 
 		cancelBtn.addEventListener('click', () => this.close());
 		saveBtn.addEventListener('click', () => {
@@ -434,7 +435,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 
 		this.createNote(
 			container,
-			'思想脉络只观察个人思想如何形成、稳定和汇总。它不把日记当作待处理任务，也不要求维护旧 Question / Claim / Evidence 体系。'
+			'思想脉络用于观察个人思想从形成、沉淀到阶段综合的状态与连接，帮助你看清正在发展的理解和已经形成的认识。'
 		);
 
 		if (!isConfigured) {
@@ -514,11 +515,6 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			'只用于展示由多条思想、长期日记和真实经历形成的阶段理解。',
 			profile.synthesis,
 			(rule, rerenderSettings) => this.saveProfileRule('synthesis', rule, rerenderSettings)
-		);
-		this.createNote(
-			advanced,
-			'旧 Atomics、Question / Claim / Evidence、P0、Output 生命周期和 Project 状态设置已停止参与思想脉络，也不再显示。历史保存值暂时保留，便于必要时回滚。',
-			'vo-settings-note-subtle'
 		);
 	}
 

@@ -1,7 +1,7 @@
 {
 	"id": "vault-os",
 	"name": "Vault OS",
-	"version": "1.8.0",
+	"version": "1.8.1",
 	"minAppVersion": "1.8.0",
 	"description": "A focused Obsidian workspace for journals, periodic review, thinking development, and custom AI actions.",
 	"author": "Bylrb",
