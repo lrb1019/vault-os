@@ -8,6 +8,7 @@ import { VaultHealthReportService } from './services/VaultHealthReportService';
 import { ClaudianActionService } from './services/ClaudianActionService';
 import { DailyReadingReflectionService } from './services/DailyReadingReflectionService';
 import { DailyContextService } from './services/DailyContextService';
+import { ThinkingMapService } from './services/ThinkingMapService';
 import { VaultService, VaultOverviewStats } from './services/VaultService';
 import { WorkflowInspectionService } from './services/WorkflowInspectionService';
 import { ObsidianWorkflowInspectionAdapter } from './adapters/ObsidianWorkflowInspectionAdapter';
@@ -611,6 +612,7 @@ export class VaultOsView extends ItemView {
 	private dailyReflections: DailyReadingReflectionService;
 	private dailyContext: DailyContextService;
 	private workflowInspection: WorkflowInspectionService;
+	private thinkingMap: ThinkingMapService;
 	private dailyReflectionOffset = 0;
 
 	constructor(leaf: WorkspaceLeaf, plugin: VaultOsPlugin) {
@@ -625,6 +627,7 @@ export class VaultOsView extends ItemView {
 		this.dailyReflections = new DailyReadingReflectionService(this.app);
 		this.dailyContext = new DailyContextService(this.plugin);
 		this.workflowInspection = new WorkflowInspectionService(this.plugin, new ObsidianWorkflowInspectionAdapter(this.app));
+		this.thinkingMap = new ThinkingMapService(this.plugin, this.app);
 	}
 
 	private calculateLintHealthScore(scanData: ScanData): number {
@@ -918,7 +921,7 @@ export class VaultOsView extends ItemView {
 		const mainTabs = [
 			{ id: 'home', label: '首页', icon: 'home' },
 			{ id: 'diary', label: '周期复盘', icon: 'calendar' },
-			{ id: 'lint', label: '知识库体检', icon: 'shield-alert' },
+			{ id: 'lint', label: '思想脉络', icon: 'brain-circuit' },
 			{ id: 'commands', label: '智能指令', icon: 'sparkles' }
 		] as const;
 
@@ -949,7 +952,7 @@ export class VaultOsView extends ItemView {
 	}
 
 	private renderTabContent(contentWrapper: Element): void {
-		contentWrapper.removeClass('vo-tab-content-fill');
+		contentWrapper.removeClass('vo-tab-content-fill', 'vo-workspace-dashboard', 'vo-thinking-workspace', 'vo-lint-workspace', 'vo-commands-workspace');
 		if (this.activeMainTab === 'home') {
 			this.renderHomeDashboard(contentWrapper);
 		} else if (this.activeMainTab === 'diary') {
@@ -1124,25 +1127,20 @@ export class VaultOsView extends ItemView {
 
 	private renderHomeAttentionCard(card: HTMLElement): void {
 		const header = card.createDiv({ cls: 'vo-home-card-topline' });
-		header.createDiv({ text: '需要注意', cls: 'vo-home-card-label' });
+		header.createDiv({ text: '思想脉络', cls: 'vo-home-card-label' });
 		const icon = header.createDiv({ cls: 'vo-home-card-icon' });
-		setIcon(icon, 'shield-check');
+		setIcon(icon, 'brain-circuit');
 		const content = card.createDiv({ cls: 'vo-home-attention-content' });
-		content.createDiv({ text: '正在检查…', cls: 'vo-home-card-detail' });
-		void Promise.all([
-			this.vaultService.getInboxBacklog(),
-			this.vaultService.getDeadLinkCount(),
-			this.vaultService.getEmptyNotesCount()
-		]).then(([inbox, deadLinks, empty]) => {
+		content.createDiv({ text: '正在读取…', cls: 'vo-home-card-detail' });
+		void this.thinkingMap.inspect().then(result => {
 			if (!content.isConnected) return;
 			content.empty();
-			const messages = [
-				inbox.count > 0 ? `Inbox 待处理 ${inbox.count} 项` : '',
-				deadLinks.count > 0 ? `死链 ${deadLinks.count} 项` : '',
-				empty.count > 0 ? `空白笔记 ${empty.count} 项` : ''
-			].filter(Boolean);
-			content.createDiv({ text: messages.length ? messages.join(' · ') : '当前没有需要立即处理的体检问题。', cls: 'vo-home-card-title' });
-			const button = card.createEl('button', { text: messages.length ? '查看体检问题' : '打开知识库体检', cls: 'vo-btn vo-btn-secondary vo-home-card-action' });
+			const formingCount = result.developing.length + result.unclassified.length;
+			const message = result.status === 'blocked'
+				? '请先确认 Thinking 与 Synthesis 范围'
+				: `正在形成 ${formingCount} · 已形成 ${result.settled.length} · 阶段综合 ${result.synthesis.length}`;
+			content.createDiv({ text: message, cls: 'vo-home-card-title' });
+			const button = card.createEl('button', { text: '打开思想脉络', cls: 'vo-btn vo-btn-secondary vo-home-card-action' });
 			button.addEventListener('click', () => {
 				this.activeMainTab = 'lint';
 				this.render();
@@ -1150,7 +1148,7 @@ export class VaultOsView extends ItemView {
 		}).catch(() => {
 			if (!content.isConnected) return;
 			content.empty();
-			content.createDiv({ text: '体检摘要暂不可用。', cls: 'vo-home-card-title' });
+			content.createDiv({ text: '思想脉络暂不可用。', cls: 'vo-home-card-title' });
 		});
 	}
 
@@ -1667,6 +1665,129 @@ export class VaultOsView extends ItemView {
 	 * =========================================================================
 	 */
 	private renderLintDashboard(parent: Element): void {
+		parent.empty();
+		parent.addClass('vo-workspace-dashboard', 'vo-thinking-workspace');
+		const hero = parent.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-thinking-hero' });
+		const heroIcon = hero.createDiv({ cls: 'vo-workspace-card-icon' });
+		setIcon(heroIcon, 'brain-circuit');
+		const heroCopy = hero.createDiv({ cls: 'vo-thinking-hero-copy' });
+		heroCopy.createDiv({ text: '认知发展', cls: 'vo-thinking-title' });
+		const summary = heroCopy.createDiv({ text: '正在读取 Thinking 与 Synthesis…', cls: 'vo-thinking-summary' });
+		const refresh = hero.createEl('button', { text: '刷新', cls: 'vo-btn vo-btn-secondary vo-workspace-action vo-thinking-refresh' });
+
+		const grid = parent.createDiv({ cls: 'vo-thinking-grid' });
+		const maintenance = parent.createEl('details', { cls: 'vo-card vo-tech-card vo-workspace-card vo-thinking-maintenance' });
+		const maintenanceSummary = maintenance.createEl('summary');
+		const maintenanceIcon = maintenanceSummary.createSpan({ cls: 'vo-thinking-maintenance-icon' });
+		setIcon(maintenanceIcon, 'wrench');
+		maintenanceSummary.createSpan({ text: '仓库维护', cls: 'vo-thinking-maintenance-title' });
+		const maintenanceStatus = maintenanceSummary.createSpan({ text: '检测中…', cls: 'vo-thinking-maintenance-status' });
+		const maintenanceBody = maintenance.createDiv({ cls: 'vo-thinking-maintenance-body' });
+
+		const render = async () => {
+			refresh.disabled = true;
+			grid.empty();
+			maintenanceBody.empty();
+			const result = await this.thinkingMap.inspect();
+			if (!parent.isConnected) return;
+			refresh.disabled = false;
+			if (result.status === 'blocked') {
+				summary.setText('安全范围尚未确认');
+				const blocked = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-thinking-empty-state' });
+				blocked.createDiv({ text: result.reason || '思想脉络已安全停止。' });
+				blocked.createDiv({ text: '请先在设置的“仓库规则”中应用 BYLRB 推荐范围。', cls: 'setting-item-description' });
+				maintenanceStatus.setText('未运行');
+				return;
+			}
+
+			const forming = [...result.developing, ...result.unclassified]
+				.sort((a, b) => b.updatedAt - a.updatedAt);
+			summary.setText(`正在形成 ${forming.length} · 已形成 ${result.settled.length} · 阶段综合 ${result.synthesis.length}`);
+
+			const createCard = (
+				title: string,
+				description: string,
+				iconName: string,
+				items: Array<{ path: string; title: string; detail: string }>,
+				emptyText: string
+			) => {
+				const card = grid.createDiv({ cls: 'vo-card vo-tech-card vo-workspace-card vo-thinking-card' });
+				const header = card.createDiv({ cls: 'vo-thinking-card-header' });
+				const icon = header.createDiv({ cls: 'vo-workspace-card-icon' });
+				setIcon(icon, iconName);
+				const copy = header.createDiv({ cls: 'vo-thinking-card-heading' });
+				copy.createDiv({ text: title, cls: 'vo-thinking-card-title' });
+				copy.createDiv({ text: description, cls: 'vo-thinking-card-description' });
+				copy.createSpan({ text: `${items.length}`, cls: 'vo-thinking-card-count' });
+				const list = card.createDiv({ cls: 'vo-thinking-list' });
+				if (items.length === 0) {
+					list.createDiv({ text: emptyText, cls: 'vo-thinking-empty' });
+					return;
+				}
+				for (const item of items.slice(0, 6)) {
+					const button = list.createEl('button', { cls: 'vo-thinking-note' });
+					const text = button.createSpan({ cls: 'vo-thinking-note-copy' });
+					text.createSpan({ text: item.title, cls: 'vo-thinking-note-title' });
+					text.createSpan({ text: item.detail, cls: 'vo-thinking-note-detail' });
+					const arrow = button.createSpan({ cls: 'vo-thinking-note-arrow' });
+					setIcon(arrow, 'arrow-up-right');
+					button.addEventListener('click', () => void this.app.workspace.openLinkText(item.path, '', false));
+				}
+				if (items.length > 6) {
+					const more = card.createEl('button', { text: `查看全部 ${items.length} 条`, cls: 'vo-thinking-more' });
+					more.addEventListener('click', () => new SimpleListModal(this.app, title, items.map(item => ({ path: item.path, detail: item.detail }))).open());
+				}
+			};
+
+			createCard(
+				'正在形成',
+				'仍在发展、追问或等待继续表达的思想。',
+				'sprout',
+				forming.map(note => ({
+					path: note.path,
+					title: note.title,
+					detail: [note.stage === 'unclassified' ? '未标注阶段' : 'developing', note.hasUnresolved ? '有尚未解决的问题' : '', `${note.ageDays} 天前更新`].filter(Boolean).join(' · ')
+				})),
+				'目前没有正在形成的 Thinking。'
+			);
+			createCard(
+				'已形成理解',
+				'当前阶段愿意承担、也允许以后修正的判断。',
+				'circle-check-big',
+				result.settled.map(note => ({ path: note.path, title: note.title, detail: `settled · ${note.ageDays} 天前更新` })),
+				'目前还没有标记为 settled 的 Thinking。'
+			);
+			createCard(
+				'阶段综合',
+				'由多条思想与长期经历形成的阶段性理解。',
+				'layers-3',
+				result.synthesis.map(note => ({ path: note.path, title: note.title, detail: `连接 ${note.linkedThinkingCount} 条 Thinking · ${note.ageDays} 天前更新` })),
+				'目前还没有 Synthesis；没有必要为了填满页面而创建。'
+			);
+
+			const maintenanceCount = result.deadLinks.length + result.emptyNotes.length;
+			maintenanceStatus.setText(maintenanceCount === 0 ? '当前无确定性结构问题' : `死链 ${result.deadLinks.length} · 空白 ${result.emptyNotes.length}`);
+			const deadLinksButton = maintenanceBody.createEl('button', { text: `未解析链接 ${result.deadLinks.length} 处`, cls: 'vo-thinking-maintenance-button' });
+			const emptyButton = maintenanceBody.createEl('button', { text: `真正空白文件 ${result.emptyNotes.length} 篇`, cls: 'vo-thinking-maintenance-button' });
+			deadLinksButton.addEventListener('click', () => {
+				if (result.deadLinks.length > 0) new SimpleListModal(this.app, 'Thinking / Synthesis 中的未解析链接', result.deadLinks).open();
+				else new Notice('当前没有未解析链接。');
+			});
+			emptyButton.addEventListener('click', () => {
+				if (result.emptyNotes.length > 0) new SimpleListModal(this.app, 'Thinking / Synthesis 中的空白文件', result.emptyNotes).open();
+				else new Notice('当前没有真正空白文件。');
+			});
+		};
+
+		refresh.addEventListener('click', () => void render());
+		void render().catch(error => {
+			console.error('Failed to render thinking map:', error);
+			summary.setText('思想脉络暂时无法读取');
+			refresh.disabled = false;
+		});
+	}
+
+	private renderLegacyLintDashboard(parent: Element): void {
 		parent.empty();
 		parent.addClass('vo-workspace-dashboard', 'vo-lint-workspace');
 

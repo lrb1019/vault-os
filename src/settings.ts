@@ -1,11 +1,8 @@
 import { App, Modal, PluginSettingTab, Setting, setIcon } from 'obsidian';
 import VaultOsPlugin from './main';
 import { createLegacyVaultProfile, isVaultProfile, type ScopeRule, type VaultProfile } from './domain/vault-profile';
-import { type ProjectStatusAliases } from './domain/project-status';
-import { VaultProfileDiscoveryService } from './services/VaultProfileDiscoveryService';
 import { createDefaultManualPeriodicConfig, type ManualPeriodicConfig, type PeriodicCycle } from './domain/periodic-note';
 import { DEFAULT_DAILY_CONTEXT_SETTINGS, type DailyContextSettings } from './domain/daily-context';
-import { CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT, isKnowledgeEntityContractConfigured, type KnowledgeEntityContract, type KnowledgeEntityKind } from './domain/knowledge-entity-contract';
 import { DEFAULT_SMART_ACTION_CATEGORIES, normalizeSmartActionCategories, resolveSmartActionCategoryId, type SmartAction, type SmartActionCategory } from './domain/smart-action';
 
 export type ClaudianAction = SmartAction;
@@ -27,6 +24,8 @@ export interface VaultOsSettings {
 	archiveFolder: string;
 	outputFolder: string;
 	atomicsFolder: string;
+	thinkingFolder: string;
+	synthesisFolder: string;
 	
 	// Heatmap & Scale settings (new settings)
 	heatmapCellSize: number;
@@ -39,7 +38,7 @@ export interface VaultOsSettings {
 }
 
 type SettingsTabId = 'general' | 'paths' | 'profile' | 'actions';
-type EditableProfileScope = 'inbox' | 'knowledge' | 'outputs' | 'projects' | 'projectEntries' | 'outputEntries' | 'p0ClaimRule';
+type EditableProfileScope = 'thinking' | 'synthesis';
 
 export const DEFAULT_SETTINGS: VaultOsSettings = {
 	dashboardTitle: "Vault OS",
@@ -67,6 +66,8 @@ export const DEFAULT_SETTINGS: VaultOsSettings = {
 	archiveFolder: "06 Archive",
 	outputFolder: "05 Output",
 	atomicsFolder: "04 Atomics",
+	thinkingFolder: "04 Thinking",
+	synthesisFolder: "05 Synthesis",
 	heatmapCellSize: 12,
 	heatmapCellGap: 3,
 	heatmapDoubleCellSize: 9,
@@ -254,7 +255,9 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			dailyNoteFolder: this.plugin.settings.dailyNoteFolder,
 			inboxFolder: this.plugin.settings.inboxFolder,
 			atomicsFolder: this.plugin.settings.atomicsFolder,
-			outputFolder: this.plugin.settings.outputFolder
+			outputFolder: this.plugin.settings.outputFolder,
+			thinkingFolder: this.plugin.settings.thinkingFolder,
+			synthesisFolder: this.plugin.settings.synthesisFolder
 		});
 	}
 
@@ -273,20 +276,6 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		this.plugin.settings.vaultProfile = { ...profile, [scope]: rule };
 		await this.plugin.saveSettings();
 		if (rerenderSettings) this.display();
-	}
-
-	private async saveKnowledgeEntityRule(kind: KnowledgeEntityKind, rule: ScopeRule, rerenderSettings = false): Promise<void> {
-		const profile = this.getEditableVaultProfile();
-		const current = profile.knowledgeEntities || CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT;
-		const propertyByKind: Record<KnowledgeEntityKind, keyof Pick<KnowledgeEntityContract, 'questions' | 'claims' | 'evidence'>> = {
-			question: 'questions',
-			claim: 'claims',
-			evidence: 'evidence'
-		};
-		await this.saveVaultProfile({
-			...profile,
-			knowledgeEntities: { ...current, [propertyByKind[kind]]: rule }
-		}, rerenderSettings);
 	}
 
 	private async saveVaultProfile(profile: VaultProfile, rerenderSettings = false): Promise<void> {
@@ -315,17 +304,20 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		this.refreshDashboardView();
 	}
 
-	private async applyCurrentVaultWorkflowPreset(): Promise<void> {
+	private async applyThinkingMapPreset(): Promise<void> {
 		const profile = this.getEditableVaultProfile();
+		const recommendedExclusions = ['00 Attachment', '00 Flomo', '00 Templates', '06 Archive', '07 Jarvis', '08 Data', '09 Books'];
+		const existingFolderPaths = profile.exclusions
+			.filter((rule): rule is Extract<ScopeRule, { type: 'folder' }> => rule.type === 'folder')
+			.flatMap(rule => rule.paths);
+		const exclusionPaths = [...new Set([...existingFolderPaths, ...recommendedExclusions])];
+		const nonFolderExclusions = profile.exclusions.filter(rule => rule.type !== 'folder');
 		await this.saveVaultProfile({
 			...profile,
-			outputEntries: { type: 'property', key: 'layer', values: ['output'] },
-			knowledgeEntities: CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT,
-			projectStatusAliases: {
-				pending: ['ready', '初版', '待审核', '框架待审'],
-				active: ['🟢 Active', 'active'],
-				completed: ['🔵 Completed']
-			}
+			label: 'BYLRB 个人心智仓库',
+			thinking: { type: 'folder', paths: [this.plugin.settings.thinkingFolder], recursive: true },
+			synthesis: { type: 'folder', paths: [this.plugin.settings.synthesisFolder], recursive: true },
+			exclusions: [...nonFolderExclusions, { type: 'folder', paths: exclusionPaths, recursive: true }]
 		}, true);
 	}
 
@@ -442,15 +434,15 @@ export class VaultOsSettingTab extends PluginSettingTab {
 
 		this.createNote(
 			container,
-			'这里决定“知识库体检”看哪些笔记，以及哪些私人目录永远不读取。对当前仓库，大多数情况下只需确认下方两项，无需理解或修改高级规则。'
+			'思想脉络只观察个人思想如何形成、稳定和汇总。它不把日记当作待处理任务，也不要求维护旧 Question / Claim / Evidence 体系。'
 		);
 
 		if (!isConfigured) {
 			new Setting(container)
-				.setName('启用工作流巡检')
-				.setDesc('将当前已有目录保存为插件规则。不会修改你的笔记；启用后可继续使用下方的简化设置。')
+				.setName('启用思想脉络')
+				.setDesc('保存当前目录角色并启用只读观察。不会创建、修改或移动任何笔记。')
 				.addButton(button => button
-					.setButtonText('开始设置')
+					.setButtonText('启用')
 					.setCta()
 					.onClick(async () => {
 						this.plugin.settings.vaultProfile = profile;
@@ -461,42 +453,46 @@ export class VaultOsSettingTab extends PluginSettingTab {
 		}
 
 		const quickStart = container.createDiv({ cls: 'vo-settings-quickstart' });
-		quickStart.createDiv({ text: '现在只需要确认两件事', cls: 'vo-settings-quickstart-title' });
+		quickStart.createDiv({ text: '当前服务对象', cls: 'vo-settings-quickstart-title' });
 		quickStart.createEl('p', {
-			text: '不需要理解底层术语。下面的操作只会保存 Vault OS 如何识别笔记，不会修改笔记内容。',
+			text: 'BYLRB 个人心智仓库：生活由周期复盘回看，思想由这里观察，两者不重复。',
 			cls: 'setting-item-description'
 		});
-		const workflowEnabled = isKnowledgeEntityContractConfigured(profile.knowledgeEntities);
 		new Setting(quickStart)
-			.setName(workflowEnabled ? '工作流巡检：已启用' : '工作流巡检：尚未启用')
-			.setDesc(workflowEnabled
-				? 'Vault OS 已能识别项目、判断、证据和输出之间的关系。除非笔记结构变化，否则无需再次操作。'
-				: '点击后，Vault OS 会按当前仓库已有的笔记标记识别项目、判断、证据和输出之间的关系。')
+			.setName('应用 README 推荐口径')
+			.setDesc(`个人思想：${this.plugin.settings.thinkingFolder}；阶段综合：${this.plugin.settings.synthesisFolder}。`)
 			.addButton(button => button
-				.setButtonText(workflowEnabled ? '重新应用' : '启用工作流巡检')
+				.setButtonText('应用')
 				.setCta()
 				.onClick(() => {
-					void this.applyCurrentVaultWorkflowPreset();
+					void this.applyThinkingMapPreset();
 				}));
 
 		const safeFolderCount = profile.exclusions.filter(rule => rule.type === 'folder').flatMap(rule => rule.paths).length;
 		new Setting(quickStart)
-			.setName(safeFolderCount > 0 ? '隐私保护：已启用' : '隐私保护：需要设置')
+			.setName('只读与隐私边界')
 			.setDesc(safeFolderCount > 0
-				? `巡检会在读取前跳过 ${safeFolderCount} 个受保护目录。当前无需修改。`
-				: '巡检需要先知道哪些目录绝不读取。请在下方“暂时不用”的高级规则中补充。');
+				? `只读观察；读取前跳过 ${safeFolderCount} 个受保护目录。`
+				: '尚未配置安全排除，思想脉络将安全停止，不会扩大扫描范围。');
 
-		const advanced = this.createCollapsibleSection(
-			container,
-			'暂时不用',
-			'只有仓库结构变化、要设置 P0，或要管理 Output 发布/复盘时才打开。'
-		);
+		this.createSectionHeading(container, '识别口径');
+		new Setting(container)
+			.setName('正在形成')
+			.setDesc('Thinking 中 stage 为 developing，或尚未设置 stage 的笔记。未分类内容只提示，不会被自动修改。');
+		new Setting(container)
+			.setName('已形成理解')
+			.setDesc('Thinking 中 stage 为 settled 的笔记。settled 只代表当前阶段愿意承担，未来仍可修正。');
+		new Setting(container)
+			.setName('阶段综合')
+			.setDesc('Synthesis 范围内的笔记，并显示其连接了多少条 Thinking。它不等于公开 Output。');
+
+		const advanced = this.createCollapsibleSection(container, '安全与自定义范围', '通常应用推荐口径后无需再改。');
 
 		new Setting(advanced)
-			.setName('全局安全排除文件夹')
-			.setDesc('逗号分隔。巡检会在读取 frontmatter、链接或正文之前跳过这些路径；留空时，工作流诊断将安全停止。')
+			.setName('永不读取的文件夹')
+			.setDesc('逗号分隔。匹配目录会在读取属性、链接或正文之前被排除；留空时思想脉络将安全停止。')
 			.addText(text => text
-				.setPlaceholder('例如：Private, Data/Secrets')
+				.setPlaceholder('例如：08 Data, Private')
 				.setValue(profile.exclusions.filter(rule => rule.type === 'folder').flatMap(rule => rule.paths).join(', '))
 				.onChange(async value => {
 					const currentProfile = this.getEditableVaultProfile();
@@ -505,182 +501,23 @@ export class VaultOsSettingTab extends PluginSettingTab {
 					await this.saveVaultProfile({ ...currentProfile, exclusions: folderRule.paths.length > 0 ? [...nonFolderRules, folderRule] : nonFolderRules });
 				}));
 
-
-		const discoveryResults = advanced.createDiv({ cls: 'vo-settings-note-subtle' });
-		new Setting(advanced)
-			.setName('重新识别收件箱')
-			.setDesc('仅当你调整了收件箱结构时使用。它只读扫描候选，不会修改任何笔记。')
-			.addButton(button => button
-				.setButtonText('扫描候选')
-				.onClick(() => {
-					button.setDisabled(true);
-					discoveryResults.empty();
-					const candidates = new VaultProfileDiscoveryService(this.app).discoverInboxScopeCandidates(this.getEditableVaultProfile().exclusions);
-					if (candidates.length === 0) {
-						discoveryResults.createEl('p', { text: '没有发现可信候选。可继续沿用当前收件箱设置。' });
-					} else {
-						discoveryResults.createEl('p', { text: '以下为只读候选。点击“使用此规则”后才会写入插件设置。' });
-						for (const candidate of candidates) {
-							const row = discoveryResults.createDiv({ attr: { style: 'display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0;' } });
-							const description = row.createDiv();
-							description.createDiv({ text: candidate.label });
-							description.createDiv({ text: candidate.evidence, cls: 'setting-item-description' });
-							const useButton = row.createEl('button', { text: '使用此规则' });
-							useButton.addEventListener('click', () => {
-								void this.saveProfileRule('inbox', candidate.rule, true);
-							});
-						}
-					}
-					button.setDisabled(false);
-				}));
-
 		this.renderScopeRuleEditor(
 			advanced,
-			'收件箱范围',
-			'影响 Inbox 积压和死链来源；不会移动、修改或创建文件。',
-			profile.inbox,
-			(rule, rerenderSettings) => this.saveProfileRule('inbox', rule, rerenderSettings)
+			'个人思想范围',
+			'只用于展示正在形成、已经形成和需要继续回应的个人思想。',
+			profile.thinking,
+			(rule, rerenderSettings) => this.saveProfileRule('thinking', rule, rerenderSettings)
 		);
 		this.renderScopeRuleEditor(
 			advanced,
-			'知识范围',
-			'影响孤儿候选和死链来源。',
-			profile.knowledge,
-			(rule, rerenderSettings) => this.saveProfileRule('knowledge', rule, rerenderSettings)
+			'阶段综合范围',
+			'只用于展示由多条思想、长期日记和真实经历形成的阶段理解。',
+			profile.synthesis,
+			(rule, rerenderSettings) => this.saveProfileRule('synthesis', rule, rerenderSettings)
 		);
-		this.renderScopeRuleEditor(
-			advanced,
-			'输出范围',
-			'影响死链与孤儿的链接证据来源。',
-			profile.outputs,
-			(rule, rerenderSettings) => this.saveProfileRule('outputs', rule, rerenderSettings)
-		);
-		this.renderScopeRuleEditor(
-			advanced,
-			'Projects 范围',
-			'限定项目工作区；范围内的文件不会自动成为 Project 实体。',
-			profile.projects,
-			(rule, rerenderSettings) => this.saveProfileRule('projects', rule, rerenderSettings)
-		);
-		new Setting(advanced)
-			.setName('启用自定义 Project 实体入口')
-			.setDesc('高级选项。默认已通过 layer: project 和文件夹同名主页识别项目；只有项目主页不满足这两种结构时才需要启用。')
-			.addToggle(toggle => toggle
-				.setValue(profile.projectEntries !== undefined)
-				.onChange(async enabled => {
-					const currentProfile = this.getEditableVaultProfile();
-					if (enabled) {
-						await this.saveVaultProfile({ ...currentProfile, projectEntries: { type: 'folder', paths: [], recursive: true } }, true);
-						return;
-					}
-					const withoutProjectEntries = { ...currentProfile };
-					delete withoutProjectEntries.projectEntries;
-					await this.saveVaultProfile(withoutProjectEntries, true);
-				}));
-		if (profile.projectEntries !== undefined) {
-			this.renderScopeRuleEditor(
-				advanced,
-				'Project 实体入口',
-				'仅用于补充识别特殊结构的项目主页；不会把整个 Projects 范围自动当作实体。',
-				profile.projectEntries,
-				(rule, rerenderSettings) => this.saveProfileRule('projectEntries', rule, rerenderSettings)
-			);
-		}
-		this.renderScopeRuleEditor(
-			advanced,
-			'Output 实体入口',
-			'仅命中此规则的 Output 才能作为 Claim 的真实使用来源。',
-			profile.outputEntries,
-			(rule, rerenderSettings) => this.saveProfileRule('outputEntries', rule, rerenderSettings)
-		);
-		this.renderScopeRuleEditor(
-			advanced,
-			'P0 Claim 识别规则',
-			'只有同时满足 Claim 类型和本规则的笔记，才会进入“缺少 Evidence”的工作流诊断。未配置时该项保持不可判定。',
-			profile.p0ClaimRule,
-			(rule, rerenderSettings) => this.saveProfileRule('p0ClaimRule', rule, rerenderSettings)
-		);
-
-		const entityContract = profile.knowledgeEntities;
-		new Setting(advanced)
-			.setName('知识实体契约')
-			.setDesc(isKnowledgeEntityContractConfigured(entityContract)
-				? '已配置。Question 与 Claim 使用双链关联；Output 以出链关联 Claim；Evidence 仅以 supports 属性支持 Claim。'
-				: '未配置。为避免将普通 Markdown 或双链误判为知识实体，Question、Claim、Evidence 诊断当前不会运行。')
-			.addButton(button => button
-				.setButtonText(isKnowledgeEntityContractConfigured(entityContract) ? '恢复当前仓库兼容契约' : '应用当前仓库兼容契约')
-				.onClick(() => {
-					void this.saveVaultProfile({ ...this.getEditableVaultProfile(), knowledgeEntities: CURRENT_VAULT_KNOWLEDGE_ENTITY_CONTRACT }, true);
-				}));
-		if (isKnowledgeEntityContractConfigured(entityContract)) {
-			this.renderScopeRuleEditor(
-				advanced,
-				'Question 实体',
-				'只匹配真正的问题卡片。与 Claim 的双向链接仅作为关联候选，不等同于已回答。',
-				entityContract.questions,
-				(rule, rerenderSettings) => this.saveKnowledgeEntityRule('question', rule, rerenderSettings)
-			);
-			this.renderScopeRuleEditor(
-				advanced,
-				'Claim 实体',
-				'只匹配可被 Evidence.supports 指向的判断卡片；普通笔记不会进入证据债务。',
-				entityContract.claims,
-				(rule, rerenderSettings) => this.saveKnowledgeEntityRule('claim', rule, rerenderSettings)
-			);
-			this.renderScopeRuleEditor(
-				advanced,
-				'Evidence 实体',
-				'只匹配证据卡片。缺少 supports 时显示结构候选，不会自动补充或改写笔记。',
-				entityContract.evidence,
-				(rule, rerenderSettings) => this.saveKnowledgeEntityRule('evidence', rule, rerenderSettings)
-			);
-		}
-
-		const aliases = profile.projectStatusAliases || {};
-		new Setting(advanced)
-			.setName('Project 状态兼容映射')
-			.setDesc('将当前仓库的显示状态映射为稳定状态。格式：completed=已完成|Done；active=进行中。未配置的状态保持 unknown。')
-			.addTextArea(text => text
-				.setPlaceholder('completed=已完成|Done\nactive=进行中\non-hold=暂停')
-				.setValue(Object.entries(aliases).map(([status, values]) => `${status}=${values.join('|')}`).join('\n'))
-				.onChange(async value => {
-					const currentProfile = this.getEditableVaultProfile();
-					const next: ProjectStatusAliases = {};
-					for (const line of value.split('\n')) {
-						const [rawStatus, rawValues] = line.split('=', 2);
-						const status = rawStatus?.trim() as keyof ProjectStatusAliases | undefined;
-						if (!status || !rawValues || !['pending', 'active', 'on-hold', 'blocked', 'completed', 'cancelled'].includes(status)) continue;
-						next[status] = rawValues.split('|').map(item => item.trim()).filter(Boolean);
-					}
-					await this.saveVaultProfile({ ...currentProfile, projectStatusAliases: next });
-				}));
-
-		new Setting(advanced)
-			.setName('Output 生命周期：已发布状态')
-			.setDesc('按 Output 的 status 属性判断。与“已复盘状态”同时配置后才会进行判断。')
-			.addText(text => text
-				.setPlaceholder('例如：published, 已发布')
-				.setValue(profile.outputLifecycle?.published.join(', ') || '')
-				.onChange(async value => {
-					const currentProfile = this.getEditableVaultProfile();
-					const reviewed = currentProfile.outputLifecycle?.reviewed || [];
-					await this.saveVaultProfile({ ...currentProfile, outputLifecycle: { published: this.parseCommaSeparated(value), reviewed } });
-				}));
-		new Setting(advanced)
-			.setName('Output 生命周期：已复盘状态')
-			.setDesc('仅作为“已发布但未复盘”的排除状态，不会自动修改任何 Output。')
-			.addText(text => text
-				.setPlaceholder('例如：reviewed, 已复盘')
-				.setValue(profile.outputLifecycle?.reviewed.join(', ') || '')
-				.onChange(async value => {
-					const currentProfile = this.getEditableVaultProfile();
-					const published = currentProfile.outputLifecycle?.published || [];
-					await this.saveVaultProfile({ ...currentProfile, outputLifecycle: { published, reviewed: this.parseCommaSeparated(value) } });
-				}));
-
 		this.createNote(
 			advanced,
-			`当前有 ${profile.exclusions.length} 条全局排除规则。组合条件和排除规则编辑器将在下一阶段加入；当前规则不会修改仓库内容。`,
+			'旧 Atomics、Question / Claim / Evidence、P0、Output 生命周期和 Project 状态设置已停止参与思想脉络，也不再显示。历史保存值暂时保留，便于必要时回滚。',
 			'vo-settings-note-subtle'
 		);
 	}
@@ -954,9 +791,9 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			});
 		};
 
-		createTabBtn('general', '看板基础设置', 'layout');
-		createTabBtn('paths', '知识库路径', 'folder');
-		createTabBtn('profile', '巡检设置', 'sliders-horizontal');
+		createTabBtn('general', '基础设置', 'layout');
+		createTabBtn('paths', '目录与周期', 'folder');
+		createTabBtn('profile', '思想脉络', 'brain-circuit');
 		createTabBtn('actions', '智能指令', 'bot');
 
 		// Render active tab content
@@ -1052,7 +889,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 			};
 			this.createNote(
 				sectionContent,
-				'这里不是随便填路径，而是在定义整个插件的数据口径。日记就是“日记文件夹里的全部内容”；巡检核心就是“原子笔记文件夹里的全部内容”；项目则由项目文件夹和 Base 文件共同决定。'
+					'目录角色遵循 BYLRB README：Daily 服务记录与周期复盘，Thinking 保存个人思想，Synthesis 保存阶段综合。Archive 只作冷存储，不参与思想脉络。'
 			);
 
 			new Setting(sectionContent)
@@ -1067,7 +904,13 @@ export class VaultOsSettingTab extends PluginSettingTab {
 						this.refreshDashboardView();
 					}));
 
-			new Setting(sectionContent)
+			const periodicDetails = this.createCollapsibleSection(
+				sectionContent,
+				'周期笔记详细规则',
+				'日、周、月、季、年文件模式和模板；现有规则正常时无需展开。'
+			);
+
+			new Setting(periodicDetails)
 				.setName('周期笔记 Provider')
 				.setDesc('自动模式兼容已安装的 Notebook Navigator；选择内置手动规则后，周期创建完全使用本插件的配置。')
 				.addDropdown(dropdown => dropdown
@@ -1081,7 +924,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 						this.refreshDashboardView();
 					}));
 
-			new Setting(sectionContent)
+			new Setting(periodicDetails)
 				.setName('内置周期笔记根目录')
 				.setDesc('仅在选择“内置手动规则”或第三方不可用时使用。首次修改会保存独立配置，不再跟随旧日记路径。')
 				.addText(text => text
@@ -1093,7 +936,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 					}));
 
 			for (const cycle of ['day', 'week', 'month', 'quarter', 'year'] as const) {
-				new Setting(sectionContent)
+				new Setting(periodicDetails)
 					.setName(`${periodicNames[cycle]}文件模式`)
 					.setDesc('可包含子目录，例如 YYYY/MM/YYYY-MM-DD；使用 Moment 格式。')
 					.addText(text => text
@@ -1105,7 +948,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 								patterns: { ...config.patterns, [cycle]: value.trim() || config.patterns[cycle] }
 							});
 						}));
-				new Setting(sectionContent)
+				new Setting(periodicDetails)
 					.setName(`${periodicNames[cycle]}模板路径`)
 					.setDesc('可选。未配置或文件不可用时，将创建带基础元数据的默认笔记。')
 					.addText(text => text
@@ -1122,7 +965,7 @@ export class VaultOsSettingTab extends PluginSettingTab {
 
 			new Setting(sectionContent)
 				.setName('收件箱文件夹路径')
-				.setDesc('用于收件箱积压统计，以及快速分流时的默认来源目录。')
+				.setDesc('作为少量外部材料的临时入口，并提供给智能指令中的 {{inbox_path}}。不要求清零。')
 				.addText(text => text
 					.setPlaceholder('例如: 02 Inbox')
 					.setValue(this.plugin.settings.inboxFolder)
@@ -1133,22 +976,32 @@ export class VaultOsSettingTab extends PluginSettingTab {
 					}));
 
 			new Setting(sectionContent)
-				.setName('巡检核心文件夹路径')
-				.setDesc('孤儿笔记默认只检查这里；死链统计也会优先结合这里一起判断。它本质上就是你的原子笔记主目录。')
+				.setName('Thinking 文件夹路径')
+				.setDesc('思想脉络中“正在形成”和“已形成理解”的来源。')
 				.addText(text => text
-					.setPlaceholder('例如: 04 Atomics')
-					.setValue(this.plugin.settings.atomicsFolder)
-					.onChange(async (value) => {
-						this.plugin.settings.atomicsFolder = this.normalizeFolderPath(value);
+					.setPlaceholder('例如: 04 Thinking')
+					.setValue(this.plugin.settings.thinkingFolder)
+					.onChange(async value => {
+						this.plugin.settings.thinkingFolder = this.normalizeFolderPath(value);
 						await this.plugin.saveSettings();
 						this.refreshDashboardView();
 					}));
 
-
+			new Setting(sectionContent)
+				.setName('Synthesis 文件夹路径')
+				.setDesc('思想脉络中“阶段综合”的来源。')
+				.addText(text => text
+					.setPlaceholder('例如: 05 Synthesis')
+					.setValue(this.plugin.settings.synthesisFolder)
+					.onChange(async value => {
+						this.plugin.settings.synthesisFolder = this.normalizeFolderPath(value);
+						await this.plugin.saveSettings();
+						this.refreshDashboardView();
+					}));
 
 			new Setting(sectionContent)
-				.setName('数据归档文件夹路径')
-				.setDesc('仓库概览里会把这个目录下的文件归为归档内容。')
+				.setName('Archive 文件夹路径')
+				.setDesc('原始材料、历史资料和旧系统的冷存储位置；思想脉络不会将其当作待处理队列。')
 				.addText(text => text
 					.setPlaceholder('例如: 06 Archive')
 					.setValue(this.plugin.settings.archiveFolder)
@@ -1158,21 +1011,9 @@ export class VaultOsSettingTab extends PluginSettingTab {
 						this.refreshDashboardView();
 					}));
 
-			new Setting(sectionContent)
-				.setName('输出成果文件夹路径')
-				.setDesc('仓库概览会将这里归类为输出内容；部分巡检链接来源也会把这里纳入参考。')
-				.addText(text => text
-					.setPlaceholder('例如: 05 Output')
-					.setValue(this.plugin.settings.outputFolder)
-					.onChange(async (value) => {
-						this.plugin.settings.outputFolder = this.normalizeFolderPath(value);
-						await this.plugin.saveSettings();
-						this.refreshDashboardView();
-					}));
-
 			this.createNote(
 				sectionContent,
-				'补充说明：空白笔记清理目前仍按全库扫描，而不是只看某一个文件夹。这是为了覆盖“空文件、只有标题、只有属性没有正文”的所有笔记。',
+				'思想脉络只检查 Thinking 与 Synthesis 范围内的明确死链和真正空白文件，不扫描 Daily、Inbox 或 Archive 来制造维护压力。',
 				'vo-settings-note-subtle'
 			);
 

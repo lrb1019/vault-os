@@ -28,6 +28,8 @@ export interface VaultProfile {
 	inbox?: ScopeRule;
 	knowledge?: ScopeRule;
 	outputs?: ScopeRule;
+	thinking?: ScopeRule;
+	synthesis?: ScopeRule;
 	projects?: ScopeRule;
 	projectEntries?: ScopeRule;
 	outputEntries?: ScopeRule;
@@ -44,6 +46,8 @@ export interface LegacyVaultPaths {
 	inboxFolder: string;
 	atomicsFolder: string;
 	outputFolder: string;
+	thinkingFolder?: string;
+	synthesisFolder?: string;
 }
 
 function normalizePath(path: string): string {
@@ -116,6 +120,8 @@ export function isVaultProfile(value: unknown): value is VaultProfile {
 		&& Array.isArray(candidate.exclusions)
 		&& candidate.exclusions.every(isScopeRule)
 		&& (candidate.projects === undefined || isScopeRule(candidate.projects))
+		&& (candidate.thinking === undefined || isScopeRule(candidate.thinking))
+		&& (candidate.synthesis === undefined || isScopeRule(candidate.synthesis))
 		&& (candidate.projectEntries === undefined || isScopeRule(candidate.projectEntries))
 		&& (candidate.outputEntries === undefined || isScopeRule(candidate.outputEntries))
 		&& (candidate.p0ClaimRule === undefined || isScopeRule(candidate.p0ClaimRule))
@@ -145,6 +151,8 @@ export function createLegacyVaultProfile(paths: LegacyVaultPaths): VaultProfile 
 		inbox: folderRule(paths.inboxFolder, false),
 		knowledge: folderRule(paths.atomicsFolder),
 		outputs: folderRule(paths.outputFolder),
+		thinking: folderRule(paths.thinkingFolder || '04 Thinking'),
+		synthesis: folderRule(paths.synthesisFolder || '05 Synthesis'),
 		projects: folderRule('03 Projects'),
 		// Preserve the historical empty-note scan exclusions only for compatibility mode.
 		exclusions

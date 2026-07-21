@@ -1084,6 +1084,268 @@
 	scrollbar-gutter: stable;
 }
 
+/* Thinking map: semantic reflection stays separate from periodic review. */
+.vo-thinking-workspace {
+	display: flex;
+	flex-direction: column;
+	gap: 14px;
+	min-height: 0;
+}
+
+.vo-thinking-hero {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 14px;
+	padding: 16px 18px !important;
+	background: linear-gradient(120deg, color-mix(in srgb, var(--vo-workspace-accent) 8%, var(--vo-workspace-surface)), var(--vo-workspace-surface) 66%) !important;
+}
+
+.vo-thinking-hero-copy {
+	min-width: 0;
+}
+
+.vo-thinking-title {
+	font-size: 20px;
+	font-weight: 650;
+	letter-spacing: 0.02em;
+}
+
+.vo-thinking-summary {
+	margin-top: 3px;
+	font-size: 12px;
+	color: var(--vo-workspace-muted);
+}
+
+.vo-thinking-refresh {
+	padding-inline: 18px !important;
+}
+
+.vo-thinking-grid {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 14px;
+	min-height: 0;
+}
+
+.vo-thinking-card {
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	min-height: 330px;
+	padding: 16px !important;
+	overflow: hidden;
+}
+
+.vo-thinking-card-header {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr);
+	align-items: start;
+	gap: 11px;
+	margin-bottom: 14px;
+}
+
+.vo-thinking-card-heading {
+	position: relative;
+	min-width: 0;
+	padding-right: 30px;
+}
+
+.vo-thinking-card-title {
+	font-size: 16px;
+	font-weight: 650;
+}
+
+.vo-thinking-card-description {
+	margin-top: 3px;
+	font-size: 11px;
+	line-height: 1.45;
+	color: var(--vo-workspace-muted);
+}
+
+.vo-thinking-card-count {
+	position: absolute;
+	top: 0;
+	right: 0;
+	font-family: var(--font-monospace);
+	font-size: 13px;
+	color: var(--vo-workspace-accent);
+}
+
+.vo-thinking-list {
+	display: flex;
+	flex: 1;
+	flex-direction: column;
+	gap: 8px;
+	min-height: 0;
+}
+
+.vo-thinking-note {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+	width: 100%;
+	min-height: 54px;
+	padding: 9px 11px !important;
+	text-align: left;
+	border: 1px solid var(--vo-workspace-line) !important;
+	border-radius: 9px !important;
+	background: var(--background-primary) !important;
+	box-shadow: none !important;
+}
+
+.vo-thinking-note:hover {
+	border-color: var(--vo-workspace-accent) !important;
+	background: var(--vo-workspace-accent-soft) !important;
+}
+
+.vo-thinking-note-copy {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+
+.vo-thinking-note-title {
+	overflow: hidden;
+	font-size: 13px;
+	font-weight: 600;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vo-thinking-note-detail {
+	overflow: hidden;
+	margin-top: 2px;
+	font-size: 10px;
+	color: var(--vo-workspace-muted);
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.vo-thinking-note-arrow {
+	display: inline-flex;
+	flex: 0 0 auto;
+	color: var(--vo-workspace-accent);
+}
+
+.vo-thinking-note-arrow svg {
+	width: 15px;
+	height: 15px;
+}
+
+.vo-thinking-empty,
+.vo-thinking-empty-state {
+	display: flex;
+	flex: 1;
+	align-items: center;
+	justify-content: center;
+	min-height: 150px;
+	padding: 18px;
+	font-size: 12px;
+	line-height: 1.65;
+	text-align: center;
+	color: var(--vo-workspace-muted);
+}
+
+.vo-thinking-empty-state {
+	flex-direction: column;
+	grid-column: 1 / -1;
+}
+
+.vo-thinking-more {
+	align-self: flex-start;
+	margin-top: 10px;
+	padding: 4px 0 !important;
+	font-size: 11px;
+	color: var(--vo-workspace-accent) !important;
+	border: 0 !important;
+	background: transparent !important;
+	box-shadow: none !important;
+}
+
+.vo-thinking-maintenance {
+	padding: 0 !important;
+}
+
+.vo-thinking-maintenance > summary {
+	display: flex;
+	align-items: center;
+	gap: 9px;
+	padding: 12px 16px;
+	cursor: pointer;
+	list-style: none;
+}
+
+.vo-thinking-maintenance > summary::-webkit-details-marker {
+	display: none;
+}
+
+.vo-thinking-maintenance-icon {
+	display: inline-flex;
+	color: var(--vo-workspace-accent);
+}
+
+.vo-thinking-maintenance-icon svg {
+	width: 16px;
+	height: 16px;
+}
+
+.vo-thinking-maintenance-title {
+	font-size: 13px;
+	font-weight: 600;
+}
+
+.vo-thinking-maintenance-status {
+	margin-left: auto;
+	font-size: 11px;
+	color: var(--vo-workspace-muted);
+}
+
+.vo-thinking-maintenance-body {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+	padding: 0 16px 14px;
+}
+
+.vo-thinking-maintenance-button {
+	padding: 9px 12px !important;
+	border: 1px solid var(--vo-workspace-line) !important;
+	background: var(--background-primary) !important;
+	box-shadow: none !important;
+}
+
+.vo-thinking-maintenance-button:hover {
+	border-color: var(--vo-workspace-accent) !important;
+	background: var(--vo-workspace-accent-soft) !important;
+}
+
+@media (max-width: 1000px) {
+	.vo-thinking-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.vo-thinking-card {
+		min-height: 0;
+	}
+}
+
+@media (max-width: 600px) {
+	.vo-thinking-hero {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+
+	.vo-thinking-refresh {
+		grid-column: 1 / -1;
+		width: 100%;
+	}
+
+	.vo-thinking-maintenance-body {
+		grid-template-columns: 1fr;
+	}
+}
+
 .vo-workflow-diagnostics-card {
 	padding: 10px;
 	margin-bottom: 10px;

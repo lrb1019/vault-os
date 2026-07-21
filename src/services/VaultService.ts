@@ -48,7 +48,9 @@ export class VaultService {
 			dailyNoteFolder: this.plugin.settings.dailyNoteFolder,
 			inboxFolder: this.plugin.settings.inboxFolder,
 			atomicsFolder: this.plugin.settings.atomicsFolder,
-			outputFolder: this.plugin.settings.outputFolder
+			outputFolder: this.plugin.settings.outputFolder,
+			thinkingFolder: this.plugin.settings.thinkingFolder,
+			synthesisFolder: this.plugin.settings.synthesisFolder
 		});
 	}
 

@@ -95,6 +95,20 @@ void test('keeps historical template and book exclusions inside the compatibilit
 	assert.deepEqual(selected.map(file => file.path), ['Knowledge/Note.md']);
 });
 
+void test('keeps Thinking and Synthesis as explicit profile roles', () => {
+	const profile = createLegacyVaultProfile({
+		dailyNoteFolder: 'Journal',
+		inboxFolder: 'Inbox',
+		atomicsFolder: 'Legacy Knowledge',
+		outputFolder: 'Legacy Output',
+		thinkingFolder: 'Mind/Thinking',
+		synthesisFolder: 'Mind/Synthesis'
+	});
+	assert.deepEqual(profile.thinking, { type: 'folder', paths: ['Mind/Thinking'], recursive: true });
+	assert.deepEqual(profile.synthesis, { type: 'folder', paths: ['Mind/Synthesis'], recursive: true });
+	assert.equal(isVaultProfile(profile), true);
+});
+
 void test('discovers inbox candidates from names, tags, and properties without selecting one automatically', () => {
 	const candidates = discoverInboxScopeCandidates([
 		{ path: 'Capture/Voice note.md', tags: ['inbox'], properties: { status: 'inbox' } },
